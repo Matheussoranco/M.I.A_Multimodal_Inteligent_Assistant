@@ -1,6 +1,9 @@
 import webbrowser
 import os
 import platform
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 class AutomationUtil:
     @staticmethod
@@ -65,7 +68,37 @@ class AutomationUtil:
         except Exception as e:
             return f"Failed to open file: {e}"
 
+    @staticmethod
+    def autofill_login(url, username, password):
+        """
+        Autofill login fields on a website using Selenium.
+
+        :param url: URL of the login page.
+        :param username: Username for login.
+        :param password: Password for login.
+        :return: Confirmation of autofill success.
+        """
+        try:
+            driver = webdriver.Chrome()  # Ensure the correct WebDriver is installed and in PATH
+            driver.get(url)
+
+            # Locate the username and password fields
+            username_field = driver.find_element(By.NAME, "username")
+            password_field = driver.find_element(By.NAME, "password")
+
+            # Fill in the fields
+            username_field.send_keys(username)
+            password_field.send_keys(password)
+            password_field.send_keys(Keys.RETURN)
+
+            return f"Login fields filled successfully for {url}."
+        except Exception as e:
+            return f"Failed to autofill login: {e}"
+        finally:
+            driver.quit()
+
 # Example usage:
 # AutomationUtil.open_website("https://www.example.com")
 # AutomationUtil.open_program("/path/to/program")
 # AutomationUtil.open_file("/path/to/file")
+# AutomationUtil.autofill_login("https://www.example.com/login", "myusername", "mypassword")
