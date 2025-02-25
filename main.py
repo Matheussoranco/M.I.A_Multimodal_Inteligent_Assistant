@@ -50,6 +50,7 @@ def main():
             audio_input = next(speech_processor.transcribe_audio(mic))
             inputs['audio'] = audio_input['text']
             
+            # Cognitive processing
             if args.enable_reasoning:
                 processed = cognitive_core.process_multimodal_input(inputs)
                 memory.store_experience(processed['text'], processed['embedding'])
@@ -60,6 +61,7 @@ def main():
             else:
                 response = model.query_model(inputs['audio'])
 
+            # Action execution
             if response.startswith("ACTION:"):
                 action_result = AutomationUtil.execute_action(response[7:])
                 print(f"Action Result: {action_result}")
