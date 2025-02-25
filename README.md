@@ -2,13 +2,13 @@
 
 This is Friday/M.I.A, my personal virtual assistant that runs on my computer, phone, and smartwatch. After many requests from colleagues, I’m posting the modules. M.I.A works with an LLM (Large Language Model) to chat and interact with you, but she also has modules that automate many tasks, making her a versatile and powerful assistant.
 # Key Features
-Seamless Interaction with LLMs
+Seamless Interaction with LLMs.
 
 Powered by advanced Large Language Models like LLama 70B or APIs like OpenAI and Ollama. Provides accurate, natural, and engaging responses to queries.
-Speech Recognition and Generation
+Speech Recognition and Generation.
 
 Utilizes state-of-the-art ASR (Automatic Speech Recognition) models, such as OpenAI Whisper. Generates human-like speech using a female voice, powered by SpeechT5.
-Automated Task Modules
+Automated Task Modules.
 
     Email Writing and Sending: Compose and send emails effortlessly.
     Messaging Across Platforms: Send messages on WhatsApp, Slack, Telegram, and more.
@@ -20,16 +20,16 @@ Cross-Platform Compatibility
 
 Works seamlessly across devices, ensuring a consistent user experience on PC, phone, and smartwatch via bluetooth.
 # How It Works
-Speech Input
+Speech Input.
 
 The assistant listens to your voice using the ASR module.
-LLM Query
+LLM Query.
 
 Your request is processed and interpreted by a Large Language Model.
-Action Execution
+Action Execution.
 
 Based on the request, M.I.A executes the relevant module—be it responding via speech, sending a message, or automating tasks.
-Speech Output
+Speech Output.
 
 M.I.A responds with synthesized speech, creating a natural and interactive experience.
 # Installation
@@ -93,6 +93,6 @@ Task Automation with Python
 Contributing
 
 Feel free to fork this repository and make pull requests. Suggestions and improvements are always welcome!
-License
+# License
 
-This project is licensed under the Apache 2.0 License. See the LICENSE file for more details.
+This project is licensed under the AGPL-3.0. See the LICENSE file for more details.
