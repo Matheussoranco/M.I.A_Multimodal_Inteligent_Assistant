@@ -53,20 +53,49 @@ Run the Assistant
 
     python main.py
 
-Requirements
+# File Organization
 
-The following Python libraries are required:
+- `main.py` — Main entry point for the assistant
+- `chat_interface.py` — Command-line chat interface (with optional voice input)
+- `llm/llm_manager.py` — Unified interface for OpenAI, HuggingFace, Grok, and local LLMs
+- `langchain/langchain_verifier.py` — LangChain-based output verification/workflows
+- `system/system_control.py` — System actions (file, process, clipboard, etc.)
+- `audio_utils.py`, `speech_processor.py`, `speech_generator.py` — Audio and speech modules
+- `automation_util.py` — Automation utilities (open programs, websites, etc.)
+- `note_taking_utils.py`, `message_util.py` — Note and message utilities
+- `multimodal/processor.py` — Multimodal (audio/image) processing
+- `memory/knowledge_graph.py` — Agent memory/context
 
-    transformers==4.37.2
-    PyAudio==0.2.14
-    pydub==0.25.1
-    sounddevice==0.4.6
-    soundfile==0.12.1
-    openai==1.12.0
-    datasets==2.17.0
-    sentencepiece==0.1.99
-    selenium==4.12.0
-    webbrowser
+# Requirements
+
+The following Python libraries are required (see `requirements.txt` for full list):
+
+- transformers
+- torch
+- openai
+- pydub
+- sounddevice
+- soundfile
+- PyAudio
+- numpy
+- matplotlib
+- Pillow
+- requests
+- selenium
+- pyperclip
+- psutil
+- argparse
+
+# To Do
+
+- [ ] Add a GUI interface (Tkinter, PyQt, or web-based)
+- [ ] Add speech output (TTS) to chat interface
+- [ ] Expand LangChain workflows and tools
+- [ ] Add more system automation actions (scheduling, notifications, etc.)
+- [ ] Improve error handling and logging
+- [ ] Add more LLM providers and plug-ins
+- [ ] Enhance multimodal (image/video) capabilities
+- [ ] Add user authentication and profiles
 
 Scientific Articles and Sources
 

@@ -1,10 +1,13 @@
 from audio_utils import AudioUtils
 from speech_processor import SpeechProcessor
-from llm_inference import LLMInference
+from llm.llm_manager import LLMManager
 from speech_generator import SpeechGenerator
 from cognitive_architecture import MIACognitiveCore
 from multimodal.processor import MultimodalProcessor
 from memory.knowledge_graph import AgentMemory
+from langchain.langchain_verifier import LangChainVerifier
+from system.system_control import SystemControl
+from automation_util import AutomationUtil
 import argparse
 import torch
 import sys
@@ -23,18 +26,16 @@ def main():
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-    model = LLMInference(
-        model_id=args.model_id,
-        url=args.url,
-        api_key=args.api_key
-    )
-    cognitive_core = MIACognitiveCore(model)
+    # Replace LLMInference with LLMManager for unified LLM API
+    llm = LLMManager(provider='openai', model_id=args.model_id, api_key=args.api_key, url=args.url)
+    cognitive_core = MIACognitiveCore(llm)
     multimodal_processor = MultimodalProcessor()
     memory = AgentMemory()
     
     audio_utils = AudioUtils()
     speech_processor = SpeechProcessor(device, args.stt_model)
     audio_model = SpeechGenerator(device)
+    langchain_verifier = LangChainVerifier(llm=llm)
 
     print("Welcome to M.I.A 2.0 - Multimodal Intelligent Assistant!")
 
@@ -54,12 +55,12 @@ def main():
             if args.enable_reasoning:
                 processed = cognitive_core.process_multimodal_input(inputs)
                 memory.store_experience(processed['text'], processed['embedding'])
-                response = model.query_model(
+                response = llm.query_model(
                     processed['text'], 
                     context=memory.retrieve_context(processed['embedding'])
                 )
             else:
-                response = model.query_model(inputs['audio'])
+                response = llm.query_model(inputs['audio'])
 
             # Action execution
             if response.startswith("ACTION:"):
@@ -68,6 +69,11 @@ def main():
             else:
                 speech = audio_model.synthesize_audio(response)
                 audio_utils.play_audio(speech['audio'], speech['sampling_rate'])
+
+            # Example: Use system control for file actions
+            # SystemControl.open_file('example.txt')
+            # Example: Use LangChain for verification
+            # verification_result = langchain_verifier.verify(inputs['audio'])
 
         except KeyboardInterrupt:
             print("\nM.I.A: Session ended. Goodbye!")
