@@ -8,6 +8,14 @@ from memory.knowledge_graph import AgentMemory
 from langchain.langchain_verifier import LangChainVerifier
 from system.system_control import SystemControl
 from automation_util import AutomationUtil
+from tools.action_executor import ActionExecutor
+from learning.user_learning import UserLearning
+from plugins.plugin_manager import PluginManager
+from security.security_manager import SecurityManager
+from deployment.deployment_manager import DeploymentManager
+from multimodal.vision_processor import VisionProcessor
+from memory.long_term_memory import LongTermMemory
+from planning.calendar_integration import CalendarIntegration
 import argparse
 import torch
 import sys
@@ -37,36 +45,62 @@ def main():
     audio_model = SpeechGenerator(device)
     langchain_verifier = LangChainVerifier(llm=llm)
 
+    # Initialize new modules
+    action_executor = ActionExecutor({"open_file": True, "web_search": True})
+    user_learning = UserLearning()
+    plugin_manager = PluginManager()
+    plugin_manager.load_plugins()
+    security_manager = SecurityManager()
+    deployment_manager = DeploymentManager()
+    vision_processor = VisionProcessor()
+    long_term_memory = LongTermMemory()
+    calendar = CalendarIntegration()
+
     print("Welcome to M.I.A 2.0 - Multimodal Intelligent Assistant!")
 
     while True:
         try:
             inputs = {}
             if args.image_input:
-                inputs['image'] = multimodal_processor.process_image(args.image_input)
-                args.image_input = None  # Reset after processing
-            
+                # Use VisionProcessor for advanced image processing
+                inputs['image'] = vision_processor.process_image(args.image_input)
+                args.image_input = None
             # Audio processing
             mic = audio_utils.record_audio(speech_processor.transcriber, 2.0, 0.25)
             audio_input = next(speech_processor.transcribe_audio(mic))
             inputs['audio'] = audio_input['text']
-            
             # Cognitive processing
             if args.enable_reasoning:
                 processed = cognitive_core.process_multimodal_input(inputs)
                 memory.store_experience(processed['text'], processed['embedding'])
+                # Store in long-term memory
+                long_term_memory.remember(processed['text'])
                 response = llm.query_model(
                     processed['text'], 
                     context=memory.retrieve_context(processed['embedding'])
                 )
             else:
                 response = llm.query_model(inputs['audio'])
-
-            # Action execution
+            # Action execution with security and plugin support
             if response.startswith("ACTION:"):
-                action_result = AutomationUtil.execute_action(response[7:])
-                print(f"Action Result: {action_result}")
+                action = response[7:].strip()
+                if security_manager.check_permission(action):
+                    # Try plugin first
+                    plugin = plugin_manager.get_plugin(action)
+                    if plugin:
+                        action_result = plugin.run()
+                    else:
+                        action_result = action_executor.execute(action, {})
+                    print(f"Action Result: {action_result}")
+                else:
+                    print(security_manager.explain_action(action))
+            elif response.startswith("CALENDAR:"):
+                event = response[9:].strip()
+                print(calendar.add_event(event))
             else:
+                # User learning feedback
+                user_learning.update_profile({"last_response": response})
+                # Synthesize and play audio
                 speech = audio_model.synthesize_audio(response)
                 audio_utils.play_audio(speech['audio'], speech['sampling_rate'])
 
@@ -78,3 +112,6 @@ def main():
         except KeyboardInterrupt:
             print("\nM.I.A: Session ended. Goodbye!")
             break
+
+if __name__ == "__main__":
+    main()
