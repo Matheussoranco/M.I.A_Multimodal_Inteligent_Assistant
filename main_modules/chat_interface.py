@@ -2,8 +2,8 @@ import threading
 import queue
 import sys
 from llm.llm_manager import LLMManager
-from audio_utils import AudioUtils
-from speech_processor import SpeechProcessor
+from audio.audio_utils import AudioUtils
+from audio.speech_processor import SpeechProcessor
 import torch
 
 class ChatInterface:

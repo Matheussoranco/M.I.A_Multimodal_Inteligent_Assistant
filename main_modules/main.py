@@ -1,13 +1,13 @@
-from audio_utils import AudioUtils
-from speech_processor import SpeechProcessor
+from audio.audio_utils import AudioUtils
+from audio.speech_processor import SpeechProcessor
 from llm.llm_manager import LLMManager
-from speech_generator import SpeechGenerator
-from cognitive_architecture import MIACognitiveCore
+from audio.speech_generator import SpeechGenerator
+from core.cognitive_architecture import MIACognitiveCore
 from multimodal.processor import MultimodalProcessor
 from memory.knowledge_graph import AgentMemory
 from langchain.langchain_verifier import LangChainVerifier
 from system.system_control import SystemControl
-from automation_util import AutomationUtil
+from utils.automation_util import AutomationUtil
 from tools.action_executor import ActionExecutor
 from learning.user_learning import UserLearning
 from plugins.plugin_manager import PluginManager
@@ -41,7 +41,7 @@ def main():
     memory = AgentMemory()
     
     audio_utils = AudioUtils()
-    speech_processor = SpeechProcessor(device, args.stt_model)
+    speech_processor = SpeechProcessor(model_path=args.stt_model)
     audio_model = SpeechGenerator(device)
     langchain_verifier = LangChainVerifier(llm=llm)
 
