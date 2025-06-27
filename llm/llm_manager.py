@@ -43,7 +43,30 @@ class LLMManager:
         elif provider == 'groq':
             self.groq_url = url or 'https://api.groq.com/openai/v1/chat/completions'
             self.groq_api_key = api_key
+        elif provider == 'anthropic':
+            self.anthropic_url = url or 'https://api.anthropic.com/v1/messages'
+            self.anthropic_api_key = api_key
         # Add more providers as needed
+        elif self.provider == 'anthropic':
+            headers = {
+                'x-api-key': self.anthropic_api_key,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json'
+            }
+            data = {
+                'model': self.model_id or 'claude-3-opus-20240229',
+                'max_tokens': 1024,
+                'messages': [
+                    {"role": "user", "content": prompt}
+                ]
+            }
+            response = requests.post(self.anthropic_url, headers=headers, json=data)
+            response.raise_for_status()
+            result = response.json()
+            # Anthropic returns content in a nested structure
+            if 'content' in result and isinstance(result['content'], list) and result['content']:
+                return result['content'][0].get('text', '')
+            return ''
 
     def query_model(self, *args, **kwargs):
         # Alias for compatibility with main.py and other modules
