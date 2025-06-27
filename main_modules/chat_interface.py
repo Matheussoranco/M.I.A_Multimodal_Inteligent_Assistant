@@ -13,7 +13,7 @@ class ChatInterface:
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         if voice_mode:
             self.audio_utils = AudioUtils()
-            self.speech_processor = SpeechProcessor(self.device, stt_model)
+            self.speech_processor = SpeechProcessor(stt_model)
         self.input_queue = queue.Queue()
         self.stop_event = threading.Event()
 
@@ -49,9 +49,12 @@ class ChatInterface:
     def _voice_input_loop(self):
         print("[Voice mode enabled. Speak now.]")
         while not self.stop_event.is_set():
-            mic = self.audio_utils.record_audio(self.speech_processor.transcriber, 2.0, 0.25)
-            audio_input = next(self.speech_processor.transcribe_audio(mic))
-            text = audio_input.get('text', '').strip()
+            # For compatibility, use the speech_processor's sampling_rate
+            mic = self.audio_utils.record_audio(self.speech_processor, 2.0, 0.25)
+            # mic is a generator of audio chunks; take the first chunk for demo
+            audio_chunk = next(mic)
+            transcription = self.speech_processor.transcribe_audio(audio_chunk)
+            text = transcription.strip() if isinstance(transcription, str) else ''
             if text:
                 print(f"[You said]: {text}")
                 self.input_queue.put(text)

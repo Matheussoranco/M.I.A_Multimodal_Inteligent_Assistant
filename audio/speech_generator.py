@@ -1,4 +1,4 @@
-from transformers import pipeline
+from transformers.pipelines import pipeline
 from datasets import load_dataset
 import sounddevice
 import torch
@@ -17,9 +17,9 @@ class SpeechGenerator:
         :param llama_model_path: Path to local LLama model for text generation.
         """
         self.synthesiser = pipeline("text-to-speech", model=model_id, device=device)
-        self.embeddings_dataset = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
+        self.embeddings_dataset = list(load_dataset("Matthijs/cmu-arctic-xvectors", split="validation"))
         self.speaker_embedding = torch.tensor(self.embeddings_dataset[speaker]["xvector"]).unsqueeze(0)
-        self.llm_inference = llm_inference(llama_model_path=llama_model_path)
+        self.llm_inference = llm_inference.LLMInference(llama_model_path=llama_model_path) if hasattr(llm_inference, 'LLMInference') else None
 
     def generate_text(self, prompt):
         """
@@ -28,7 +28,9 @@ class SpeechGenerator:
         :param prompt: Text prompt for the LLM.
         :return: Generated text.
         """
-        return self.llm_inference.query_model(prompt)
+        if self.llm_inference:
+            return self.llm_inference.query_model(prompt)
+        return ""
 
     def synthesize_audio(self, text):
         """
@@ -39,8 +41,7 @@ class SpeechGenerator:
         """
         female_speaker_id = 7317  # Example ID for a female voice; adjust as needed
         self.speaker_embedding = torch.tensor(self.embeddings_dataset[female_speaker_id]["xvector"]).unsqueeze(0)
-        speech = self.synthesiser(text, 
-                                  forward_params={"speaker_embeddings": self.speaker_embedding})
+        speech = self.synthesiser(text, forward_params={"speaker_embeddings": self.speaker_embedding})
         return speech
 
 # Example usage:

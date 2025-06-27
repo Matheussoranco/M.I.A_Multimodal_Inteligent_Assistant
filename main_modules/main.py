@@ -66,9 +66,10 @@ def main():
                 inputs['image'] = vision_processor.process_image(args.image_input)
                 args.image_input = None
             # Audio processing
-            mic = audio_utils.record_audio(speech_processor.transcriber, 2.0, 0.25)
-            audio_input = next(speech_processor.transcribe_audio(mic))
-            inputs['audio'] = audio_input['text']
+            mic = audio_utils.record_audio(speech_processor, 2.0, 0.25)
+            audio_chunk = next(mic)
+            transcription = speech_processor.transcribe_audio(audio_chunk)
+            inputs['audio'] = transcription.strip() if isinstance(transcription, str) else ''
             # Cognitive processing
             if args.enable_reasoning:
                 processed = cognitive_core.process_multimodal_input(inputs)
@@ -102,7 +103,13 @@ def main():
                 user_learning.update_profile({"last_response": response})
                 # Synthesize and play audio
                 speech = audio_model.synthesize_audio(response)
-                audio_utils.play_audio(speech['audio'], speech['sampling_rate'])
+                # If speech is a dict with 'audio' and 'sampling_rate', use them; else, try to play directly
+                if isinstance(speech, dict) and 'audio' in speech and 'sampling_rate' in speech:
+                    audio_utils.play_audio(speech['audio'], speech['sampling_rate'])
+                elif hasattr(speech, 'audio') and hasattr(speech, 'sampling_rate'):
+                    audio_utils.play_audio(speech.audio, speech.sampling_rate)
+                else:
+                    print("[Warning] Could not play synthesized audio: unexpected format.")
 
             # Example: Use system control for file actions
             # SystemControl.open_file('example.txt')
