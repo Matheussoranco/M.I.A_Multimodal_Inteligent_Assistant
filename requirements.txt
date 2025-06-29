@@ -29,3 +29,4 @@ duckduckgo-search
 langchain
 speechrecognition
 # Optional: tkinter (standard library, no pip needed)
+pywin32
