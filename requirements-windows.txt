@@ -1,0 +1,3 @@
+# Windows-only dependencies for M.I.A-The-successor-of-pseudoJarvis
+win10toast
+pywin32

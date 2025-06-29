@@ -21,7 +21,6 @@ scipy
 scikit-learn
 google-api-python-client
 plyer
-win10toast; platform_system == "Windows"
 pyqt5
 chromadb
 networkx
@@ -29,4 +28,3 @@ duckduckgo-search
 langchain
 speechrecognition
 # Optional: tkinter (standard library, no pip needed)
-pywin32; platform_system == "Windows"
