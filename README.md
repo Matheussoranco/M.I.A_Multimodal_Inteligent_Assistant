@@ -33,11 +33,20 @@ This is Friday/M.I.A, your all-in-one personal virtual assistant for PC, phone, 
 
 To get started with Friday/M.I.A:
 
-    git clone https://github.com/yourusername/friday-mia.git
-    cd friday-mia
-    pip install -r requirements.txt
+```bash
+git clone https://github.com/yourusername/friday-mia.git
+cd friday-mia
+pip install -r requirements.txt
+pip install .
+```
 
-Configure API keys and device settings in `main.py` and relevant modules.
+Copy `.env.example` to `.env` and fill in your API keys.
+
+## Usage
+
+See [USAGE.md](USAGE.md) for command-line examples and options.
+
+Configure API keys and device settings in `.env` and relevant modules.
 
     python main.py
 
