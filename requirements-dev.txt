@@ -1,0 +1,4 @@
+# Development requirements for CI and local testing
+pytest
+pytest-cov
+flake8
