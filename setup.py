@@ -4,9 +4,9 @@ setup(
     name="mia-successor",
     version="0.1.0",
     description="Friday/M.I.A - Your Personal Virtual Assistant powered by LLMs and modular automation.",
-    author="Your Name",
-    author_email="your.email@example.com",
-    url="https://github.com/yourusername/friday-mia",
+    author="Matheus Pullig Soranço de Carvalho",
+    author_email="matheussoranco@gmail.com",
+    url="https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis",
     packages=find_packages(),
     install_requires=[
         # Dependencies are read from requirements.txt
