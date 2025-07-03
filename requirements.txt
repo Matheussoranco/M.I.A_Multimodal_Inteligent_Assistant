@@ -1,30 +1,52 @@
-transformers==4.37.2
-PyAudio==0.2.14
-pydub==0.25.1
-sounddevice==0.4.6
-soundfile==0.12.1
-openai==1.12.0
-datasets==2.17.0
-sentencepiece==0.1.99
-torch==2.1.0
-selenium==4.10.0
-huggingface_hub>=0.19.3,<1.0
-numpy==1.24.3
-pyttsx3==2.90
-pyperclip
-psutil
-matplotlib
-Pillow
-requests
-tensorflow
-scipy
-scikit-learn
-google-api-python-client
-plyer
-pyqt5
-chromadb
-networkx
-duckduckgo-search
-langchain
-speechrecognition
-# Optional: tkinter (standard library, no pip needed)
+# Core ML and AI dependencies
+transformers>=4.35.0
+openai>=1.10.0
+torch>=2.0.0
+huggingface_hub>=0.19.3
+
+# Audio processing (PyAudio pode ser problemático - alternativas incluídas)
+sounddevice>=0.4.6
+soundfile>=0.12.1
+pydub>=0.25.1
+pyttsx3>=2.90
+speechrecognition>=3.10.0
+
+# Data processing
+numpy>=1.24.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
+datasets>=2.15.0
+sentencepiece>=0.1.99
+
+# Web automation
+selenium>=4.10.0
+requests>=2.28.0
+
+# System utilities
+psutil>=5.9.0
+pyperclip>=1.8.0
+plyer>=2.1.0
+
+# Image processing
+Pillow>=9.5.0
+matplotlib>=3.6.0
+
+# Database and memory
+chromadb>=0.4.0
+networkx>=3.0
+
+# Search and utilities
+duckduckgo-search>=3.9.0
+langchain>=0.1.0
+
+# GUI (optional)
+pyqt5>=5.15.0
+
+# Google APIs (optional)
+google-api-python-client>=2.80.0
+
+# Optional: PyAudio (commented out due to installation issues)
+# PyAudio==0.2.14  # Use: pip install PyAudio (may require system dependencies)
+
+# Development dependencies (optional)
+# tensorflow>=2.13.0  # Only if needed for specific models

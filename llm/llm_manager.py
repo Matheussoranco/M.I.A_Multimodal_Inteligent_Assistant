@@ -3,17 +3,31 @@ LLM Manager: Unified interface for multiple LLM APIs (OpenAI, HuggingFace, Local
 """
 import os
 import requests
-from openai import OpenAI
-# Optionally import HuggingFace, Cohere, etc. as needed
+import logging
+from typing import Optional, Dict, Any
+
+# Optional imports with error handling
 try:
-    from transformers.pipelines import pipeline
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from openai import OpenAI
+    HAS_OPENAI = True
+except ImportError:
+    OpenAI = None
+    HAS_OPENAI = False
+
+try:
+    from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
+    HAS_TRANSFORMERS = True
 except ImportError:
     pipeline = None
     AutoModelForCausalLM = None
     AutoTokenizer = None
+    HAS_TRANSFORMERS = False
+
+logger = logging.getLogger(__name__)
 
 class LLMManager:
+    """Unified LLM manager supporting multiple providers."""
+    
     def __init__(self, provider='openai', model_id=None, api_key=None, url=None, local_model_path=None, **kwargs):
         self.provider = provider
         self.model_id = model_id
@@ -21,139 +35,225 @@ class LLMManager:
         self.url = url
         self.local_model_path = local_model_path
         self.client = None
-        if provider == 'openai':
-            try:
-                self.client = OpenAI(base_url=url, api_key=api_key)
-            except Exception:
-                self.client = None
-        elif provider == 'huggingface' and pipeline:
-            self.client = pipeline('text-generation', model=model_id)
-        elif provider == 'local' and AutoModelForCausalLM and AutoTokenizer:
-            self.tokenizer = AutoTokenizer.from_pretrained(local_model_path or model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(local_model_path or model_id)
-        elif provider == 'grok':
-            self.grok_url = url or 'https://api.grok.com/v1/chat/completions'
-            self.grok_api_key = api_key
-        elif provider == 'gemini':
-            self.gemini_url = url or 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent'
-            self.gemini_api_key = api_key
-        elif provider == 'ollama':
-            self.ollama_url = url or 'http://localhost:11434/api/generate'
-            self.ollama_api_key = api_key
-        elif provider == 'groq':
-            self.groq_url = url or 'https://api.groq.com/openai/v1/chat/completions'
-            self.groq_api_key = api_key
-        elif provider == 'anthropic':
-            self.anthropic_url = url or 'https://api.anthropic.com/v1/messages'
-            self.anthropic_api_key = api_key
-        # Add more providers as needed
-        elif self.provider == 'anthropic':
+        self.model = None
+        self.tokenizer = None
+        
+        self._initialize_provider()
+    
+    def _initialize_provider(self):
+        """Initialize the specific provider."""
+        try:
+            if self.provider == 'openai':
+                if not HAS_OPENAI:
+                    raise ImportError("OpenAI package not installed. Run: pip install openai")
+                self.client = OpenAI(
+                    base_url=self.url,
+                    api_key=self.api_key or os.getenv('OPENAI_API_KEY')
+                )
+                
+            elif self.provider == 'huggingface':
+                if not HAS_TRANSFORMERS:
+                    raise ImportError("Transformers package not installed. Run: pip install transformers")
+                self.client = pipeline('text-generation', model=self.model_id)
+                
+            elif self.provider == 'local':
+                if not HAS_TRANSFORMERS:
+                    raise ImportError("Transformers package not installed. Run: pip install transformers")
+                model_path = self.local_model_path or self.model_id
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+                self.model = AutoModelForCausalLM.from_pretrained(model_path)
+                
+            elif self.provider in ['grok', 'gemini', 'ollama', 'groq', 'anthropic']:
+                # API-based providers - no special initialization needed
+                pass
+            else:
+                logger.warning(f"Unknown provider: {self.provider}")
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize provider {self.provider}: {e}")
+            self.client = None
+
+    def query_model(self, prompt: str, **kwargs) -> Optional[str]:
+        """Alias for compatibility with main.py and other modules."""
+        return self.query(prompt, **kwargs)
+
+    def query(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query the selected LLM provider with the given prompt."""
+        if not prompt:
+            return None
+            
+        try:
+            if self.provider == 'openai' and self.client is not None:
+                response = self.client.chat.completions.create(
+                    model=self.model_id or 'gpt-3.5-turbo',
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=kwargs.get('max_tokens', 1024),
+                    temperature=kwargs.get('temperature', 0.7)
+                )
+                return response.choices[0].message.content
+
+            elif self.provider == 'anthropic':
+                return self._query_anthropic(prompt, **kwargs)
+                
+            elif self.provider == 'gemini':
+                return self._query_gemini(prompt, **kwargs)
+                
+            elif self.provider == 'ollama':
+                return self._query_ollama(prompt, **kwargs)
+                
+            elif self.provider == 'groq':
+                return self._query_groq(prompt, **kwargs)
+                
+            elif self.provider == 'grok':
+                return self._query_grok(prompt, **kwargs)
+                
+            elif self.provider == 'huggingface' and self.client and callable(self.client):
+                result = self.client(prompt, max_length=kwargs.get('max_length', 256))
+                if isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
+                    return result[0]['generated_text']
+                return str(result)
+                
+            elif self.provider == 'local' and self.model and self.tokenizer:
+                inputs = self.tokenizer(prompt, return_tensors="pt")
+                outputs = self.model.generate(**inputs, max_length=kwargs.get('max_length', 256))
+                return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                
+            else:
+                logger.error(f"Provider {self.provider} not implemented or dependencies missing.")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error querying {self.provider}: {e}")
+            return None
+
+    def _query_anthropic(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query Anthropic Claude API."""
+        try:
             headers = {
-                'x-api-key': self.anthropic_api_key,
+                'x-api-key': self.api_key or os.getenv('ANTHROPIC_API_KEY'),
                 'anthropic-version': '2023-06-01',
                 'content-type': 'application/json'
             }
             data = {
                 'model': self.model_id or 'claude-3-opus-20240229',
-                'max_tokens': 1024,
-                'messages': [
-                    {"role": "user", "content": prompt}
-                ]
+                'max_tokens': kwargs.get('max_tokens', 1024),
+                'messages': [{"role": "user", "content": prompt}]
             }
-            response = requests.post(self.anthropic_url, headers=headers, json=data)
+            url = self.url or 'https://api.anthropic.com/v1/messages'
+            response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
-            # Anthropic returns content in a nested structure
+            
             if 'content' in result and isinstance(result['content'], list) and result['content']:
                 return result['content'][0].get('text', '')
             return ''
+        except Exception as e:
+            logger.error(f"Anthropic API error: {e}")
+            return None
 
-    def query_model(self, *args, **kwargs):
-        # Alias for compatibility with main.py and other modules
-        return self.query(*args, **kwargs)
-
-    def query(self, prompt, **kwargs):
-        if self.provider == 'openai' and self.client is not None and type(self.client).__name__ == 'OpenAI':
-        elif self.provider == 'gemini':
+    def _query_gemini(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query Google Gemini API."""
+        try:
             headers = {
                 'Content-Type': 'application/json',
-                'x-goog-api-key': self.gemini_api_key
+                'x-goog-api-key': self.api_key or os.getenv('GEMINI_API_KEY')
             }
             data = {
                 'contents': [{"parts": [{"text": prompt}]}]
             }
-            response = requests.post(self.gemini_url, headers=headers, json=data)
+            url = self.url or 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent'
+            response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
-            # Gemini returns candidates list
+            
             candidates = result.get('candidates', [])
             if candidates and 'content' in candidates[0]:
                 parts = candidates[0]['content'].get('parts', [])
                 if parts and 'text' in parts[0]:
                     return parts[0]['text']
             return ''
-        elif self.provider == 'ollama':
-            headers = {
-                'Content-Type': 'application/json',
-            }
+        except Exception as e:
+            logger.error(f"Gemini API error: {e}")
+            return None
+
+    def _query_ollama(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query Ollama local API."""
+        try:
+            headers = {'Content-Type': 'application/json'}
             data = {
                 'model': self.model_id or 'llama2',
                 'prompt': prompt
             }
-            if self.ollama_api_key:
-                headers['Authorization'] = f'Bearer {self.ollama_api_key}'
-            response = requests.post(self.ollama_url, headers=headers, json=data)
+            if self.api_key:
+                headers['Authorization'] = f'Bearer {self.api_key}'
+                
+            url = self.url or 'http://localhost:11434/api/generate'
+            response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
             return result.get('response', '')
-        elif self.provider == 'groq':
+        except Exception as e:
+            logger.error(f"Ollama API error: {e}")
+            return None
+
+    def _query_groq(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query Groq API."""
+        try:
             headers = {
-                'Authorization': f'Bearer {self.groq_api_key}',
+                'Authorization': f'Bearer {self.api_key or os.getenv("GROQ_API_KEY")}',
                 'Content-Type': 'application/json'
             }
             data = {
                 'model': self.model_id or 'llama2-70b-4096',
-                'messages': [{"role": "user", "content": prompt}]
+                'messages': [{"role": "user", "content": prompt}],
+                'max_tokens': kwargs.get('max_tokens', 1024)
             }
-            response = requests.post(self.groq_url, headers=headers, json=data)
+            url = self.url or 'https://api.groq.com/openai/v1/chat/completions'
+            response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
             return result['choices'][0]['message']['content']
-            # Defensive: Only call if client is OpenAI instance
-            # Ensure model_id is not None and is a string
-            model_id = self.model_id if self.model_id is not None else 'gpt-3.5-turbo'
-            # Avoid calling OpenAI client if it is actually a HuggingFace pipeline
-            # Only call if client is OpenAI, not Pipeline
-            if type(self.client).__name__ == 'OpenAI':
-                response = self.client.chat.completions.create(
-                    model=model_id,
-                    messages=[{"role": "user", "content": prompt}],
-                    **kwargs
-                )
-                return response.choices[0].message.content
-            else:
-                raise RuntimeError("OpenAI client is not properly initialized.")
-        elif self.provider == 'huggingface' and self.client and callable(self.client):
-            result = self.client(prompt, max_length=256, **kwargs)
-            if isinstance(result, list) and 'generated_text' in result[0]:
-                return result[0]['generated_text']
-            return str(result)
-        elif self.provider == 'local' and hasattr(self, 'model'):
-            inputs = self.tokenizer(prompt, return_tensors="pt")
-            outputs = self.model.generate(**inputs, max_length=256)
-            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        elif self.provider == 'grok':
+        except Exception as e:
+            logger.error(f"Groq API error: {e}")
+            return None
+
+    def _query_grok(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query xAI Grok API."""
+        try:
             headers = {
-                'Authorization': f'Bearer {self.grok_api_key}',
+                'Authorization': f'Bearer {self.api_key or os.getenv("GROK_API_KEY")}',
                 'Content-Type': 'application/json'
             }
             data = {
                 'model': self.model_id or 'grok-1',
-                'messages': [{"role": "user", "content": prompt}]
+                'messages': [{"role": "user", "content": prompt}],
+                'max_tokens': kwargs.get('max_tokens', 1024)
             }
-            response = requests.post(self.grok_url, headers=headers, json=data)
+            url = self.url or 'https://api.grok.com/v1/chat/completions'
+            response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
             return result['choices'][0]['message']['content']
-        else:
-            raise NotImplementedError(f"Provider {self.provider} not implemented or dependencies missing.")
+        except Exception as e:
+            logger.error(f"Grok API error: {e}")
+            return None
+
+    def is_available(self) -> bool:
+        """Check if the provider is available and properly configured."""
+        if self.provider == 'openai':
+            return HAS_OPENAI and self.client is not None
+        elif self.provider in ['huggingface', 'local']:
+            return HAS_TRANSFORMERS and (self.client is not None or self.model is not None)
+        elif self.provider in ['anthropic', 'gemini', 'ollama', 'groq', 'grok']:
+            return True  # API-based, availability checked on request
+        return False
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about the current model configuration."""
+        return {
+            'provider': self.provider,
+            'model_id': self.model_id,
+            'available': self.is_available(),
+            'url': self.url,
+            'has_api_key': bool(self.api_key)
+        }

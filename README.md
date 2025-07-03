@@ -2,6 +2,69 @@
 
 This is Friday/M.I.A, your all-in-one personal virtual assistant for PC, phone, and smartwatch. M.I.A leverages advanced LLMs and modular automation to help you with just about anything on your computer and beyond.
 
+## 🚀 Quick Start (Windows)
+
+### Option 1: Automated Installation
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/friday-mia.git
+cd friday-mia
+
+# Run the installation script
+install.bat
+
+# Configure your API keys in .env file
+# Then run:
+run.bat
+```
+
+### Option 2: Manual Installation
+```bash
+# 1. Create virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# 2. Install dependencies  
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
+
+# 3. Configure environment
+copy .env.example .env
+# Edit .env with your API keys
+
+# 4. Run M.I.A
+python -m main_modules.main
+```
+
+## 🔧 Configuration
+
+Copy `.env.example` to `.env` and configure your API keys:
+
+```bash
+# Required for basic functionality
+OPENAI_API_KEY=your-openai-api-key    # For GPT models
+OLLAMA_API_KEY=ollama                 # For local models
+
+# Optional API keys
+ANTHROPIC_API_KEY=your-anthropic-key  # For Claude
+GOOGLE_CALENDAR_API_KEY=your-key      # For calendar integration
+GEMINI_API_KEY=your-gemini-key       # For Google AI
+```
+
+## 📋 System Requirements
+
+- **Python**: 3.8 or higher
+- **Operating System**: Windows 10/11 (macOS/Linux support planned)
+- **Memory**: 4GB RAM minimum, 8GB recommended
+- **Storage**: 2GB free space for models and cache
+
+### Optional Dependencies
+
+- **PyAudio**: For advanced audio processing (may require system libraries)
+- **CUDA**: For GPU acceleration with PyTorch models
+- **FFmpeg**: For advanced audio/video processing
+
 # Key Capabilities
 
 - **Conversational AI**: Natural, context-aware chat powered by LLMs (OpenAI, Ollama, HuggingFace, etc.)
@@ -31,16 +94,50 @@ This is Friday/M.I.A, your all-in-one personal virtual assistant for PC, phone, 
 
 # Installation
 
-To get started with Friday/M.I.A:
+## Windows Installation
+
+### Quick Setup
+1. Run `install.bat` as administrator
+2. Configure `.env` with your API keys  
+3. Run `run.bat` to start M.I.A
+
+### Manual Installation
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/friday-mia.git
+cd friday-mia
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
+
+# Configure and run
+copy .env.example .env
+# Edit .env with your credentials
+python -m main_modules.main
+```
+
+## Linux/macOS Installation
 
 ```bash
 git clone https://github.com/yourusername/friday-mia.git
 cd friday-mia
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-pip install .
+pip install -e .
+
+cp .env.example .env
+# Configure .env with your API keys
+python -m main_modules.main
 ```
 
-Copy `.env.example` to `.env` and fill in your API keys.
+## Docker Installation (Coming Soon)
+
+```bash
+docker build -t mia-assistant .
+docker run -it --env-file .env mia-assistant
+```
 
 ## Usage
 
