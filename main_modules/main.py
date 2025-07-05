@@ -73,7 +73,7 @@ def main():
         memory = AgentMemory()
         
         audio_utils = AudioUtils()
-        speech_processor = SpeechProcessor(model_path=args.stt_model)
+        speech_processor = SpeechProcessor(model_name=args.stt_model or "base")
         audio_model = SpeechGenerator(device) if HAS_TORCH else None
         langchain_verifier = LangChainVerifier(llm=llm)
 
@@ -107,7 +107,7 @@ def main():
                 try:
                     mic = audio_utils.record_audio(speech_processor, 2.0, 0.25)
                     audio_chunk = next(mic)
-                    transcription = speech_processor.transcribe_audio(audio_chunk)
+                    transcription = speech_processor.transcribe_audio_data(audio_chunk.tobytes(), 16000)
                     inputs['audio'] = transcription.strip() if isinstance(transcription, str) else ''
                     
                     if not inputs['audio']:

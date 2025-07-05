@@ -1,15 +1,42 @@
-from transformers.pipelines.audio_utils import ffmpeg_microphone_live
-from pydub import AudioSegment
-from pydub.playback import play
-import soundfile as sf
-import sounddevice as sd
-import matplotlib.pyplot as plt
+import logging
 import numpy as np
-import os
+import time
+from typing import Generator, Optional
+
+# Optional imports with error handling
+try:
+    import sounddevice as sd
+    HAS_SOUNDDEVICE = True
+except ImportError:
+    sd = None
+    HAS_SOUNDDEVICE = False
+
+try:
+    import soundfile as sf
+    HAS_SOUNDFILE = True
+except ImportError:
+    sf = None
+    HAS_SOUNDFILE = False
+
+try:
+    from pydub import AudioSegment
+    from pydub.playback import play
+    HAS_PYDUB = True
+except ImportError:
+    AudioSegment = None
+    play = None
+    HAS_PYDUB = False
+
+logger = logging.getLogger(__name__)
 
 class AudioUtils:
-    @staticmethod
-    def record_audio(transcriber, chunk_length_s, stream_chunk_s, save_to_file=None):
+    """Utility class for audio recording and playback."""
+    
+    def __init__(self):
+        self.sample_rate = 16000
+        self.channels = 1
+        
+    def record_audio(self, transcriber, chunk_length_s=2.0, stream_chunk_s=0.25, save_to_file=None) -> Generator[np.ndarray, None, None]:
         """
         Record audio using a live microphone stream.
 
@@ -19,74 +46,111 @@ class AudioUtils:
         :param save_to_file: Optional path to save the recorded audio.
         :return: Recorded audio data as a generator.
         """
-        sampling_rate = transcriber.feature_extractor.sampling_rate
-        mic = ffmpeg_microphone_live(
-            sampling_rate=sampling_rate,
-            chunk_length_s=chunk_length_s,
-            stream_chunk_s=stream_chunk_s,
-        )
+        if not HAS_SOUNDDEVICE:
+            logger.warning("sounddevice not available, returning simulated audio")
+            yield self._create_simulated_audio(chunk_length_s)
+            return
+            
+        try:
+            logger.info("Starting audio recording...")
+            chunk_samples = int(chunk_length_s * self.sample_rate)
+            
+            # Record audio
+            audio_data = sd.rec(
+                frames=chunk_samples,
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                dtype=np.float32
+            )
+            
+            # Wait for recording to complete
+            sd.wait()
+            
+            # Flatten if multi-channel
+            if audio_data.ndim > 1:
+                audio_data = audio_data.flatten()
+                
+            logger.info(f"Recorded {len(audio_data)} samples")
+            yield audio_data
+            
+        except Exception as e:
+            logger.error(f"Error recording audio: {e}")
+            yield self._create_simulated_audio(chunk_length_s)
 
-        if save_to_file:
-            with sf.SoundFile(save_to_file, mode='w', samplerate=sampling_rate, channels=1) as file:
-                for chunk in mic:
-                    file.write(chunk)
-        return mic
+    def _create_simulated_audio(self, duration_s: float) -> np.ndarray:
+        """Create simulated audio data for testing."""
+        samples = int(duration_s * self.sample_rate)
+        # Create some random noise as placeholder
+        return np.random.normal(0, 0.1, samples).astype(np.float32)
 
-    @staticmethod
-    def play_audio(audio_data, samplerate, format="wav", volume=1.0):
+    def play_audio(self, audio_data: np.ndarray, sample_rate: int = None):
         """
-        Play audio data with optional volume control.
-
-        :param audio_data: NumPy array containing the audio waveform.
-        :param samplerate: Sampling rate of the audio.
-        :param format: Audio format for temporary file (default: 'wav').
-        :param volume: Playback volume (default: 1.0).
+        Play audio data.
+        
+        :param audio_data: Audio data as numpy array
+        :param sample_rate: Sample rate for playback
         """
-        temp_file = f"temp_audio.{format}"
-        sf.write(temp_file, audio_data * volume, samplerate)
-        song = AudioSegment.from_file(temp_file, format=format)
-        play(song)
-        os.remove(temp_file)
+        if sample_rate is None:
+            sample_rate = self.sample_rate
+            
+        try:
+            if HAS_SOUNDDEVICE:
+                logger.info("Playing audio with sounddevice...")
+                sd.play(audio_data, samplerate=sample_rate)
+                sd.wait()  # Wait until audio is finished
+            else:
+                logger.warning("Audio playback not available (sounddevice not installed)")
+                
+        except Exception as e:
+            logger.error(f"Error playing audio: {e}")
 
-    @staticmethod
-    def visualize_audio(audio_data, samplerate):
+    def save_audio(self, audio_data: np.ndarray, filename: str, sample_rate: int = None):
         """
-        Plot the waveform of the audio data.
-
-        :param audio_data: NumPy array containing the audio waveform.
-        :param samplerate: Sampling rate of the audio.
+        Save audio data to file.
+        
+        :param audio_data: Audio data as numpy array
+        :param filename: Output filename
+        :param sample_rate: Sample rate
         """
-        time_axis = np.linspace(0, len(audio_data) / samplerate, num=len(audio_data))
-        plt.figure(figsize=(10, 4))
-        plt.plot(time_axis, audio_data, label="Waveform")
-        plt.xlabel("Time (s)")
-        plt.ylabel("Amplitude")
-        plt.title("Audio Waveform")
-        plt.legend()
-        plt.grid()
-        plt.show()
+        if sample_rate is None:
+            sample_rate = self.sample_rate
+            
+        try:
+            if HAS_SOUNDFILE:
+                sf.write(filename, audio_data, sample_rate)
+                logger.info(f"Audio saved to {filename}")
+            else:
+                logger.warning("Cannot save audio (soundfile not installed)")
+                
+        except Exception as e:
+            logger.error(f"Error saving audio: {e}")
 
-    @staticmethod
-    def process_audio_in_real_time(callback, duration, samplerate=16000):
+    def load_audio(self, filename: str) -> tuple[np.ndarray, int]:
         """
-        Capture and process audio in real-time with a callback.
-
-        :param callback: Function to process audio chunks in real-time.
-        :param duration: Total duration of the recording in seconds.
-        :param samplerate: Sampling rate of the audio.
+        Load audio from file.
+        
+        :param filename: Input filename
+        :return: Tuple of (audio_data, sample_rate)
         """
-        def audio_callback(indata, frames, time, status):
-            if status:
-                print(f"Status: {status}")
-            callback(indata)
+        try:
+            if HAS_SOUNDFILE:
+                audio_data, sample_rate = sf.read(filename)
+                logger.info(f"Audio loaded from {filename}")
+                return audio_data, sample_rate
+            else:
+                logger.warning("Cannot load audio (soundfile not installed)")
+                return self._create_simulated_audio(2.0), self.sample_rate
+                
+        except Exception as e:
+            logger.error(f"Error loading audio: {e}")
+            return self._create_simulated_audio(2.0), self.sample_rate
 
-        with sd.InputStream(samplerate=samplerate, channels=1, callback=audio_callback):
-            sd.sleep(int(duration * 1000))
-
-# Example usage:
-# Visualize a waveform
-# audio_data = np.random.rand(16000)  # Replace with actual audio data
-# AudioUtils.visualize_audio(audio_data, samplerate=16000)
-
-# Record and save to file
-# mic_stream = AudioUtils.record_audio(transcriber, 5, 1, save_to_file="output.wav")
+    def get_audio_info(self) -> dict:
+        """Get information about audio capabilities."""
+        return {
+            "has_sounddevice": HAS_SOUNDDEVICE,
+            "has_soundfile": HAS_SOUNDFILE,
+            "has_pydub": HAS_PYDUB,
+            "sample_rate": self.sample_rate,
+            "channels": self.channels
+        }

@@ -53,7 +53,7 @@ class ChatInterface:
             mic = self.audio_utils.record_audio(self.speech_processor, 2.0, 0.25)
             # mic is a generator of audio chunks; take the first chunk for demo
             audio_chunk = next(mic)
-            transcription = self.speech_processor.transcribe_audio(audio_chunk)
+            transcription = self.speech_processor.transcribe_audio_data(audio_chunk.tobytes(), 16000)
             text = transcription.strip() if isinstance(transcription, str) else ''
             if text:
                 print(f"[You said]: {text}")

@@ -1,101 +1,225 @@
-import tensorflow as tf
-from tensorflow.keras.models import load_model
-import numpy as np
+"""Speech processing module for audio transcription and recognition."""
+import logging
+from typing import Optional, Any, Dict
+import io
+
+# Optional imports with fallbacks
+try:
+    import whisper
+    WHISPER_AVAILABLE = True
+except ImportError:
+    WHISPER_AVAILABLE = False
+    whisper = None
+
+try:
+    import speech_recognition as sr
+    SPEECH_RECOGNITION_AVAILABLE = True
+except ImportError:
+    SPEECH_RECOGNITION_AVAILABLE = False
+    sr = None
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
+
+try:
+    import soundfile as sf
+    SOUNDFILE_AVAILABLE = True
+except ImportError:
+    SOUNDFILE_AVAILABLE = False
+    sf = None
+
+logger = logging.getLogger(__name__)
 
 class SpeechProcessor:
-    def __init__(self, model_path):
+    """Speech processing class for audio transcription and recognition."""
+    
+    def __init__(self, model_name="base", use_whisper=True):
         """
-        Initialize the SpeechProcessor with a pre-trained Keras model.
-
-        :param model_path: Path to the pre-trained Keras model for ASR.
+        Initialize the SpeechProcessor.
+        
+        :param model_name: Whisper model name (tiny, base, small, medium, large)
+        :param use_whisper: Whether to use Whisper as primary transcription method
         """
-        self.model = load_model(model_path)
-        self.sampling_rate = 16000  # Standard sampling rate for ASR tasks
-        self.char_map = self._load_char_map()
-
-    def _load_char_map(self):
+        self.model_name = model_name
+        self.use_whisper = use_whisper
+        self.whisper_model = None
+        self.recognizer = None
+        self.microphone = None
+        
+        self._init_whisper()
+        self._init_speech_recognition()
+        
+    def _init_whisper(self):
+        """Initialize Whisper model."""
+        if WHISPER_AVAILABLE and whisper and self.use_whisper:
+            try:
+                logger.info(f"Loading Whisper model: {self.model_name}")
+                self.whisper_model = whisper.load_model(self.model_name)
+                logger.info("Whisper model loaded successfully")
+            except Exception as e:
+                logger.error(f"Failed to load Whisper model: {e}")
+                self.whisper_model = None
+        else:
+            logger.warning("Whisper not available or disabled")
+            
+    def _init_speech_recognition(self):
+        """Initialize speech recognition as fallback."""
+        if SPEECH_RECOGNITION_AVAILABLE and sr:
+            try:
+                self.recognizer = sr.Recognizer()
+                self.microphone = sr.Microphone()
+                logger.info("Speech recognition initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize speech recognition: {e}")
+                self.recognizer = None
+        else:
+            logger.warning("Speech recognition not available")
+    
+    def transcribe_audio_file(self, audio_file_path: str) -> Optional[str]:
         """
-        Load or define the character mapping for decoding predictions.
-
-        :return: Dictionary mapping indices to characters.
+        Transcribe audio from file.
+        
+        :param audio_file_path: Path to audio file
+        :return: Transcribed text or None if failed
         """
-        # Example character map, replace with your model's specific mapping
-        char_map = {
-            0: 'a', 1: 'b', 2: 'c', 3: 'd', 4: 'e', 5: 'f', 6: 'g',
-            7: 'h', 8: 'i', 9: 'j', 10: 'k', 11: 'l', 12: 'm', 13: 'n',
-            14: 'o', 15: 'p', 16: 'q', 17: 'r', 18: 's', 19: 't', 20: 'u',
-            21: 'v', 22: 'w', 23: 'x', 24: 'y', 25: 'z', 26: ' '
+        # Try Whisper first
+        if self.whisper_model:
+            try:
+                result = self.whisper_model.transcribe(audio_file_path)
+                text = result.get("text", "").strip()
+                if text:
+                    logger.info(f"Whisper transcription: {text[:100]}...")
+                    return text
+            except Exception as e:
+                logger.error(f"Whisper transcription failed: {e}")
+        
+        # Fallback to speech recognition
+        if self.recognizer:
+            try:
+                with sr.AudioFile(audio_file_path) as source:
+                    audio = self.recognizer.record(source)
+                    text = self.recognizer.recognize_google(audio)
+                    if text:
+                        logger.info(f"Speech recognition transcription: {text[:100]}...")
+                        return text
+            except Exception as e:
+                logger.error(f"Speech recognition transcription failed: {e}")
+        
+        logger.error("All transcription methods failed")
+        return None
+    
+    def transcribe_audio_data(self, audio_data: bytes, sample_rate: int = 16000) -> Optional[str]:
+        """
+        Transcribe audio from raw audio data.
+        
+        :param audio_data: Raw audio data as bytes
+        :param sample_rate: Sample rate of the audio
+        :return: Transcribed text or None if failed
+        """
+        if not audio_data:
+            logger.warning("Empty audio data provided")
+            return None
+            
+        # Try Whisper first
+        if self.whisper_model and NUMPY_AVAILABLE and np:
+            try:
+                # Convert bytes to numpy array for Whisper
+                if SOUNDFILE_AVAILABLE and sf:
+                    audio_array, _ = sf.read(io.BytesIO(audio_data))
+                else:
+                    # Simple conversion assuming 16-bit PCM
+                    audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+                
+                result = self.whisper_model.transcribe(audio_array)
+                text = result.get("text", "").strip()
+                if text:
+                    logger.info(f"Whisper transcription: {text[:100]}...")
+                    return text
+            except Exception as e:
+                logger.error(f"Whisper transcription from data failed: {e}")
+        
+        # Fallback to speech recognition
+        if self.recognizer and SPEECH_RECOGNITION_AVAILABLE:
+            try:
+                audio = sr.AudioData(audio_data, sample_rate, 2)  # Assuming 16-bit
+                text = self.recognizer.recognize_google(audio)
+                if text:
+                    logger.info(f"Speech recognition transcription: {text[:100]}...")
+                    return text
+            except Exception as e:
+                logger.error(f"Speech recognition from data failed: {e}")
+        
+        logger.error("All transcription methods failed for audio data")
+        return None
+    
+    def listen_microphone(self, timeout: float = 5.0, phrase_time_limit: float = 10.0) -> Optional[str]:
+        """
+        Listen to microphone and transcribe speech.
+        
+        :param timeout: Maximum time to wait for speech to start
+        :param phrase_time_limit: Maximum time to record a phrase
+        :return: Transcribed text or None if failed
+        """
+        if not self.recognizer or not self.microphone:
+            logger.error("Speech recognition not available for microphone input")
+            return None
+            
+        try:
+            logger.info("Listening for speech...")
+            with self.microphone as source:
+                # Adjust for ambient noise
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                
+            # Listen for audio
+            with self.microphone as source:
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
+            
+            # Try Whisper first if available
+            if self.whisper_model:
+                try:
+                    # Convert to format suitable for Whisper
+                    audio_data = audio.get_wav_data()
+                    return self.transcribe_audio_data(audio_data, audio.sample_rate)
+                except Exception as e:
+                    logger.error(f"Whisper microphone transcription failed: {e}")
+            
+            # Fallback to Google Speech Recognition
+            try:
+                text = self.recognizer.recognize_google(audio)
+                if text:
+                    logger.info(f"Microphone transcription: {text}")
+                    return text
+            except sr.UnknownValueError:
+                logger.warning("Could not understand audio")
+            except sr.RequestError as e:
+                logger.error(f"Speech recognition service error: {e}")
+                
+        except sr.WaitTimeoutError:
+            logger.warning("Listening timeout - no speech detected")
+        except Exception as e:
+            logger.error(f"Microphone listening failed: {e}")
+        
+        return None
+    
+    def is_available(self) -> bool:
+        """Check if any transcription method is available."""
+        return self.whisper_model is not None or self.recognizer is not None
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get status of all components."""
+        return {
+            "whisper_available": self.whisper_model is not None,
+            "speech_recognition_available": self.recognizer is not None,
+            "microphone_available": self.microphone is not None,
+            "whisper_model": self.model_name if self.whisper_model else None,
+            "dependencies": {
+                "whisper": WHISPER_AVAILABLE,
+                "speech_recognition": SPEECH_RECOGNITION_AVAILABLE,
+                "numpy": NUMPY_AVAILABLE,
+                "soundfile": SOUNDFILE_AVAILABLE
+            }
         }
-        return char_map
-
-    def preprocess_audio(self, audio_data):
-        """
-        Preprocess the raw audio data for the ASR model.
-
-        :param audio_data: NumPy array containing the audio waveform.
-        :return: Preprocessed audio ready for the model.
-        """
-        # Resample audio if necessary (use tf.signal.resample_poly for compatibility)
-        # If resampling is needed, skip for now (fix for missing tf.signal.resample_poly)
-        # In production, use librosa or scipy for resampling if needed
-        # audio_data = librosa.resample(audio_data, orig_sr, self.sampling_rate)
-
-        # Normalize audio waveform
-        audio_data = audio_data / np.max(np.abs(audio_data))
-
-        # Add batch dimension and return
-        return np.expand_dims(audio_data, axis=0)
-
-    def transcribe_audio(self, audio_data):
-        """
-        Transcribe audio data using the Keras model.
-
-        :param audio_data: NumPy array containing the audio waveform.
-        :return: Transcription as a string.
-        """
-        preprocessed_audio = self.preprocess_audio(audio_data)
-
-        # Perform inference
-        predictions = self.model.predict(preprocessed_audio)
-
-        # Decode predictions into text
-        transcription = self.decode_predictions(predictions)
-        return transcription
-
-    def decode_predictions(self, predictions):
-        """
-        Decode the output predictions from the ASR model into text.
-
-        :param predictions: Model output.
-        :return: Decoded text as a string.
-        """
-        decoded_output = ''.join([self.char_map[int(np.argmax(frame))] for frame in predictions])
-        return decoded_output.strip()
-
-# Training and model preparation steps:
-def train_keras_asr_model(data_path, output_model_path):
-    """
-    Train a speech-to-text model based on the Keras example.
-
-    :param data_path: Path to the dataset.
-    :param output_model_path: Path to save the trained model.
-    """
-    # Load and preprocess dataset (implement dataset loading as needed)
-    # Example assumes a dataset of (audio, transcription) pairs
-    # Training logic omitted for brevity and compatibility
-    pass
-
-# Example of integration:
-if __name__ == "__main__":
-    # Train the model (optional)
-    # train_keras_asr_model("path_to_dataset", "path_to_trained_model.h5")
-
-    # Initialize processor with the trained model
-    processor = SpeechProcessor(model_path="path_to_trained_model.h5")
-
-    # Example audio input (replace with actual audio data loading)
-    example_audio = np.random.rand(16000)  # Placeholder for 1 second of random audio
-
-    # Transcribe the audio
-    transcription = processor.transcribe_audio(example_audio)
-    print("Transcription:", transcription)
