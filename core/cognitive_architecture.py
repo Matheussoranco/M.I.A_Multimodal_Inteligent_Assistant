@@ -29,6 +29,15 @@ class MIACognitiveCore:
         inputs = self.vision_processor(images=image, return_tensors="pt").to(self.device)
         return self.vision_model.get_image_features(**inputs)
     
+    def _transcribe_audio(self, audio_data):
+        """Transcribe audio to text - placeholder for audio processing."""
+        # This should integrate with speech_processor
+        return f"Transcribed: {audio_data}"
+        
+    def _analyze_text(self, text):
+        """Analyze text input."""
+        return text
+        
     def _reasoning_pipeline(self, context):
         """Chain-of-Thought reasoning with visual grounding"""
         prompt = f"""Analyze this multimodal context:

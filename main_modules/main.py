@@ -51,7 +51,7 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
 
     # Determine device
-    if HAS_TORCH:
+    if HAS_TORCH and torch is not None:
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         logger.info(f"Using device: {device}")
     else:
