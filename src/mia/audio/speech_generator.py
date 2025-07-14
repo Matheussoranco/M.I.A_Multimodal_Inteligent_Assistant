@@ -4,7 +4,11 @@ from typing import Optional, Any
 
 # Optional imports with fallbacks
 try:
-    from transformers.pipelines import pipeline
+    import warnings
+    # Suppress transformers warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        from transformers.pipelines import pipeline
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False

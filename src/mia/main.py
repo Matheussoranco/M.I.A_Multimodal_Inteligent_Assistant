@@ -1,7 +1,18 @@
 import argparse
 import sys
 import logging
+import os
+import warnings
 from typing import Optional
+
+# Suppress TensorFlow and other library warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow INFO and WARNING messages
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'  # Suppress transformers warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*slow.*processor.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*use_fast.*", category=UserWarning)
 
 # Optional imports with error handling
 try:
@@ -32,7 +43,28 @@ from .memory.long_term_memory import LongTermMemory
 from .planning.calendar_integration import CalendarIntegration
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+def setup_logging(debug_mode=False):
+    """Setup logging configuration with proper levels"""
+    level = logging.DEBUG if debug_mode else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    
+    # Suppress noisy third-party loggers
+    logging.getLogger("transformers").setLevel(logging.WARNING)
+    logging.getLogger("torch").setLevel(logging.WARNING)
+    logging.getLogger("tensorflow").setLevel(logging.WARNING)
+    logging.getLogger("numba").setLevel(logging.WARNING)
+    logging.getLogger("chromadb").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
+
+# Configure logging
+setup_logging()
 logger = logging.getLogger(__name__)
 
 def choose_mode():
@@ -75,11 +107,26 @@ def main():
     parser.add_argument("--image-input", help="Path to image file for multimodal processing")
     parser.add_argument("--enable-reasoning", action="store_true", help="Enable advanced reasoning")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--mode", choices=['text', 'audio', 'mixed', 'auto'], help="Interaction mode (text, audio, mixed, auto)")
     parser.add_argument("--audio-mode", action="store_true", help="Enable audio input mode")
     parser.add_argument("--text-only", action="store_true", help="Text-only mode (disable audio completely)")
     parser.add_argument("--skip-mode-selection", action="store_true", help="Skip interactive mode selection")
 
     args = parser.parse_args()
+    
+    # Handle --mode argument
+    if args.mode:
+        args.skip_mode_selection = True
+        if args.mode == 'text':
+            args.text_only = True
+        elif args.mode == 'audio':
+            args.audio_mode = True
+        elif args.mode == 'mixed':
+            # Keep defaults - both text and audio available
+            pass
+        elif args.mode == 'auto':
+            # Auto-detect mode
+            pass
     
     # Initialize mode selection variables
     selected_mode = None
@@ -102,8 +149,8 @@ def main():
             # Auto-detect will be handled later
             pass
 
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
+    # Setup logging based on debug mode
+    setup_logging(args.debug)
 
     # Determine device
     if HAS_TORCH and torch is not None:

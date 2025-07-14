@@ -1,13 +1,32 @@
 import torch
-from transformers import CLIPProcessor, CLIPModel
+import warnings
 from typing import Dict, Any
+
+# Suppress transformers warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore")
+    warnings.filterwarnings("ignore", message=".*slow.*processor.*")
+    warnings.filterwarnings("ignore", message=".*use_fast.*")
+    from transformers import CLIPProcessor, CLIPModel
 
 class MIACognitiveCore:
     def __init__(self, llm_client, device="cuda" if torch.cuda.is_available() else "cpu"):
         self.llm = llm_client
         self.device = device
-        self.vision_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        self.vision_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+        
+        # Initialize vision components with proper error handling
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore")
+                warnings.filterwarnings("ignore", message=".*slow.*processor.*")
+                warnings.filterwarnings("ignore", message=".*use_fast.*")
+                self.vision_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+                self.vision_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+        except Exception as e:
+            print(f"Warning: Could not load vision components: {e}")
+            self.vision_processor = None
+            self.vision_model = None
+        
         self.working_memory = []
         
     def process_multimodal_input(self, inputs: Dict[str, Any]):
@@ -26,8 +45,15 @@ class MIACognitiveCore:
         return self._reasoning_pipeline(processed)
     
     def _process_image(self, image):
-        inputs = self.vision_processor(images=image, return_tensors="pt").to(self.device)
-        return self.vision_model.get_image_features(**inputs)
+        """Process image using CLIP vision model if available."""
+        if self.vision_processor is None or self.vision_model is None:
+            return {"error": "Vision processing not available"}
+        
+        try:
+            inputs = self.vision_processor(images=image, return_tensors="pt").to(self.device)
+            return self.vision_model.get_image_features(**inputs)
+        except Exception as e:
+            return {"error": f"Vision processing failed: {e}"}
     
     def _transcribe_audio(self, audio_data):
         """Transcribe audio to text - placeholder for audio processing."""

@@ -15,7 +15,11 @@ except ImportError:
     HAS_OPENAI = False
 
 try:
-    from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
+    import warnings
+    # Suppress transformers warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
     HAS_TRANSFORMERS = True
 except ImportError:
     pipeline = None

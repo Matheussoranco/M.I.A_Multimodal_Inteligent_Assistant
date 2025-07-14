@@ -19,8 +19,12 @@ except ImportError:
     HAS_SOUNDFILE = False
 
 try:
-    from pydub import AudioSegment
-    from pydub.playback import play
+    import warnings
+    # Suppress pydub ffmpeg warning
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Couldn't find ffmpeg or avconv")
+        from pydub import AudioSegment
+        from pydub.playback import play
     HAS_PYDUB = True
 except ImportError:
     AudioSegment = None
