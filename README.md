@@ -2,9 +2,51 @@
 
 This is Friday/M.I.A, your all-in-one personal virtual assistant for PC, phone, and smartwatch. M.I.A leverages advanced LLMs and modular automation to help you with just about anything on your computer and beyond.
 
-## 🚀 Quick Start (Windows)
+## 🚀 Quick Start
 
-### Option 1: Automated Installation
+### 🐧 Unix/Linux/macOS (Recommended)
+
+#### Super Quick Start (One Command)
+```bash
+# Clone and run in one go
+git clone https://github.com/yourusername/friday-mia.git
+cd friday-mia
+chmod +x quickstart.sh
+./quickstart.sh
+```
+
+#### Step-by-Step Installation
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/friday-mia.git
+cd friday-mia
+
+# 2. Run installation script
+chmod +x install.sh
+./install.sh
+
+# 3. Configure your API keys
+nano .env  # Edit with your API keys
+
+# 4. Run M.I.A
+./run.sh
+```
+
+#### Using Make (Alternative)
+```bash
+# Install and setup development environment
+make dev-setup
+
+# Edit configuration
+nano .env
+
+# Run M.I.A
+make run
+```
+
+### 🪟 Windows
+
+#### Option 1: Automated Installation
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/friday-mia.git
@@ -18,7 +60,7 @@ install.bat
 run.bat
 ```
 
-### Option 2: Manual Installation
+#### Option 2: Manual Installation
 ```bash
 # 1. Create virtual environment
 python -m venv venv
@@ -35,6 +77,17 @@ copy .env.example .env
 
 # 4. Run M.I.A
 python -m main_modules.main
+```
+
+### 🐳 Docker (Cross-Platform)
+
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Or build manually
+docker build -t mia-assistant .
+docker run -it --rm -v $(pwd)/.env:/app/.env mia-assistant
 ```
 
 ## 🔧 Configuration
@@ -54,16 +107,92 @@ GEMINI_API_KEY=your-gemini-key       # For Google AI
 
 ## 📋 System Requirements
 
+### Minimum Requirements
 - **Python**: 3.8 or higher
-- **Operating System**: Windows 10/11 (macOS/Linux support planned)
+- **Operating System**: 
+  - ✅ Linux (Ubuntu 18.04+, Debian 10+, CentOS 7+, Arch Linux)
+  - ✅ macOS (10.14+)
+  - ✅ Windows 10/11
 - **Memory**: 4GB RAM minimum, 8GB recommended
 - **Storage**: 2GB free space for models and cache
 
+### Linux Dependencies
+```bash
+# Ubuntu/Debian
+sudo apt-get install python3-dev python3-venv portaudio19-dev alsa-utils ffmpeg
+
+# RHEL/CentOS/Fedora
+sudo yum install python3-devel python3-venv portaudio-devel alsa-lib-devel ffmpeg
+
+# Arch Linux
+sudo pacman -S python python-virtualenv portaudio alsa-utils ffmpeg
+```
+
+### macOS Dependencies
+```bash
+# Using Homebrew
+brew install portaudio ffmpeg
+```
+
+### Windows Dependencies
+- Most dependencies are handled automatically
+- For audio: Windows Audio Session API (WASAPI) support
+- Optional: Microsoft C++ Build Tools for some packages
+
 ### Optional Dependencies
 
-- **PyAudio**: For advanced audio processing (may require system libraries)
+- **PyAudio**: For advanced audio processing (automatically handled)
 - **CUDA**: For GPU acceleration with PyTorch models
-- **FFmpeg**: For advanced audio/video processing
+- **FFmpeg**: For advanced audio/video processing (recommended)
+- **Docker**: For containerized deployment
+
+## 🛠️ Development
+
+### Development Setup
+```bash
+# Install with development dependencies
+./install.sh
+./dev.sh install-dev
+
+# Or using Make
+make dev-setup
+```
+
+### Available Development Commands
+```bash
+# Using dev.sh script
+./dev.sh test          # Run tests with coverage
+./dev.sh lint          # Run code linting
+./dev.sh format        # Format code with black
+./dev.sh docs          # Build documentation
+./dev.sh security      # Run security checks
+./dev.sh clean         # Clean cache files
+
+# Using Make
+make test              # Run tests
+make lint              # Run linting
+make format            # Format code
+make docs              # Build documentation
+make clean             # Clean up
+```
+
+### Running Options
+```bash
+# Basic run
+./run.sh
+
+# Debug mode
+./run.sh --debug
+
+# With custom model
+./run.sh --model-id gpt-4 --api-key your-key
+
+# With image input
+./run.sh --image-input path/to/image.jpg
+
+# Enable advanced reasoning
+./run.sh --enable-reasoning --debug
+```
 
 # Key Capabilities
 
@@ -92,60 +221,98 @@ GEMINI_API_KEY=your-gemini-key       # For Google AI
 3. **Action Execution**: M.I.A securely executes the relevant module or plugin
 4. **Output**: Get a response via speech, text, or system action
 
-# Installation
+## 🔧 Troubleshooting
 
-## Windows Installation
+### Common Issues
 
-### Quick Setup
-1. Run `install.bat` as administrator
-2. Configure `.env` with your API keys  
-3. Run `run.bat` to start M.I.A
-
-### Manual Installation
+#### Installation Issues
 ```bash
-# Clone and setup
-git clone https://github.com/yourusername/friday-mia.git
-cd friday-mia
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-pip install -e .
+# Permission denied
+chmod +x *.sh
 
-# Configure and run
-copy .env.example .env
-# Edit .env with your credentials
-python -m main_modules.main
+# Python version issues
+python3 --version  # Must be 3.8+
+
+# Audio dependencies (Linux)
+sudo apt-get install portaudio19-dev alsa-utils
+
+# Missing compiler (for some packages)
+# Ubuntu/Debian
+sudo apt-get install build-essential python3-dev
+# macOS
+xcode-select --install
 ```
 
-## Linux/macOS Installation
-
+#### Runtime Issues
 ```bash
-git clone https://github.com/yourusername/friday-mia.git
-cd friday-mia
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
+# Check system info
+./dev.sh info
 
-cp .env.example .env
-# Configure .env with your API keys
-python -m main_modules.main
+# Test installation
+./dev.sh test
+
+# Debug mode
+./run.sh --debug
+
+# Check logs
+tail -f logs/mia.log
 ```
 
-## Docker Installation (Coming Soon)
-
+#### API Key Issues
 ```bash
-docker build -t mia-assistant .
-docker run -it --env-file .env mia-assistant
+# Verify .env file exists and has correct keys
+cat .env | grep API_KEY
+
+# Test specific provider
+./run.sh --model-id gpt-3.5-turbo --debug
 ```
 
-## Usage
+### Getting Help
+- Check logs in `logs/` directory
+- Run `./dev.sh info` for system information
+- Run tests with `./dev.sh test`
+- Enable debug mode with `./run.sh --debug`
 
-See [USAGE.md](USAGE.md) for command-line examples and options.
+## 📚 Documentation
 
-Configure API keys and device settings in `.env` and relevant modules.
+- [Installation Guide](docs/installation.md)
+- [Configuration Guide](docs/configuration.md)
+- [API Reference](docs/api.md)
+- [Plugin Development](docs/plugins.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
-    python main.py
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/new-feature`
+3. Install development dependencies: `./dev.sh install-dev`
+4. Make your changes and add tests
+5. Run tests and linting: `./dev.sh test && ./dev.sh lint`
+6. Format code: `./dev.sh format`
+7. Commit your changes: `git commit -am 'Add new feature'`
+8. Push to the branch: `git push origin feature/new-feature`
+9. Create a Pull Request
+
+## 📄 License
+
+This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- OpenAI for GPT models and Whisper
+- HuggingFace for Transformers library
+- The open-source community for various dependencies
+- Contributors and beta testers
+
+## 📞 Support
+
+- 📧 Email: matheussoranco@gmail.com
+- 🐛 Issues: [GitHub Issues](https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis/discussions)
+
+---
+
+Made with ❤️ by the M.I.A development team
 
 # File Organization
 

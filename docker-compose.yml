@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mia:
+    build: .
+    container_name: mia-assistant
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./logs:/app/logs
+      - ./memory:/app/memory
+      - /dev/snd:/dev/snd  # For audio access
+    devices:
+      - /dev/snd:/dev/snd  # Audio devices
+    environment:
+      - DISPLAY=${DISPLAY}
+      - PULSE_RUNTIME_PATH=/tmp/pulse-socket
+    network_mode: host
+    restart: unless-stopped
+    
+    # Optional: GPU support for CUDA
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Optional: Ollama service for local LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mia-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    
+    # Uncomment for GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  ollama_data:
+    driver: local
