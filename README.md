@@ -456,8 +456,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**Made with ❤️ by the M.I.A Development Team**
-
-[Website](https://your-website.com) • [Documentation](docs/) • [GitHub](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis)
+**Made with ❤️ by the Me (Matheus)**
+[Documentation](docs/) • [GitHub](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis)
 
 </div>
