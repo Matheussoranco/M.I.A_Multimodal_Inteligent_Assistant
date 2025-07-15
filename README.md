@@ -974,7 +974,7 @@ spec:
 
 ## 📜 License & Legal
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU AFFERO GENERAL PUBLIC LICENSE** - see the [LICENSE](LICENSE) file for details.
 
 ### Third-Party Licenses
 - **PyTorch**: BSD-3-Clause License
@@ -1005,21 +1005,6 @@ This software may be subject to patents. Please review the [PATENTS](PATENTS.md)
 - **Contributors**: All developers who contributed to this project
 - **Researchers**: Academic researchers advancing the field
 - **Users**: Community members providing feedback and testing
-- **Sponsors**: Organizations supporting open-source development
-
-## 📞 Support & Community
-
-### Getting Help
-- **📖 Documentation**: [docs/](docs/) - Comprehensive guides
-- **🐛 Issues**: [GitHub Issues](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis/discussions)
-- **📧 Email**: support@mia-ai.com - Direct support
-
-### Community Resources
-- **Discord Server**: Real-time chat and support
-- **Reddit Community**: r/MIA_AI - Community discussions
-- **YouTube Channel**: Tutorials and demonstrations
-- **Blog**: Technical articles and updates
 
 ## 🗓️ Roadmap & Future Development
 
@@ -1047,8 +1032,6 @@ This software may be subject to patents. Please review the [PATENTS](PATENTS.md)
 ---
 
 <div align="center">
-
-**M.I.A - Advancing the Future of Human-AI Interaction**
 
 [![Star](https://img.shields.io/github/stars/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis)
 [![Fork](https://img.shields.io/github/forks/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis)
