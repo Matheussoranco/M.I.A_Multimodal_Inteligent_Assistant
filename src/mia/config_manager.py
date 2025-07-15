@@ -9,8 +9,8 @@ import logging
 from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
 from dataclasses import dataclass, field
-from ..exceptions import ConfigurationError, ValidationError
-from ..error_handler import global_error_handler, with_error_handling
+from .exceptions import ConfigurationError, ValidationError
+from .error_handler import global_error_handler, with_error_handling
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class LLMConfig:
     """Configuration for LLM providers."""
     provider: str = "ollama"
-    model_id: str = "deepseek-r1:1.5b"
+    model_id: str = "gemma3:4b-it-qat"
     api_key: Optional[str] = None
     url: Optional[str] = None
     max_tokens: int = 1024

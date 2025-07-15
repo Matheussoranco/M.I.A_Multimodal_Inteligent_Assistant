@@ -13,8 +13,8 @@ import os
 import json
 from pathlib import Path
 
-from ..exceptions import CacheError
-from ..config_manager import ConfigManager
+from .exceptions import CacheError
+from .config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 

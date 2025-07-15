@@ -11,8 +11,8 @@ from typing import Dict, List, Optional, Any, Callable, TypeVar, Generic
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from ..exceptions import MemoryError, ConfigurationError
-from ..error_handler import global_error_handler, with_error_handling
+from .exceptions import MemoryError, ConfigurationError
+from .error_handler import global_error_handler, with_error_handling
 
 logger = logging.getLogger(__name__)
 

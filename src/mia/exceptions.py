@@ -56,3 +56,23 @@ class NetworkError(MIAException):
 class ValidationError(MIAException):
     """Raised when input validation fails."""
     pass
+
+class PerformanceError(MIAException):
+    """Raised when performance-related issues occur."""
+    pass
+
+class ResourceError(MIAException):
+    """Raised when resource-related issues occur."""
+    pass
+
+class AudioError(MIAException):
+    """Raised when audio-related issues occur."""
+    pass
+
+class VisionError(MIAException):
+    """Raised when vision-related issues occur."""
+    pass
+
+class CacheError(MIAException):
+    """Raised when cache-related issues occur."""
+    pass

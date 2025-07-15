@@ -10,8 +10,8 @@ from threading import Thread, Lock
 import gc
 import tracemalloc
 
-from ..exceptions import PerformanceError
-from ..config_manager import ConfigManager
+from .exceptions import PerformanceError
+from .config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 

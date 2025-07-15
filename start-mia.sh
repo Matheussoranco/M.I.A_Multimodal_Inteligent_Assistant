@@ -2,7 +2,7 @@
 # M.I.A Startup Script for Linux/macOS
 # This script activates the virtual environment and starts M.I.A
 
-set -e  # Exit on any error
+set -euo pipefail  # Exit on any error, undefined variables, and pipe failures
 
 # Colors for output
 RED='\033[0;31m'
@@ -22,6 +22,10 @@ print_success() {
 
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 echo ""
@@ -56,6 +60,18 @@ if [ ! -f "main.py" ]; then
     exit 1
 fi
 
+# Check for config file
+if [ ! -f "config/.env" ]; then
+    if [ -f ".env" ]; then
+        print_info "Migrating .env to config/.env..."
+        mv ".env" "config/.env"
+    else
+        print_warning "config/.env file not found!"
+        print_warning "Using default configuration..."
+        print_warning "Please copy config/.env.example to config/.env and configure your API keys"
+    fi
+fi
+
 print_info "Starting M.I.A..."
 echo ""
 echo "🚀 M.I.A - The successor of pseudoJarvis"
@@ -66,7 +82,10 @@ echo ""
 python main.py "$@"
 
 # Check exit status
-if [ $? -ne 0 ]; then
-    print_error "M.I.A exited with an error"
-    exit 1
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+    print_error "M.I.A exited with error code $EXIT_CODE"
+    exit $EXIT_CODE
+else
+    print_success "M.I.A session ended successfully"
 fi
