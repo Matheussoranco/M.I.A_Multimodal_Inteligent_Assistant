@@ -32,6 +32,14 @@ class MultimodalProcessor:
         audio_np = np.frombuffer(audio.get_raw_data(), np.int16)
         return "neutral"  # Placeholder
 
+    def _get_dominant_color(self, img):
+        """Stub for dominant color extraction (to be implemented)."""
+        return "unknown"
+
+    def _extract_text(self, img):
+        """Stub for OCR text extraction (to be implemented)."""
+        return ""
+
 # Usage:
 # processor = MultimodalProcessor()
 # audio_analysis = processor.process_audio(audio_data)
