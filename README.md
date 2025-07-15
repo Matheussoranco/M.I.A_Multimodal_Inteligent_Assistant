@@ -1050,8 +1050,8 @@ This software may be subject to patents. Please review the [PATENTS](PATENTS.md)
 
 **M.I.A - Advancing the Future of Human-AI Interaction**
 
-[![Star](https://img.shields.io/github/stars/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis)
-[![Fork](https://img.shields.io/github/forks/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis)
-[![Watch](https://img.shields.io/github/watchers/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis)
+[![Star](https://img.shields.io/github/stars/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis)
+[![Fork](https://img.shields.io/github/forks/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis)
+[![Watch](https://img.shields.io/github/watchers/yourusername/M.I.A-The-successor-of-pseudoJarvis?style=social)](https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis)
 
 </div>
