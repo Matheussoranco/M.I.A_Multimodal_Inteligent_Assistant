@@ -7,7 +7,6 @@
 **A powerful, multimodal intelligent assistant that combines text, audio, and vision capabilities with advanced AI reasoning.**
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Ollama](https://img.shields.io/badge/Powered_by-Ollama-orange?style=flat-square)](https://ollama.ai)
 [![Transformers](https://img.shields.io/badge/Transformers-HuggingFace-yellow?style=flat-square)](https://huggingface.co/transformers)
 
@@ -453,10 +452,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] AR/VR integration
 
 ---
-
-<div align="center">
-
-**Made with ❤️ by the Me (Matheus)**
-[Documentation](docs/) • [GitHub](https://github.com/yourusername/M.I.A-The-successor-of-pseudoJarvis)
-
-</div>
