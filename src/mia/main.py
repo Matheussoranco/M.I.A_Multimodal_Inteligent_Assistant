@@ -42,6 +42,14 @@ from .multimodal.vision_processor import VisionProcessor
 from .memory.long_term_memory import LongTermMemory
 from .planning.calendar_integration import CalendarIntegration
 
+# Import custom exceptions and error handling
+from .exceptions import *
+from .error_handler import global_error_handler, with_error_handling, safe_execute
+from .config_manager import ConfigManager
+from .resource_manager import ResourceManager
+from .performance_monitor import PerformanceMonitor
+from .cache_manager import CacheManager
+
 # Configure logging
 def setup_logging(debug_mode=False):
     """Setup logging configuration with proper levels"""
@@ -100,10 +108,11 @@ def choose_mode():
 
 def main():
     parser = argparse.ArgumentParser(description="M.I.A - Multimodal Intelligent Assistant")
-    parser.add_argument("--url", default='http://localhost:11434/api/generate', help="LLM API URL")
-    parser.add_argument("--model-id", default='deepseek-r1:1.5b', help="Model ID to use")
-    parser.add_argument("--api-key", default='ollama', help="API key for the LLM service")
-    parser.add_argument("--stt-model", default="openai/whisper-base.en", help="Speech-to-text model")
+    parser.add_argument("--config", default="config/config.yaml", help="Configuration file path")
+    parser.add_argument("--url", default=None, help="LLM API URL")
+    parser.add_argument("--model-id", default=None, help="Model ID to use")
+    parser.add_argument("--api-key", default=None, help="API key for the LLM service")
+    parser.add_argument("--stt-model", default=None, help="Speech-to-text model")
     parser.add_argument("--image-input", help="Path to image file for multimodal processing")
     parser.add_argument("--enable-reasoning", action="store_true", help="Enable advanced reasoning")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -113,6 +122,45 @@ def main():
     parser.add_argument("--skip-mode-selection", action="store_true", help="Skip interactive mode selection")
 
     args = parser.parse_args()
+    
+    # Initialize configuration manager
+    try:
+        config_manager = ConfigManager(config_path=args.config)
+        
+        # Override configuration with command line arguments
+        if args.url:
+            config_manager.config.llm.url = args.url
+        if args.model_id:
+            config_manager.config.llm.model_id = args.model_id
+        if args.api_key:
+            config_manager.config.llm.api_key = args.api_key
+        if args.stt_model:
+            config_manager.config.audio.speech_model = args.stt_model
+        if args.debug:
+            config_manager.config.system.debug = True
+            config_manager.config.system.log_level = "DEBUG"
+            
+        # Setup logging with configuration
+        setup_logging(debug_mode=config_manager.config.system.debug)
+        
+        # Initialize resource manager
+        resource_manager = ResourceManager(
+            max_memory_mb=1000,  # 1GB limit
+            cleanup_interval=300  # 5 minutes
+        )
+        
+        # Initialize performance monitor
+        performance_monitor = PerformanceMonitor(config_manager)
+        performance_monitor.start_monitoring()
+        
+        # Initialize cache manager
+        cache_manager = CacheManager(config_manager)
+        
+        logger.info("Configuration, resource management, performance monitoring, and caching initialized")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize configuration: {e}")
+        sys.exit(1)
     
     # Handle --mode argument
     if args.mode:
@@ -161,15 +209,19 @@ def main():
         logger.warning("PyTorch not available, using CPU mode")
 
     try:
-        # Initialize core components
+        # Initialize core components with configuration and resource management
         logger.info("Initializing M.I.A components...")
         
-        # Initialize LLM with error handling
-        llm = LLMManager(provider='ollama', model_id=args.model_id, api_key=args.api_key, url=args.url)
-        if not llm.is_available():
-            logger.warning(f"LLM provider {llm.provider} not available, some features may be limited")
+        # Register components with resource manager
+        with resource_manager.acquire_resource("llm") as llm_resource:
+            # Initialize LLM with configuration
+            llm = LLMManager(config_manager=config_manager)
+            llm_resource.set_data(llm)
+            
+            if not llm.is_available():
+                logger.warning(f"LLM provider {llm.provider} not available, some features may be limited")
         
-        # Initialize other components
+        # Initialize other components with configuration
         cognitive_core = MIACognitiveCore(llm)
         multimodal_processor = MultimodalProcessor()
         memory = AgentMemory()
@@ -188,17 +240,20 @@ def main():
         long_term_memory = LongTermMemory()
         calendar = CalendarIntegration()
 
-        # Initialize audio components only if not in text-only mode
+        # Initialize audio components only if enabled in configuration and not in text-only mode
         speech_processor = None
         audio_model = None
         audio_available = False
         
-        if not args.text_only:
+        if not args.text_only and config_manager.config.audio.enabled:
             try:
-                speech_processor = SpeechProcessor(model_name=args.stt_model or "base")
-                audio_model = SpeechGenerator(device) if HAS_TORCH else None
-                audio_available = True
-                logger.info("Audio components initialized successfully")
+                with resource_manager.acquire_resource("audio") as audio_resource:
+                    speech_model = config_manager.config.audio.speech_model
+                    speech_processor = SpeechProcessor(model_name=speech_model)
+                    audio_model = SpeechGenerator(device) if HAS_TORCH else None
+                    audio_resource.set_data({"processor": speech_processor, "generator": audio_model})
+                    audio_available = True
+                    logger.info("Audio components initialized successfully")
             except Exception as e:
                 logger.warning(f"Speech recognition not available: {e}")
                 speech_processor = None
@@ -325,6 +380,17 @@ def main():
                             print(f"  LLM: {'Connected' if llm.is_available() else 'Disconnected'}")
                             print(f"  Audio: {'Available' if audio_available else 'Not available'}")
                             print(f"  Device: {device}")
+                            
+                            # Performance metrics
+                            perf_metrics = performance_monitor.get_current_metrics()
+                            if perf_metrics:
+                                print(f"  CPU: {perf_metrics.cpu_percent:.1f}%")
+                                print(f"  Memory: {perf_metrics.memory_percent:.1f}%")
+                                
+                            # Cache stats
+                            cache_stats = cache_manager.get_stats()
+                            print(f"  Cache Hit Rate: {cache_stats['memory_cache']['hit_rate']:.1%}")
+                            
                             print("-" * 40)
                             continue
                         elif user_input.lower() == 'models':
@@ -336,7 +402,9 @@ def main():
                             continue
                         elif user_input.lower() == 'clear':
                             print("🧹 Conversation context cleared.")
-                            # Reset memory if needed
+                            # Reset memory and optimize performance
+                            cache_manager.clear_all()
+                            performance_monitor.optimize_performance()
                             continue
                         elif user_input.lower() == 'audio' and not args.text_only and speech_processor:
                             args.audio_mode = True
@@ -352,26 +420,56 @@ def main():
                         logger.info("Shutting down M.I.A...")
                         break
 
-                # Cognitive processing
+                # Cognitive processing with enhanced error handling
                 response = None
                 try:
                     if args.enable_reasoning:
                         # Use the appropriate input for processing
                         input_text = inputs.get('audio', inputs.get('text', ''))
-                        processed = cognitive_core.process_multimodal_input({'text': input_text, **inputs})
-                        memory.store_experience(processed['text'], processed['embedding'])
-                        long_term_memory.remember(processed['text'])
-                        response = llm.query_model(
-                            processed['text'], 
-                            context=memory.retrieve_context(processed['embedding'])
-                        )
+                        
+                        try:
+                            processed = cognitive_core.process_multimodal_input({'text': input_text, **inputs})
+                            
+                            # Handle the processed response properly
+                            if isinstance(processed, dict):
+                                processed_text = processed.get('text', input_text)
+                                processed_embedding = processed.get('embedding', [])
+                            else:
+                                processed_text = str(processed)
+                                processed_embedding = []
+                            
+                            # Store in memory if embedding is available
+                            if processed_embedding:
+                                try:
+                                    memory.store_experience(processed_text, processed_embedding)
+                                except Exception as e:
+                                    logger.warning(f"Failed to store experience: {e}")
+                            
+                            try:
+                                long_term_memory.remember(processed_text)
+                            except Exception as e:
+                                logger.warning(f"Failed to store in long-term memory: {e}")
+                            
+                            # Query LLM with context
+                            try:
+                                context = memory.retrieve_context(processed_embedding) if processed_embedding else []
+                                response = llm.query_model(processed_text, context=context)
+                            except Exception as e:
+                                logger.warning(f"Failed to query with context: {e}")
+                                response = llm.query_model(processed_text)
+                                
+                        except Exception as e:
+                            logger.error(f"Cognitive processing failed: {e}")
+                            # Fallback to simple LLM query
+                            response = llm.query_model(input_text)
                     else:
                         # Use the appropriate input for LLM query
                         input_text = inputs.get('audio', inputs.get('text', ''))
                         response = llm.query_model(input_text)
+                        
                 except Exception as e:
                     logger.error(f"Error querying LLM: {e}")
-                    response = "Sorry, I encountered an error processing your request."
+                    response = "Sorry, I encountered an error processing your request. Please try again."
 
                 # Validate response
                 if not response:
@@ -430,6 +528,18 @@ def main():
     except Exception as e:
         logger.error(f"Critical error during initialization: {e}")
         sys.exit(1)
+    
+    finally:
+        # Cleanup resources
+        logger.info("Cleaning up resources...")
+        try:
+            performance_monitor.stop_monitoring()
+            performance_monitor.cleanup()
+            cache_manager.clear_all()
+            resource_manager.cleanup()
+            logger.info("Resource cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,71 @@
+# M.I.A Configuration File
+# This file contains the default configuration for M.I.A - Multimodal Intelligent Assistant
+
+# LLM Configuration
+llm:
+  provider: ollama              # Options: openai, ollama, huggingface, anthropic, gemini, groq, grok, local
+  model_id: deepseek-r1:1.5b    # Model identifier
+  api_key: null                 # API key (can be set via environment variable)
+  url: http://localhost:11434/api/generate  # API endpoint URL
+  max_tokens: 1024              # Maximum tokens per response
+  temperature: 0.7              # Response creativity (0.0-2.0)
+  timeout: 30                   # Request timeout in seconds
+
+# Audio Configuration
+audio:
+  enabled: true                 # Enable audio processing
+  sample_rate: 16000           # Audio sample rate
+  chunk_size: 1024             # Audio chunk size
+  device_id: null              # Audio device ID (null for default)
+  input_threshold: 0.01        # Audio input threshold
+  speech_model: openai/whisper-base.en  # Speech recognition model
+  tts_enabled: true            # Enable text-to-speech
+
+# Vision Configuration
+vision:
+  enabled: true                # Enable vision processing
+  model: openai/clip-vit-base-patch32  # Vision model
+  device: auto                 # Device: auto, cpu, cuda, mps
+  max_image_size: 1024         # Maximum image size in pixels
+  supported_formats:           # Supported image formats
+    - jpg
+    - jpeg
+    - png
+    - bmp
+    - gif
+
+# Memory Configuration
+memory:
+  enabled: true                # Enable memory system
+  vector_db_path: memory/      # Vector database path
+  max_memory_size: 10000       # Maximum memory entries
+  embedding_dimension: 768     # Embedding dimension
+  similarity_threshold: 0.7    # Similarity threshold for retrieval
+
+# Security Configuration
+security:
+  enabled: true                # Enable security features
+  max_file_size: 10485760      # Maximum file size (10MB)
+  allowed_file_types:          # Allowed file types
+    - txt
+    - md
+    - py
+    - json
+    - yaml
+  blocked_commands:            # Blocked commands
+    - rm -rf
+    - del /f
+    - format
+    - fdisk
+  max_command_length: 1000     # Maximum command length
+  audit_logging: true          # Enable audit logging
+
+# System Configuration
+system:
+  debug: false                 # Enable debug mode
+  log_level: INFO              # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  max_workers: 4               # Maximum worker threads
+  request_timeout: 30          # Request timeout in seconds
+  retry_attempts: 3            # Number of retry attempts
+  cache_enabled: true          # Enable caching
+  cache_ttl: 3600             # Cache TTL in seconds

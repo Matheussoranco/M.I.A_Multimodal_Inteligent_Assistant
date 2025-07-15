@@ -3,6 +3,9 @@ import logging
 from typing import Optional, Any, Dict
 import io
 
+# Import configuration manager
+from ..config_manager import ConfigManager
+
 # Optional imports with fallbacks
 try:
     import whisper
@@ -37,17 +40,27 @@ logger = logging.getLogger(__name__)
 class SpeechProcessor:
     """Speech processing class for audio transcription and recognition."""
     
-    def __init__(self, model_name="base", use_whisper=True):
+    def __init__(self, model_name=None, use_whisper=True, config_manager=None):
         """
         Initialize the SpeechProcessor.
         
         :param model_name: Whisper model name (tiny, base, small, medium, large)
         :param use_whisper: Whether to use Whisper as primary transcription method
+        :param config_manager: Configuration manager instance
         """
-        self.model_name = model_name
+        self.config_manager = config_manager or ConfigManager()
+        
+        # Use configuration values if not provided
+        self.model_name = model_name or self.config_manager.config.audio.speech_model
         self.use_whisper = use_whisper
         self.whisper_model = None
         self.recognizer = None
+        
+        # Configuration values
+        self.sample_rate = self.config_manager.config.audio.sample_rate
+        self.chunk_size = self.config_manager.config.audio.chunk_size
+        self.device_id = self.config_manager.config.audio.device_id
+        self.input_threshold = self.config_manager.config.audio.input_threshold
         self.microphone = None
         
         self._init_whisper()

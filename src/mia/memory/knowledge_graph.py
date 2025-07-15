@@ -2,6 +2,10 @@ import networkx as nx
 import logging
 from typing import Optional, List, Any
 
+# Import custom exceptions and error handling
+from ..exceptions import MemoryError, InitializationError, ValidationError
+from ..error_handler import global_error_handler, with_error_handling, safe_execute
+
 # Optional Chroma import with fallback
 try:
     import chromadb
@@ -24,52 +28,99 @@ class AgentMemory:
         self._init_vector_db()
         
     def _init_vector_db(self):
-        """Initialize vector database with new Chroma API."""
+        """Initialize vector database with comprehensive error handling."""
         if not CHROMADB_AVAILABLE:
             logger.warning("ChromaDB not available - vector memory disabled")
             return
             
         try:
+            # Validate persist directory
+            if not self.persist_directory:
+                raise InitializationError("Persist directory not specified", "MISSING_PERSIST_DIR")
+            
+            # Create directory if it doesn't exist
+            import os
+            os.makedirs(self.persist_directory, exist_ok=True)
+            
             # Use new ChromaDB API
-            self.vector_db = PersistentClient(path=self.persist_directory)
+            try:
+                self.vector_db = PersistentClient(path=self.persist_directory)
+            except Exception as e:
+                raise InitializationError(f"Failed to create ChromaDB client: {str(e)}", 
+                                       "CHROMADB_CLIENT_FAILED")
             
             # Get or create collection
             try:
                 self.collection = self.vector_db.get_collection("episodic")
                 logger.info("Retrieved existing ChromaDB collection")
-            except:
-                self.collection = self.vector_db.create_collection("episodic")
-                logger.info("Created new ChromaDB collection")
+            except Exception:
+                try:
+                    self.collection = self.vector_db.create_collection("episodic")
+                    logger.info("Created new ChromaDB collection")
+                except Exception as e:
+                    raise InitializationError(f"Failed to create ChromaDB collection: {str(e)}", 
+                                           "COLLECTION_CREATE_FAILED")
                 
+        except InitializationError:
+            raise
         except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB: {e}")
-            self.vector_db = None
-            self.collection = None
+            raise InitializationError(f"ChromaDB initialization failed: {str(e)}", 
+                                   "CHROMADB_INIT_FAILED")
         
+    @with_error_handling(global_error_handler, fallback_value=False)
     def store_experience(self, text: str, embedding: List[float], doc_id: Optional[str] = None) -> bool:
-        """Store text with vector embedding"""
+        """Store text with vector embedding with comprehensive validation."""
+        if not text:
+            raise ValidationError("Empty text provided", "EMPTY_TEXT")
+            
+        if not isinstance(text, str):
+            raise ValidationError("Text must be a string", "INVALID_TEXT_TYPE")
+            
+        if not embedding:
+            raise ValidationError("Empty embedding provided", "EMPTY_EMBEDDING")
+            
+        if not isinstance(embedding, list):
+            raise ValidationError("Embedding must be a list", "INVALID_EMBEDDING_TYPE")
+        
         if not self.collection:
-            logger.warning("Vector database not available")
-            return False
+            raise MemoryError("Vector database not available", "DB_NOT_AVAILABLE")
             
         try:
             if doc_id is None:
-                # Generate a simple ID
-                doc_id = f"doc_{len(self.get_all_documents())}"
+                # Generate a unique ID
+                import uuid
+                doc_id = f"doc_{uuid.uuid4().hex[:8]}"
+                
+            # Validate doc_id
+            if not isinstance(doc_id, str) or not doc_id.strip():
+                raise ValidationError("Invalid document ID", "INVALID_DOC_ID")
                 
             self.collection.add(
                 documents=[text],
                 embeddings=[embedding],
                 ids=[doc_id]
             )
+            
             logger.debug(f"Stored experience with ID: {doc_id}")
             return True
+            
+        except ValidationError:
+            raise
         except Exception as e:
-            logger.error(f"Failed to store experience: {e}")
-            return False
+            raise MemoryError(f"Failed to store experience: {str(e)}", "STORE_FAILED")
     
+    @with_error_handling(global_error_handler, fallback_value=[])
     def retrieve_context(self, query_embedding: List[float], top_k: int = 3) -> List[str]:
-        """Semantic similarity search"""
+        """Semantic similarity search with comprehensive validation."""
+        if not query_embedding:
+            raise ValidationError("Empty query embedding provided", "EMPTY_QUERY_EMBEDDING")
+            
+        if not isinstance(query_embedding, list):
+            raise ValidationError("Query embedding must be a list", "INVALID_QUERY_EMBEDDING_TYPE")
+            
+        if not isinstance(top_k, int) or top_k <= 0:
+            raise ValidationError("top_k must be a positive integer", "INVALID_TOP_K")
+            
         if not self.collection:
             logger.warning("Vector database not available")
             return []
@@ -77,14 +128,22 @@ class AgentMemory:
         try:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
-                n_results=top_k
+                n_results=min(top_k, 100)  # Limit to reasonable number
             )
+            
             documents = results.get('documents', [[]])[0]
+            
+            # Validate results
+            if not isinstance(documents, list):
+                raise MemoryError("Invalid query results format", "INVALID_RESULTS")
+                
             logger.debug(f"Retrieved {len(documents)} context documents")
             return documents
+            
+        except ValidationError:
+            raise
         except Exception as e:
-            logger.error(f"Failed to retrieve context: {e}")
-            return []
+            raise MemoryError(f"Failed to retrieve context: {str(e)}", "RETRIEVE_FAILED")
     
     def get_all_documents(self) -> List[str]:
         """Get all stored documents."""
