@@ -293,11 +293,23 @@ print(f"GPU: {metrics.gpu_utilization}%")
 - **Consent Management**: User consent tracking and management
 - **Secure Communication**: TLS 1.3 for all network communications
 
+
+## 🚧 Feature Development Status
+
+Some advanced features described in this README (such as distributed processing, advanced reasoning, and certain plugin/integration modules) are under active development. For the v0.1.0 pre-release, the core architecture, basic multimodal processing, and LLM integration are functional. Features marked in the roadmap or described as "advanced" may be partially implemented or provided as stubs for future releases.
+
 ## 🧪 Testing & Quality Assurance
+
+
+### Running Tests
+```bash
+# Run all unit and integration tests (with src/ in path)
+python run_tests.py
+```
 
 ### Test Coverage
 ```bash
-# Run comprehensive test suite
+# (Optional) Run with pytest for coverage
 pytest tests/ --cov=src/mia --cov-report=html
 
 # Performance benchmarking
