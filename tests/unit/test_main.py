@@ -1,9 +1,18 @@
 import unittest
-from mia import main
+import sys
+import os
+from pathlib import Path
+
+# Add src directory to path for imports
+project_root = Path(__file__).parent.parent.parent
+src_dir = project_root / 'src'
+sys.path.insert(0, str(src_dir))
+
+from mia.main import main
 
 class TestMainEntryPoint(unittest.TestCase):
     def test_main_exists(self):
-        self.assertTrue(callable(main.main), "main.main should be callable")
+        self.assertTrue(callable(main), "main should be callable")
 
 if __name__ == "__main__":
     unittest.main()

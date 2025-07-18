@@ -12,6 +12,8 @@ try:
     from chromadb import PersistentClient
     CHROMADB_AVAILABLE = True
 except ImportError:
+    chromadb = None
+    PersistentClient = None
     CHROMADB_AVAILABLE = False
     chromadb = None
     PersistentClient = None
@@ -44,6 +46,8 @@ class AgentMemory:
             
             # Use new ChromaDB API
             try:
+                if not CHROMADB_AVAILABLE or PersistentClient is None:
+                    raise InitializationError("ChromaDB not available", "CHROMADB_NOT_AVAILABLE")
                 self.vector_db = PersistentClient(path=self.persist_directory)
             except Exception as e:
                 raise InitializationError(f"Failed to create ChromaDB client: {str(e)}", 
@@ -131,7 +135,14 @@ class AgentMemory:
                 n_results=min(top_k, 100)  # Limit to reasonable number
             )
             
-            documents = results.get('documents', [[]])[0]
+            if results is None:
+                return []
+                
+            documents = results.get('documents', [[]])
+            if documents and len(documents) > 0:
+                documents = documents[0]
+            else:
+                documents = []
             
             # Validate results
             if not isinstance(documents, list):
@@ -152,7 +163,10 @@ class AgentMemory:
             
         try:
             results = self.collection.get()
-            return results.get('documents', [])
+            if results is None:
+                return []
+            documents = results.get('documents', [])
+            return documents if documents is not None else []
         except Exception as e:
             logger.error(f"Failed to get documents: {e}")
             return []

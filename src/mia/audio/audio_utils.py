@@ -60,15 +60,19 @@ class AudioUtils:
             chunk_samples = int(chunk_length_s * self.sample_rate)
             
             # Record audio
-            audio_data = sd.rec(
-                frames=chunk_samples,
-                samplerate=self.sample_rate,
-                channels=self.channels,
-                dtype=np.float32
-            )
-            
-            # Wait for recording to complete
-            sd.wait()
+            if sd is not None:
+                audio_data = sd.rec(  # type: ignore
+                    frames=chunk_samples,
+                    samplerate=self.sample_rate,
+                    channels=self.channels,
+                    dtype=np.float32
+                )
+                
+                # Wait for recording to complete
+                sd.wait()  # type: ignore
+            else:
+                # Fallback simulation
+                audio_data = self._create_simulated_audio(chunk_length_s).reshape(-1, 1)
             
             # Flatten if multi-channel
             if audio_data.ndim > 1:
@@ -87,7 +91,7 @@ class AudioUtils:
         # Create some random noise as placeholder
         return np.random.normal(0, 0.1, samples).astype(np.float32)
 
-    def play_audio(self, audio_data: np.ndarray, sample_rate: int = None):
+    def play_audio(self, audio_data: np.ndarray, sample_rate: Optional[int] = None):
         """
         Play audio data.
         
@@ -98,17 +102,17 @@ class AudioUtils:
             sample_rate = self.sample_rate
             
         try:
-            if HAS_SOUNDDEVICE:
+            if HAS_SOUNDDEVICE and sd is not None:
                 logger.info("Playing audio with sounddevice...")
-                sd.play(audio_data, samplerate=sample_rate)
-                sd.wait()  # Wait until audio is finished
+                sd.play(audio_data, samplerate=sample_rate)  # type: ignore
+                sd.wait()  # type: ignore # Wait until audio is finished
             else:
                 logger.warning("Audio playback not available (sounddevice not installed)")
                 
         except Exception as e:
             logger.error(f"Error playing audio: {e}")
 
-    def save_audio(self, audio_data: np.ndarray, filename: str, sample_rate: int = None):
+    def save_audio(self, audio_data: np.ndarray, filename: str, sample_rate: Optional[int] = None):
         """
         Save audio data to file.
         
@@ -120,8 +124,8 @@ class AudioUtils:
             sample_rate = self.sample_rate
             
         try:
-            if HAS_SOUNDFILE:
-                sf.write(filename, audio_data, sample_rate)
+            if HAS_SOUNDFILE and sf is not None:
+                sf.write(filename, audio_data, sample_rate)  # type: ignore
                 logger.info(f"Audio saved to {filename}")
             else:
                 logger.warning("Cannot save audio (soundfile not installed)")
@@ -137,8 +141,8 @@ class AudioUtils:
         :return: Tuple of (audio_data, sample_rate)
         """
         try:
-            if HAS_SOUNDFILE:
-                audio_data, sample_rate = sf.read(filename)
+            if HAS_SOUNDFILE and sf is not None:
+                audio_data, sample_rate = sf.read(filename)  # type: ignore
                 logger.info(f"Audio loaded from {filename}")
                 return audio_data, sample_rate
             else:

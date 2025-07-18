@@ -294,7 +294,7 @@ class ConfigManager:
             raise ConfigurationError("No configuration to save", "NO_CONFIG")
         
         if not config_path:
-            config_path = self.config_dir / "config.json"
+            config_path = str(self.config_dir / "config.json")
         
         config_file = Path(config_path)
         config_file.parent.mkdir(parents=True, exist_ok=True)

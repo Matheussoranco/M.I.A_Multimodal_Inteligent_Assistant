@@ -42,17 +42,27 @@ class LLMManager:
         # Initialize configuration manager
         self.config_manager = config_manager or ConfigManager()
         
-        # Use configuration values if not provided
-        self.provider = provider or self.config_manager.config.llm.provider
-        self.model_id = model_id or self.config_manager.config.llm.model_id
-        self.api_key = api_key or self.config_manager.config.llm.api_key or os.getenv('OPENAI_API_KEY')
-        self.url = url or self.config_manager.config.llm.url
-        self.local_model_path = local_model_path
+        # Use configuration values if not provided (with safe access)
+        config = self.config_manager.config
+        if config and hasattr(config, 'llm'):
+            self.provider = provider or config.llm.provider
+            self.model_id = model_id or config.llm.model_id
+            self.api_key = api_key or config.llm.api_key or os.getenv('OPENAI_API_KEY')
+            self.url = url or config.llm.url
+            self.max_tokens = config.llm.max_tokens
+            self.temperature = config.llm.temperature
+            self.timeout = config.llm.timeout
+        else:
+            # Default values if config is not available
+            self.provider = provider or 'ollama'
+            self.model_id = model_id or 'deepseek-r1:1.5b'
+            self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+            self.url = url or 'http://localhost:11434'
+            self.max_tokens = 2048
+            self.temperature = 0.7
+            self.timeout = 30
         
-        # Initialize other configuration values
-        self.max_tokens = self.config_manager.config.llm.max_tokens
-        self.temperature = self.config_manager.config.llm.temperature
-        self.timeout = self.config_manager.config.llm.timeout
+        self.local_model_path = local_model_path
         
         self.client: Optional[Union[Any, object]] = None
         self.model: Optional[Any] = None

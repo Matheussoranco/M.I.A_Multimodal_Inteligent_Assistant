@@ -50,17 +50,27 @@ class SpeechProcessor:
         """
         self.config_manager = config_manager or ConfigManager()
         
-        # Use configuration values if not provided
-        self.model_name = model_name or self.config_manager.config.audio.speech_model
+        # Use configuration values if not provided (with safe access)
+        config = self.config_manager.config
+        if config and hasattr(config, 'audio'):
+            self.model_name = model_name or config.audio.speech_model
+            self.sample_rate = config.audio.sample_rate
+            self.chunk_size = config.audio.chunk_size
+            self.device_id = config.audio.device_id
+            self.input_threshold = config.audio.input_threshold
+        else:
+            # Default values if config is not available
+            self.model_name = model_name or "base"
+            self.sample_rate = 16000
+            self.chunk_size = 1024
+            self.device_id = None
+            self.input_threshold = 0.5
+            
         self.use_whisper = use_whisper
         self.whisper_model = None
         self.recognizer = None
         
         # Configuration values
-        self.sample_rate = self.config_manager.config.audio.sample_rate
-        self.chunk_size = self.config_manager.config.audio.chunk_size
-        self.device_id = self.config_manager.config.audio.device_id
-        self.input_threshold = self.config_manager.config.audio.input_threshold
         self.microphone = None
         
         self._init_whisper()
@@ -103,7 +113,7 @@ class SpeechProcessor:
         if self.whisper_model:
             try:
                 result = self.whisper_model.transcribe(audio_file_path)
-                text = result.get("text", "").strip()
+                text = str(result.get("text", "")).strip() if isinstance(result, dict) else ""
                 if text:
                     logger.info(f"Whisper transcription: {text[:100]}...")
                     return text
@@ -111,11 +121,11 @@ class SpeechProcessor:
                 logger.error(f"Whisper transcription failed: {e}")
         
         # Fallback to speech recognition
-        if self.recognizer:
+        if self.recognizer and sr is not None:
             try:
-                with sr.AudioFile(audio_file_path) as source:
+                with sr.AudioFile(audio_file_path) as source:  # type: ignore
                     audio = self.recognizer.record(source)
-                    text = self.recognizer.recognize_google(audio)
+                    text = getattr(self.recognizer, 'recognize_google')(audio)  # type: ignore
                     if text:
                         logger.info(f"Speech recognition transcription: {text[:100]}...")
                         return text
@@ -148,7 +158,7 @@ class SpeechProcessor:
                     audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
                 
                 result = self.whisper_model.transcribe(audio_array)
-                text = result.get("text", "").strip()
+                text = str(result.get("text", "")).strip() if isinstance(result, dict) else ""
                 if text:
                     logger.info(f"Whisper transcription: {text[:100]}...")
                     return text
@@ -156,10 +166,10 @@ class SpeechProcessor:
                 logger.error(f"Whisper transcription from data failed: {e}")
         
         # Fallback to speech recognition
-        if self.recognizer and SPEECH_RECOGNITION_AVAILABLE:
+        if self.recognizer and SPEECH_RECOGNITION_AVAILABLE and sr is not None:
             try:
-                audio = sr.AudioData(audio_data, sample_rate, 2)  # Assuming 16-bit
-                text = self.recognizer.recognize_google(audio)
+                audio = sr.AudioData(audio_data, sample_rate, 2)  # type: ignore # Assuming 16-bit
+                text = getattr(self.recognizer, 'recognize_google')(audio)  # type: ignore
                 if text:
                     logger.info(f"Speech recognition transcription: {text[:100]}...")
                     return text
@@ -195,26 +205,31 @@ class SpeechProcessor:
             if self.whisper_model:
                 try:
                     # Convert to format suitable for Whisper
-                    audio_data = audio.get_wav_data()
-                    return self.transcribe_audio_data(audio_data, audio.sample_rate)
+                    audio_data = getattr(audio, 'get_wav_data')()  # type: ignore
+                    sample_rate = getattr(audio, 'sample_rate', 16000)  # type: ignore
+                    return self.transcribe_audio_data(audio_data, sample_rate)
                 except Exception as e:
                     logger.error(f"Whisper microphone transcription failed: {e}")
             
             # Fallback to Google Speech Recognition
             try:
-                text = self.recognizer.recognize_google(audio)
+                text = getattr(self.recognizer, 'recognize_google')(audio)  # type: ignore
                 if text:
                     logger.info(f"Microphone transcription: {text}")
                     return text
-            except sr.UnknownValueError:
-                logger.warning("Could not understand audio")
-            except sr.RequestError as e:
-                logger.error(f"Speech recognition service error: {e}")
+            except Exception as e:
+                if sr and hasattr(sr, 'UnknownValueError') and isinstance(e, sr.UnknownValueError):
+                    logger.warning("Could not understand audio")
+                elif sr and hasattr(sr, 'RequestError') and isinstance(e, sr.RequestError):
+                    logger.error(f"Speech recognition service error: {e}")
+                else:
+                    logger.error(f"Speech recognition error: {e}")
                 
-        except sr.WaitTimeoutError:
-            logger.warning("Listening timeout - no speech detected")
         except Exception as e:
-            logger.error(f"Microphone listening failed: {e}")
+            if sr and hasattr(sr, 'WaitTimeoutError') and isinstance(e, sr.WaitTimeoutError):
+                logger.warning("Listening timeout - no speech detected")
+            else:
+                logger.error(f"Microphone listening failed: {e}")
         
         return None
     
