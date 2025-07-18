@@ -1,0 +1,15 @@
+# M.I.A Core Requirements (minimal for build)
+# Essential dependencies only
+
+# Core Python packages
+setuptools>=61.0
+wheel
+
+# Version and configuration
+python-dotenv>=1.0.0
+
+# Basic utilities (lightweight)
+typing-extensions>=3.7.4.3
+
+# Note: Heavy dependencies like transformers, torch, etc. 
+# are loaded dynamically at runtime to avoid build issues

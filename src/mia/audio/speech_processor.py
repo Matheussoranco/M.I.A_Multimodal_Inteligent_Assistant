@@ -151,11 +151,15 @@ class SpeechProcessor:
         if self.whisper_model and NUMPY_AVAILABLE and np:
             try:
                 # Convert bytes to numpy array for Whisper
-                if SOUNDFILE_AVAILABLE and sf:
-                    audio_array, _ = sf.read(io.BytesIO(audio_data))
-                else:
-                    # Simple conversion assuming 16-bit PCM
-                    audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+                # These are raw float32 bytes from numpy array, not a file format
+                audio_array = np.frombuffer(audio_data, dtype=np.float32)
+                
+                # Ensure audio is mono and normalized
+                if len(audio_array.shape) > 1:
+                    audio_array = audio_array.flatten()
+                    
+                # Whisper expects audio to be normalized between -1 and 1
+                audio_array = np.clip(audio_array, -1.0, 1.0)
                 
                 result = self.whisper_model.transcribe(audio_array)
                 text = str(result.get("text", "")).strip() if isinstance(result, dict) else ""

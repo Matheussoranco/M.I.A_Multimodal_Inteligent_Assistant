@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import tempfile
 import os
 
-from llm.llm_manager import LLMManager
+from mia.llm.llm_manager import LLMManager
 from security.security_manager import SecurityManager
 from core.cognitive_architecture import MIACognitiveCore
 

@@ -1,18 +1,28 @@
 @echo off
-echo Starting M.I.A - Text Mode Only...
+echo Starting M.I.A v0.1.0 - Text Mode Only...
 
+REM Check if M.I.A is installed via pip
+mia --version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Starting M.I.A in text-only mode...
+    mia --text-only %*
+    goto :end
+)
+
+REM Fall back to development mode
 if not exist "venv\Scripts\activate.bat" (
-    echo Virtual environment not found!
-    echo Please run install.bat first
+    echo M.I.A not found. Please install first:
+    echo   pip install mia-successor
     pause
     exit /b 1
 )
 
 call venv\Scripts\activate.bat
+echo Starting M.I.A in text-only mode (development)...
+python -m mia.main --text-only %*
 
-if not exist ".env" (
-    echo Warning: .env file not found!
-    echo Using default configuration...
+:end
+pause
     echo Please copy .env.example to .env and configure your API keys
 )
 

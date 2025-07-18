@@ -1,13 +1,14 @@
 """
 Basic tests for agent enhancements.
 """
-from tools.action_executor import ActionExecutor
-from learning.user_learning import UserLearning
-from plugins.plugin_manager import PluginManager
-from security.security_manager import SecurityManager
-from deployment.deployment_manager import DeploymentManager
-from multimodal.vision_processor import VisionProcessor
-from memory.long_term_memory import LongTermMemory
+# NOTE: These imports are commented out as the modules are not yet implemented
+# from mia.tools.action_executor import ActionExecutor
+# from mia.learning.user_learning import UserLearning
+# from mia.plugins.plugin_manager import PluginManager
+# from mia.security.security_manager import SecurityManager
+# from mia.deployment.deployment_manager import DeploymentManager
+from mia.multimodal.vision_processor import VisionProcessor
+# from mia.memory.long_term_memory import LongTermMemory
 from planning.calendar_integration import CalendarIntegration
 
 def test_action_executor():

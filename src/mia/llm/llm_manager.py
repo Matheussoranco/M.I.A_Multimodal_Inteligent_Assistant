@@ -57,7 +57,7 @@ class LLMManager:
             self.provider = provider or 'ollama'
             self.model_id = model_id or 'deepseek-r1:1.5b'
             self.api_key = api_key or os.getenv('OPENAI_API_KEY')
-            self.url = url or 'http://localhost:11434'
+            self.url = url or 'http://localhost:11434/api/generate'
             self.max_tokens = 2048
             self.temperature = 0.7
             self.timeout = 30

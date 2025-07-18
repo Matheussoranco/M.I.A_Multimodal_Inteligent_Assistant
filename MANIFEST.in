@@ -1,0 +1,26 @@
+include README.md
+include LICENSE
+include requirements.txt
+include STARTUP_GUIDE.md
+include CHANGELOG.md
+include config.ini.template
+recursive-include src *.py
+recursive-include config *.yaml *.yml *.json
+recursive-include docs *.md *.rst
+recursive-include scripts/install *.bat *.sh
+recursive-include scripts/run *.bat *.sh
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * *.orig
+recursive-exclude * *.rej
+recursive-exclude * .git*
+recursive-exclude * *.swp
+recursive-exclude * *.tmp
+recursive-exclude venv *
+recursive-exclude .venv *
+exclude build-release.sh
+exclude build-release.bat
+exclude docker-compose.yml
+exclude Dockerfile
+exclude Makefile
+exclude .gitignore

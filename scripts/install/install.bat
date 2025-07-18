@@ -1,14 +1,28 @@
 @echo off
-REM M.I.A Installation Script for Windows
-REM This script installs M.I.A and its dependencies
+REM M.I.A Installation Script for Windows v0.1.0
+REM This script installs M.I.A and its dependencies via pip
 
-setlocal enabledelayedexpansion
+setlocal enablecho To run M.I.A, use one of these commands:
+echo   mia --info         (show version info)
+echo   mia --text-only    (text mode)
+echo   mia --audio-mode   (with audio)
+echo.
+echo Or use the run scripts:
+echo   scripts\run\run.bat
+echo.
+echo For help and documentation, check README.md
+echo.
+echo Note: Some features require Ollama to be installed.
+echo Visit https://ollama.ai for installation instructions.
+echo.
+echo Press any key to exit...
+pause >nul
 
 echo.
 echo =================================
 echo   M.I.A Installation Script
 echo =================================
-echo Installing M.I.A - The successor of pseudoJarvis
+echo Installing M.I.A v0.1.0 - Multimodal Intelligent Assistant
 echo.
 
 REM Check if Python is installed

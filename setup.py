@@ -1,5 +1,10 @@
 from setuptools import setup, find_packages
 import os
+import sys
+
+# Add src to path to import version
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from mia.__version__ import __version__, __author__, __author_email__, __description__, __url__, __license__
 
 def read_requirements():
     """Read requirements from requirements.txt"""
@@ -28,23 +33,24 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mia-successor",
-    version="0.1.0",
-    description="M.I.A - Your Personal Virtual Assistant powered by LLMs and modular automation.",
+    version=__version__,
+    description=__description__,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author="Matheus Pullig Soranço de Carvalho",
-    author_email="matheussoranco@gmail.com",
-    url="https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis",
-    packages=find_packages(),
+    author=__author__,
+    author_email=__author_email__,
+    url=__url__,
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
     install_requires=read_requirements(),
     python_requires=">=3.8",
     entry_points={
         'console_scripts': [
-            'mia = src.mia.main:main',
+            'mia = mia.main:main',
         ],
     },
     include_package_data=True,
-    license="AGPLv3",
+    license=__license__,
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU Affero General Public License v3",

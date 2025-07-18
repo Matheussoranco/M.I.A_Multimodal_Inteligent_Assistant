@@ -7,7 +7,7 @@
 **Enterprise-grade multimodal AI assistant with advanced cognitive architectures, real-time processing, and production-ready deployment capabilities.**
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)](https://python.org)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red?style=flat-square&logo=pytorch)](https://pytorch.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-Latest-red?style=flat-square&logo=pytorch)](https://pytorch.org)
 [![Transformers](https://img.shields.io/badge/Transformers-4.35%2B-yellow?style=flat-square&logo=huggingface)](https://huggingface.co/transformers)
 [![Ollama](https://img.shields.io/badge/Ollama-Runtime-orange?style=flat-square)](https://ollama.ai)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Store-green?style=flat-square)](https://chromadb.com)
@@ -456,6 +456,39 @@ python main.py --model-id gemma2:9b
 # Debug mode
 python main.py --mode text --debug
 ```
+
+### Language Support
+
+M.I.A supports both English and Portuguese interfaces with full localization:
+
+```bash
+# English interface (default)
+python main.py --language en
+
+# Portuguese interface
+python main.py --language pt
+
+# Use environment variable for default language
+export MIA_LANGUAGE=pt  # Linux/macOS
+set MIA_LANGUAGE=pt     # Windows CMD
+$env:MIA_LANGUAGE="pt"  # Windows PowerShell
+
+# Then run normally
+python main.py
+```
+
+**Supported Languages:**
+- 🇺🇸 English (`en`) - Default
+- 🇧🇷 Portuguese (`pt`) - Complete localization
+
+**Agent Commands by Language:**
+
+| English | Portuguese | Description |
+|---------|------------|-------------|
+| `create file [name]` | `criar arquivo [nome]` | Create a new file |
+| `make note [title]` | `fazer nota [título]` | Create a note |
+| `analyze code [file]` | `analisar código [arquivo]` | Analyze code file |
+| `search file [name]` | `buscar arquivo [nome]` | Search for files |
 
 ### Startup Scripts
 

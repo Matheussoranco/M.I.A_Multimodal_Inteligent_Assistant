@@ -1,20 +1,36 @@
 """
 M.I.A - Multimodal Intelligent Assistant
-Main package initialization with error handling support.
+Main package initialization with minimal imports to avoid circular dependencies.
 """
 
-# Export core components
-from .main import main
-from .llm.llm_manager import LLMManager
-from .core.cognitive_architecture import MIACognitiveCore
-from .security.security_manager import SecurityManager
-from .memory.knowledge_graph import AgentMemory
+# Import version information
+from .__version__ import __version__
 
-# Export error handling components
-from .exceptions import *
-from .error_handler import ErrorHandler, global_error_handler, with_error_handling, safe_execute
+# Minimal exports to avoid circular imports during build
+__all__ = ['__version__']
 
-__version__ = "2.0.0"
+# Lazy imports for main functionality
+def get_main():
+    """Lazy import of main function to avoid circular imports."""
+    from .main import main
+    return main
+
+def get_llm_manager():
+    """Lazy import of LLM manager."""
+    from .llm.llm_manager import LLMManager
+    return LLMManager
+
+def get_agent_memory():
+    """Lazy import of agent memory."""
+    from .memory.knowledge_graph import AgentMemory
+    return AgentMemory
+
+# Lazy imports for error handling
+def get_error_handler():
+    """Lazy import of error handler."""
+    from .error_handler import ErrorHandler, global_error_handler, with_error_handling, safe_execute
+    return ErrorHandler, global_error_handler, with_error_handling, safe_execute
+
 __author__ = "M.I.A Development Team"
 __description__ = "A multimodal intelligent assistant with text and audio capabilities"
 
