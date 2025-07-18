@@ -350,7 +350,7 @@ def main():
         parser.add_argument('--language', choices=['en', 'pt'], default=None, 
                           help='Interface language (en=English, pt=Portuguese)')
         parser.add_argument('--image-input', type=str, default=None, help='Image to process')
-        parser.add_argument('--model-id', type=str, default='deepseek-r1:1.5b', help='Model ID')
+        parser.add_argument('--model-id', type=str, default='deepseek-r1:latest', help='Model ID')
         parser.add_argument('--version', action='version', version=f'M.I.A {__version__}', help='Show version information')
         parser.add_argument('--info', action='store_true', help='Show detailed version and system information')
         args = parser.parse_args()
@@ -555,7 +555,7 @@ def main():
                     elif cmd == 'models':
                         print(bold("\n🤖 Available Models"))
                         print(bold("─"*40))
-                        print(green("  deepseek-r1:1.5b" + (" (current)" if getattr(args, 'model_id', '') == 'deepseek-r1:1.5b' else "")))
+                        print(green("  deepseek-r1:latest" + (" (current)" if getattr(args, 'model_id', '') == 'deepseek-r1:latest' else "")))
                         print(green("  gemma3:4b-it-qat" + (" (current)" if getattr(args, 'model_id', '') == 'gemma3:4b-it-qat' else "")))
                         print(cyan("  Use --model-id to change model"))
                         print(bold("─"*40))

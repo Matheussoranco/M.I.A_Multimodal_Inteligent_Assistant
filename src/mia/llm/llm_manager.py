@@ -55,7 +55,7 @@ class LLMManager:
         else:
             # Default values if config is not available
             self.provider = provider or 'ollama'
-            self.model_id = model_id or 'deepseek-r1:1.5b'
+            self.model_id = model_id or 'deepseek-r1:latest'
             self.api_key = api_key or os.getenv('OPENAI_API_KEY')
             self.url = url or 'http://localhost:11434/api/generate'
             self.max_tokens = 2048
