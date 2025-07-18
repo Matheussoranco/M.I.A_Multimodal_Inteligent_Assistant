@@ -23,10 +23,15 @@ def read_requirements():
             return requirements
     return []
 
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
 setup(
     name="mia-successor",
     version="0.1.0",
-    description="Friday/M.I.A - Your Personal Virtual Assistant powered by LLMs and modular automation.",
+    description="M.I.A - Your Personal Virtual Assistant powered by LLMs and modular automation.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author="Matheus Pullig Soranço de Carvalho",
     author_email="matheussoranco@gmail.com",
     url="https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis",
@@ -35,7 +40,7 @@ setup(
     python_requires=">=3.8",
     entry_points={
         'console_scripts': [
-            'mia = main_modules.main:main',
+            'mia = src.mia.main:main',
         ],
     },
     include_package_data=True,
