@@ -231,7 +231,7 @@ class TestResourceManager(unittest.TestCase):
         
     def tearDown(self):
         """Clean up test environment."""
-        self.resource_manager.cleanup()
+        self.resource_manager.stop()
         
     def test_resource_acquisition(self):
         """Test resource acquisition and release."""

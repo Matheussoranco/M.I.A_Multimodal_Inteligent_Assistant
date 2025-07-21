@@ -37,7 +37,7 @@ class ResourceInfo:
     last_used: float
     memory_usage: int = 0
     reference_count: int = 0
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
     
     def __post_init__(self):
         if self.metadata is None:
@@ -261,6 +261,10 @@ class ResourceManager:
                 
             logger.info("Resource manager stopped")
     
+    def cleanup(self) -> None:
+        """Cleanup alias for stop() method for semantic clarity."""
+        self.stop()
+    
     @with_error_handling(global_error_handler, fallback_value=None)
     def register_resource(self, resource: ManagedResource) -> str:
         """Register a new resource."""
@@ -417,7 +421,7 @@ class ResourceManager:
                         created_at=resource.created_at,
                         last_used=resource.last_used,
                         memory_usage=resource.get_memory_usage(),
-                        reference_count=len(self.resource_refs.get(resource.resource_id, [])),
+                        reference_count=1 if resource.resource_id in self.resource_refs else 0,
                         metadata={}
                     )
                     info_list.append(info)

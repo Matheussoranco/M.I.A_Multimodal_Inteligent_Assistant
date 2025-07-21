@@ -629,8 +629,8 @@ def main():
                 performance_monitor.cleanup()
             if 'cache_manager' in locals() and cache_manager and hasattr(cache_manager, 'clear_all'):
                 cache_manager.clear_all()
-            if 'resource_manager' in locals() and resource_manager and hasattr(resource_manager, 'cleanup'):
-                resource_manager.cleanup()
+            if 'resource_manager' in locals() and resource_manager and hasattr(resource_manager, 'stop'):
+                resource_manager.stop()
             logger.info("Resource cleanup completed")
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
