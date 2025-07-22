@@ -7,7 +7,7 @@ name = "mia-successor"
 dynamic = ["version", "dependencies"]
 description = "M.I.A - Multimodal Intelligent Assistant"
 readme = "README.md"
-license = "AGPL-3.0-or-later"
+license = {text = "AGPL-3.0-or-later"}
 authors = [
     {name = "Matheus Pullig Soranço de Carvalho", email = "matheussoranco@gmail.com"}
 ]
