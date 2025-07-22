@@ -71,7 +71,6 @@ class AgentMemory:
             raise InitializationError(f"ChromaDB initialization failed: {str(e)}", 
                                    "CHROMADB_INIT_FAILED")
         
-    @with_error_handling(global_error_handler, fallback_value=False)
     def store_experience(self, text: str, embedding: List[float], doc_id: Optional[str] = None) -> bool:
         """Store text with vector embedding with comprehensive validation."""
         if not text:
@@ -113,7 +112,6 @@ class AgentMemory:
         except Exception as e:
             raise MemoryError(f"Failed to store experience: {str(e)}", "STORE_FAILED")
     
-    @with_error_handling(global_error_handler, fallback_value=[])
     def retrieve_context(self, query_embedding: List[float], top_k: int = 3) -> List[str]:
         """Semantic similarity search with comprehensive validation."""
         if not query_embedding:

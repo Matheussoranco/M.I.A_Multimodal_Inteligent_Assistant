@@ -67,8 +67,13 @@ class LLMManager:
         self.client: Optional[Union[Any, object]] = None
         self.model: Optional[Any] = None
         self.tokenizer: Optional[Any] = None
+        self._available = True
         
-        self._initialize_provider()
+        try:
+            self._initialize_provider()
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM provider {self.provider}: {e}")
+            self._available = False
     
     def _initialize_provider(self):
         """Initialize the specific provider with comprehensive error handling."""

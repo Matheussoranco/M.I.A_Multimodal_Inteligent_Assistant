@@ -4,17 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mia-successor"
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 description = "M.I.A - Multimodal Intelligent Assistant"
 readme = "README.md"
-license = {text = "AGPL-3.0"}
+license = "AGPL-3.0-or-later"
 authors = [
     {name = "Matheus Pullig Soranço de Carvalho", email = "matheussoranco@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -37,6 +36,7 @@ mia = "mia.main:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "mia.__version__.__version__"}
+dependencies = {file = ["requirements-core.txt"]}
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -307,6 +307,16 @@ class ResourceManager:
             # Resource cleanup is handled by the manager
             pass
     
+    @contextmanager
+    def acquire_resource(self, resource_id: str):
+        """Acquire resource - alias for use_resource for compatibility."""
+        with self.use_resource(resource_id) as resource:
+            yield resource
+    
+    def get_memory_usage(self) -> int:
+        """Get current memory usage - alias for get_total_memory_usage."""
+        return self.get_total_memory_usage()
+    
     @with_error_handling(global_error_handler, fallback_value=False)
     def release_resource(self, resource_id: str) -> bool:
         """Release a resource."""

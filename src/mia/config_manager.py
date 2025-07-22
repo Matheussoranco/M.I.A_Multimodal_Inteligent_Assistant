@@ -171,7 +171,15 @@ class ConfigManager:
     """Configuration manager for M.I.A."""
     
     def __init__(self, config_dir: str = "config"):
-        self.config_dir = Path(config_dir)
+        if config_dir and os.path.isfile(config_dir):
+            # If config_dir is actually a file path, extract directory
+            config_file = Path(config_dir)
+            self.config_dir = config_file.parent
+            self._explicit_config_file = config_file
+        else:
+            self.config_dir = Path(config_dir)
+            self._explicit_config_file = None
+        
         self.config: Optional[MIAConfig] = None
         self._config_file_paths = [
             self.config_dir / "config.json",
@@ -181,6 +189,13 @@ class ConfigManager:
             "config.yaml",
             "config.yml"
         ]
+        
+        # Auto-load config if explicit file was provided
+        if self._explicit_config_file:
+            try:
+                self.load_config(str(self._explicit_config_file))
+            except Exception as e:
+                logger.warning(f"Failed to auto-load config: {e}")
         
     @with_error_handling(global_error_handler, fallback_value=None)
     def load_config(self, config_path: Optional[str] = None) -> MIAConfig:
@@ -399,6 +414,18 @@ class ConfigManager:
                                    "UPDATE_VALIDATION_FAILED")
         
         logger.info(f"Configuration updated: {section}.{key} = {value}")
+    
+    def validate_config(self) -> bool:
+        """Validate current configuration."""
+        if not self.config:
+            raise ConfigurationError("No configuration loaded", "NO_CONFIG")
+        
+        try:
+            self.config.validate()
+            return True
+        except ValidationError as e:
+            logger.error(f"Configuration validation failed: {str(e)}")
+            raise ConfigurationError(f"Configuration validation failed: {str(e)}", "VALIDATION_FAILED")
 
 # Global configuration manager instance
 config_manager = ConfigManager()

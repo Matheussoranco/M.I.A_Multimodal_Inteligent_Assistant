@@ -7,7 +7,7 @@ import threading
 import time
 import weakref
 
-from ..resource_manager import ManagedResource, ResourceManager
+from ..resource_manager import ManagedResource, ResourceManager, ResourceState
 from ..exceptions import ResourceError, AudioError
 
 logger = logging.getLogger(__name__)
@@ -16,11 +16,17 @@ class AudioResource(ManagedResource):
     """Managed resource for audio components."""
     
     def __init__(self, name: str, audio_component: Any, config_manager=None):
-        super().__init__(name, audio_component)
+        super().__init__(name, "audio")
+        self.data = audio_component
         self.config_manager = config_manager
         self.is_recording = False
         self.is_playing = False
         self.last_activity = time.time()
+        
+    def initialize(self) -> None:
+        """Initialize the audio resource."""
+        self.state = ResourceState.INITIALIZED
+        logger.info(f"Audio resource {self.resource_id} initialized")
         
     def cleanup(self):
         """Clean up audio resources."""
@@ -31,9 +37,9 @@ class AudioResource(ManagedResource):
                 self.data.stop_playback()
             if hasattr(self.data, 'close'):
                 self.data.close()
-            logger.info(f"Audio resource {self.name} cleaned up")
+            logger.info(f"Audio resource {self.resource_id} cleaned up")
         except Exception as e:
-            logger.error(f"Error cleaning up audio resource {self.name}: {e}")
+            logger.error(f"Error cleaning up audio resource {self.resource_id}: {e}")
     
     def get_memory_usage(self) -> int:
         """Get memory usage of audio resource."""
@@ -71,14 +77,14 @@ class AudioResource(ManagedResource):
 class AudioResourceManager(ResourceManager):
     """Specialized resource manager for audio components."""
     
-    def __init__(self, max_memory_mb: int = 500, cleanup_interval: int = 60):
-        super().__init__(max_memory_mb, cleanup_interval)
+    def __init__(self, max_memory_mb: int = 500):
+        super().__init__(max_memory_mb)
         self.audio_resources: Dict[str, AudioResource] = {}
         self.recording_lock = threading.Lock()
         
     def acquire_audio_resource(self, name: str, audio_component: Any, config_manager=None) -> AudioResource:
         """Acquire an audio resource."""
-        with self.lock:
+        with self._lock:
             if name in self.audio_resources:
                 return self.audio_resources[name]
             
@@ -91,7 +97,7 @@ class AudioResourceManager(ResourceManager):
     
     def release_audio_resource(self, name: str):
         """Release an audio resource."""
-        with self.lock:
+        with self._lock:
             if name in self.audio_resources:
                 resource = self.audio_resources[name]
                 resource.cleanup()
@@ -102,18 +108,18 @@ class AudioResourceManager(ResourceManager):
     
     def is_recording_active(self) -> bool:
         """Check if any audio resource is currently recording."""
-        with self.lock:
+        with self._lock:
             return any(resource.is_recording for resource in self.audio_resources.values())
     
     def is_playback_active(self) -> bool:
         """Check if any audio resource is currently playing."""
-        with self.lock:
+        with self._lock:
             return any(resource.is_playing for resource in self.audio_resources.values())
     
     def stop_all_recording(self):
         """Stop all recording activities."""
         with self.recording_lock:
-            with self.lock:
+            with self._lock:
                 for resource in self.audio_resources.values():
                     if resource.is_recording:
                         resource.stop_recording()
@@ -121,7 +127,7 @@ class AudioResourceManager(ResourceManager):
     
     def stop_all_playback(self):
         """Stop all playback activities."""
-        with self.lock:
+        with self._lock:
             for resource in self.audio_resources.values():
                 if resource.is_playing:
                     resource.stop_playback()
@@ -129,7 +135,7 @@ class AudioResourceManager(ResourceManager):
     
     def get_audio_status(self) -> Dict[str, Any]:
         """Get status of all audio resources."""
-        with self.lock:
+        with self._lock:
             status = {
                 'total_resources': len(self.audio_resources),
                 'recording_active': self.is_recording_active(),
@@ -152,7 +158,7 @@ class AudioResourceManager(ResourceManager):
         current_time = time.time()
         idle_timeout = 300  # 5 minutes
         
-        with self.lock:
+        with self._lock:
             idle_resources = []
             for name, resource in self.audio_resources.items():
                 if (not resource.is_recording and 

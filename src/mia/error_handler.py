@@ -22,6 +22,41 @@ class ErrorHandler:
     def register_recovery_strategy(self, exception_type: Type[Exception], strategy: Callable):
         """Register a recovery strategy for a specific exception type."""
         self.recovery_strategies[exception_type] = strategy
+    
+    def add_recovery_strategy(self, exception_type: Type[Exception], strategy: Callable):
+        """Add recovery strategy - alias for register_recovery_strategy."""
+        self.register_recovery_strategy(exception_type, strategy)
+    
+    def record_failure(self, service_name: str):
+        """Record a failure for circuit breaker tracking."""
+        self.error_counts[service_name] = self.error_counts.get(service_name, 0) + 1
+    
+    def is_circuit_open(self, service_name: str) -> bool:
+        """Check if circuit breaker is open for a service."""
+        return self.error_counts.get(service_name, 0) >= self.circuit_breaker_threshold
+    
+    def handle_errors(self, max_retries: int = 3):
+        """Decorator factory for error handling with retries."""
+        def decorator(func: Callable) -> Callable:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                last_exception = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        return func(*args, **kwargs)
+                    except Exception as e:
+                        last_exception = e
+                        if attempt < max_retries:
+                            logger.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}")
+                        else:
+                            logger.error(f"All {max_retries + 1} attempts failed for {func.__name__}: {e}")
+                
+                # All retries exhausted
+                if last_exception:
+                    raise last_exception
+                    
+            return wrapper
+        return decorator
         
     def handle_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> Optional[Any]:
         """Handle an error with appropriate logging and recovery."""

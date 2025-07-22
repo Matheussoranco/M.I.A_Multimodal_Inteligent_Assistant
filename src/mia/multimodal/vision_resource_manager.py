@@ -7,7 +7,7 @@ import threading
 import time
 import weakref
 
-from ..resource_manager import ManagedResource, ResourceManager
+from ..resource_manager import ManagedResource, ResourceManager, ResourceState
 from ..exceptions import ResourceError, VisionError
 
 logger = logging.getLogger(__name__)
@@ -16,11 +16,17 @@ class VisionResource(ManagedResource):
     """Managed resource for vision components."""
     
     def __init__(self, name: str, vision_component: Any, config_manager=None):
-        super().__init__(name, vision_component)
+        super().__init__(name, "vision")
+        self.data = vision_component
         self.config_manager = config_manager
         self.is_processing = False
         self.last_activity = time.time()
         self.model_loaded = False
+        
+    def initialize(self) -> None:
+        """Initialize the vision resource."""
+        self.state = ResourceState.INITIALIZED
+        logger.info(f"Vision resource {self.resource_id} initialized")
         
     def cleanup(self):
         """Clean up vision resources."""
@@ -31,9 +37,9 @@ class VisionResource(ManagedResource):
                 self.data.clear_cache()
             if hasattr(self.data, 'close'):
                 self.data.close()
-            logger.info(f"Vision resource {self.name} cleaned up")
+            logger.info(f"Vision resource {self.resource_id} cleaned up")
         except Exception as e:
-            logger.error(f"Error cleaning up vision resource {self.name}: {e}")
+            logger.error(f"Error cleaning up vision resource {self.resource_id}: {e}")
     
     def get_memory_usage(self) -> int:
         """Get memory usage of vision resource."""
@@ -61,14 +67,14 @@ class VisionResource(ManagedResource):
 class VisionResourceManager(ResourceManager):
     """Specialized resource manager for vision components."""
     
-    def __init__(self, max_memory_mb: int = 2000, cleanup_interval: int = 120):
-        super().__init__(max_memory_mb, cleanup_interval)
+    def __init__(self, max_memory_mb: int = 2000):
+        super().__init__(max_memory_mb)
         self.vision_resources: Dict[str, VisionResource] = {}
         self.processing_lock = threading.Lock()
         
     def acquire_vision_resource(self, name: str, vision_component: Any, config_manager=None) -> VisionResource:
         """Acquire a vision resource."""
-        with self.lock:
+        with self._lock:
             if name in self.vision_resources:
                 return self.vision_resources[name]
             
@@ -81,7 +87,7 @@ class VisionResourceManager(ResourceManager):
     
     def release_vision_resource(self, name: str):
         """Release a vision resource."""
-        with self.lock:
+        with self._lock:
             if name in self.vision_resources:
                 resource = self.vision_resources[name]
                 resource.cleanup()
@@ -92,13 +98,13 @@ class VisionResourceManager(ResourceManager):
     
     def is_processing_active(self) -> bool:
         """Check if any vision resource is currently processing."""
-        with self.lock:
+        with self._lock:
             return any(resource.is_processing for resource in self.vision_resources.values())
     
     def stop_all_processing(self):
         """Stop all processing activities."""
         with self.processing_lock:
-            with self.lock:
+            with self._lock:
                 for resource in self.vision_resources.values():
                     if resource.is_processing:
                         resource.stop_processing()
@@ -106,7 +112,7 @@ class VisionResourceManager(ResourceManager):
     
     def get_vision_status(self) -> Dict[str, Any]:
         """Get status of all vision resources."""
-        with self.lock:
+        with self._lock:
             status = {
                 'total_resources': len(self.vision_resources),
                 'processing_active': self.is_processing_active(),
@@ -128,7 +134,7 @@ class VisionResourceManager(ResourceManager):
         current_time = time.time()
         idle_timeout = 600  # 10 minutes for vision models
         
-        with self.lock:
+        with self._lock:
             idle_resources = []
             for name, resource in self.vision_resources.items():
                 if (not resource.is_processing and 

@@ -181,7 +181,6 @@ class SecurityManager:
         except Exception as e:
             logger.error(f"Failed to log action attempt: {e}")
 
-    @with_error_handling(global_error_handler, fallback_value=None)
     def set_policy(self, action: str, allowed: bool):
         """Set permission policy for an action with validation."""
         if not action or not isinstance(action, str):

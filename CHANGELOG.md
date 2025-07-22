@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2025-07-22
+
+### Fixed
+- 🐛 **Critical Bug Fix**: Fixed `resource_manager.cleanup()` method call to use correct `stop()` method
+- 🧪 **Test Infrastructure**: Completely rewrote broken test files with proper mocking
+- ⚙️ **Build Configuration**: Fixed setuptools warnings and configuration conflicts
+- 📦 **Package Structure**: Simplified setup.py to defer to pyproject.toml
+
+### Added
+- 🔄 **CI/CD Pipeline**: GitHub Actions for testing, linting, security, and release automation
+- 📋 **Contributing Guidelines**: Comprehensive CONTRIBUTING.md with development workflow
+- 🛡️ **Security Policy**: SECURITY.md with vulnerability reporting process
+- 🧪 **Test Coverage**: Improved test coverage with proper mocking strategies
+
+### Technical
+- ✅ **Tests Working**: All critical tests now pass with proper mocking
+- 🔧 **Configuration**: Resolved pyproject.toml/setup.py conflicts
+- 🚀 **CI Ready**: Automated testing across Python 3.8-3.11 and multiple OS
+- 📊 **Code Quality**: Integrated black, isort, flake8, mypy, bandit, safety
+
+### Deployment Ready
+- 🐳 **Docker**: Multi-platform Docker builds (linux/amd64, linux/arm64)
+- 📦 **PyPI Ready**: Automated PyPI publishing on release
+- 🏷️ **Release Automation**: GitHub releases with artifact uploads
+
 ## [0.1.0] - 2025-07-18
 
 ### Added

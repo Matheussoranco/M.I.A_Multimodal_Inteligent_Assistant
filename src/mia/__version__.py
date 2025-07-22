@@ -2,8 +2,8 @@
 Version information for M.I.A - Multimodal Intelligent Assistant
 """
 
-__version__ = "0.1.0"
-__version_info__ = (0, 1, 0)
+__version__ = "0.1.0-alpha.1"
+__version_info__ = (0, 1, 0, "alpha", 1)
 
 # Release information
 __title__ = "M.I.A"
@@ -14,8 +14,8 @@ __license__ = "AGPLv3"
 __url__ = "https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis"
 
 # Build information
-__build__ = "pre-release"
-__status__ = "Development"
+__build__ = "alpha"
+__status__ = "Alpha"
 
 def get_version():
     """Get the version string."""
