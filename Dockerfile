@@ -58,6 +58,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port (if web interface is added later)
 EXPOSE 8000
 
-# Default command
-CMD ["mia", "--info"]
-CMD ["python", "-m", "main_modules.main"]
+# Default command (CLI)
+CMD ["python", "-m", "mia.main", "--info"]

@@ -189,6 +189,19 @@ class ConfigManager:
             "config.yaml",
             "config.yml"
         ]
+        # Load .env early if present (non-fatal if missing)
+        try:
+            from dotenv import load_dotenv  # type: ignore
+            env_path = self.config_dir / ".env"
+            if env_path.exists():
+                load_dotenv(dotenv_path=str(env_path))
+            else:
+                # Also load project root .env if exists
+                if os.path.exists('.env'):
+                    load_dotenv(dotenv_path='.env')
+        except Exception:
+            # dotenv is optional; ignore any errors
+            pass
         
         # Auto-load config if explicit file was provided
         if self._explicit_config_file:

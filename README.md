@@ -157,7 +157,7 @@ curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull deepseek-r1:1.5b
 
 # Launch M.I.A
-python main.py
+python main.py --mode mixed
 ```
 
 ### Docker Deployment
@@ -166,7 +166,8 @@ python main.py
 docker build -t mia:latest .
 
 # Run with GPU support
-docker run --gpus all -p 8080:8080 mia:latest
+# Map ports only if the API server is enabled in your image
+docker run --gpus all mia:latest
 
 # Docker Compose (production)
 docker-compose up -d
@@ -185,11 +186,11 @@ kubectl scale deployment mia --replicas=3
 
 ### Multimodal Processing
 ```python
-from src.mia.core.cognitive_architecture import CognitiveArchitecture
+from src.mia.core.cognitive_architecture import MIACognitiveCore
 from src.mia.multimodal.processor import MultimodalProcessor
 
-# Initialize cognitive architecture
-cognitive = CognitiveArchitecture()
+# Initialize cognitive core
+cognitive = MIACognitiveCore(llm_client=None)
 processor = MultimodalProcessor(cognitive)
 
 # Process multimodal input
@@ -200,14 +201,12 @@ result = processor.process({
 })
 ```
 
-### Advanced Reasoning
+### Advanced Reasoning (roadmap)
 ```python
-from src.mia.core.reasoning_engine import ReasoningEngine
-
-# Initialize reasoning engine
-reasoning = ReasoningEngine()
-
-# Chain of thought reasoning
+# Pseudocode for planned reasoning engine
+# reasoning = ReasoningEngine()
+# answer = reasoning.chain_of_thought("Explain quantum entanglement.")
+# print(answer)
 result = reasoning.chain_of_thought(
     query="Solve this complex problem step by step",
     context=conversation_history,
@@ -282,41 +281,18 @@ print(f"GPU: {metrics.gpu_utilization}%")
 ## 🔒 Security & Privacy
 
 ### Data Protection
-- **Local Processing**: All data processed locally by default
-- **Encryption**: AES-256 encryption for stored data
-- **Access Control**: Role-based access control (RBAC)
-- **Audit Logging**: Comprehensive security event logging
 
 ### Privacy Features
-- **Anonymous Mode**: Remove personally identifiable information
-- **Data Retention**: Configurable data retention policies
-- **Consent Management**: User consent tracking and management
-- **Secure Communication**: TLS 1.3 for all network communications
 
 
-## 🚧 Feature Development Status
+## 📈 Monitoring & Analytics (roadmap)
 
 Some advanced features described in this README (such as distributed processing, advanced reasoning, and certain plugin/integration modules) are under active development. For the v0.1.0 pre-release, the core architecture, basic multimodal processing, and LLM integration are functional. Features marked in the roadmap or described as "advanced" may be partially implemented or provided as stubs for future releases.
-
-## 🧪 Testing & Quality Assurance
-
-
 ### Running Tests
 ```bash
-# Run all unit and integration tests (with src/ in path)
-python run_tests.py
-```
-
 ### Test Coverage
 ```bash
-# (Optional) Run with pytest for coverage
-pytest tests/ --cov=src/mia --cov-report=html
-
-# Performance benchmarking
-python -m pytest tests/benchmarks/ --benchmark-only
-
-# Integration tests
-python -m pytest tests/integration/ -v
+Examples and SDKs will be provided in a future release.
 ```
 
 ### Code Quality
@@ -365,31 +341,27 @@ class CustomPlugin(BasePlugin):
         return analysis_result
 ```
 
-### API Integration
+### API Integration (roadmap)
 ```python
-# RESTful API server
-from src.mia.api.server import APIServer
+# RESTful API server (planned)
+# Pseudocode:
+# server = APIServer()
+# server.run(host="0.0.0.0", port=8080)
 
-server = APIServer()
-server.run(host="0.0.0.0", port=8080)
-
-# WebSocket support
-from src.mia.api.websocket import WebSocketHandler
-
-ws_handler = WebSocketHandler()
-ws_handler.start_server()
+# WebSocket support (planned)
+# Pseudocode:
+# ws_handler = WebSocketHandler()
+# ws_handler.start_server()
 ```
 
-### Distributed Processing
+### Distributed Processing (roadmap)
 ```python
-# Distributed inference across multiple nodes
-from src.mia.distributed.cluster import ClusterManager
-
-cluster = ClusterManager()
-cluster.add_node("worker-1", "192.168.1.100")
-cluster.add_node("worker-2", "192.168.1.101")
-
-result = cluster.process_distributed(large_batch_data)
+# Distributed inference across multiple nodes (planned)
+# Pseudocode:
+# cluster = ClusterManager()
+# cluster.add_node("worker-1", "192.168.1.100")
+# cluster.add_node("worker-2", "192.168.1.101")
+# result = cluster.process_distributed(large_batch_data)
 ```
 ```bash
 # Download or clone the repository
@@ -510,7 +482,7 @@ python main.py --help
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--mode` | Interaction mode (text/audio/mixed/auto) | Interactive selection |
+| `--mode` | Interaction mode (text/audio/mixed/auto) | mixed |
 | `--model-id` | LLM model to use | `deepseek-r1:1.5b` |
 | `--url` | Ollama API URL | `http://localhost:11434/api/generate` |
 | `--debug` | Enable debug logging | `False` |
@@ -845,33 +817,13 @@ models:
 - **ISO 27001**: Information security management
 - **HIPAA**: Healthcare data protection (optional)
 
-## 📈 Monitoring & Observability
+## 📈 Monitoring & Observability (roadmap)
 
 ### Metrics Collection
-```python
-# Prometheus metrics integration
-from src.mia.monitoring.prometheus import PrometheusMetrics
-
-metrics = PrometheusMetrics()
-metrics.start_server(port=9090)
-
-# Custom metrics
-metrics.increment_counter('mia_requests_total', {'method': 'POST'})
-metrics.observe_histogram('mia_response_time', response_time)
-metrics.set_gauge('mia_active_users', active_users)
-```
+Examples and SDKs will be provided in a future release.
 
 ### Distributed Tracing
-```python
-# OpenTelemetry integration
-from src.mia.monitoring.tracing import TracingManager
-
-tracer = TracingManager()
-with tracer.start_span("multimodal_processing") as span:
-    result = process_multimodal_input(data)
-    span.set_attribute("input_size", len(data))
-    span.set_attribute("processing_time", elapsed_time)
-```
+Examples and SDKs will be provided in a future release.
 
 ## 🚀 Production Deployment
 
@@ -891,11 +843,12 @@ services:
         reservations:
           cpus: '1'
           memory: 4G
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # Optional healthcheck (only if API server is enabled)
+  # healthcheck:
+  #   test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  #   interval: 30s
+  #   timeout: 10s
+  #   retries: 3
       
   mia-cache:
     image: redis:7-alpine
@@ -946,18 +899,19 @@ spec:
         env:
         - name: OLLAMA_HOST
           value: "http://ollama-service:11434"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
+  # Optional probes (only if API server is enabled)
+  # livenessProbe:
+  #   httpGet:
+  #     path: /health
+  #     port: 8080
+  #   initialDelaySeconds: 30
+  #   periodSeconds: 10
+  # readinessProbe:
+  #   httpGet:
+  #     path: /ready
+  #     port: 8080
+  #   initialDelaySeconds: 5
+  #   periodSeconds: 5
 ```
 
 ## 📚 Documentation & Resources

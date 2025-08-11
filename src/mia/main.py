@@ -11,15 +11,6 @@ from .__version__ import __version__, get_full_version
 # Import localization
 from .localization import init_localization, get_localization, _
 
-# Suppress TensorFlow and other library warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow INFO and WARNING messages
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
-os.environ['TRANSFORMERS_VERBOSITY'] = 'error'  # Suppress transformers warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*slow.*processor.*", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*use_fast.*", category=UserWarning)
-
 # Optional imports with error handling
 try:
     import torch
@@ -160,36 +151,37 @@ def red(text):
 def cyan(text):
     """Make text cyan using ANSI escape codes"""
     return f"\033[36m{text}\033[0m"
+    # Parse arguments
+    parser = argparse.ArgumentParser(description="M.I.A - Multimodal Intelligent Assistant")
+    # Unified mode selector (with backward-compatible flags)
+    parser.add_argument('--mode', choices=['text', 'audio', 'mixed', 'auto'], default='mixed',
+                help='Interaction mode: text|audio|mixed|auto')
+    parser.add_argument('--text-only', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--audio-mode', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--language', choices=['en', 'pt'], default=None,
+                help='Interface language (en=English, pt=Portuguese)')
+    parser.add_argument('--image-input', type=str, default=None, help='Image to process')
+    parser.add_argument('--model-id', type=str, default='deepseek-r1:1.5b', help='Model ID')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--version', action='version', version=f'M.I.A {__version__}', help='Show version information')
+    parser.add_argument('--info', action='store_true', help='Show detailed version and system information')
+    args = parser.parse_args()
+
+    # Apply logging and warning settings after CLI is parsed
+    setup_logging(getattr(args, 'debug', False))
+    _suppress_warnings_env()
+
+def _suppress_warnings_env() -> None:
+    """Set environment variables and warning filters to reduce noise (opt-in)."""
+    os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
+    os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
+    os.environ.setdefault('TRANSFORMERS_VERBOSITY', 'error')
+    warnings.filterwarnings("ignore", category=FutureWarning)
+    warnings.filterwarnings("ignore", category=UserWarning)
+    warnings.filterwarnings("ignore", message=".*slow.*processor.*", category=UserWarning)
+    warnings.filterwarnings("ignore", message=".*use_fast.*", category=UserWarning)
 
 
-def blue(text):
-    """Make text blue using ANSI escape codes"""
-    return f"\033[34m{text}\033[0m"
-
-# Configure logging
-def setup_logging(debug_mode=False):
-    """Setup logging configuration with proper levels"""
-    level = logging.DEBUG if debug_mode else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    
-    # Suppress noisy third-party loggers
-    logging.getLogger("transformers").setLevel(logging.WARNING)
-    logging.getLogger("torch").setLevel(logging.WARNING)
-    logging.getLogger("tensorflow").setLevel(logging.WARNING)
-    logging.getLogger("numba").setLevel(logging.WARNING)
-    logging.getLogger("chromadb").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-
-
-# Configure logging
-setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -345,16 +337,27 @@ def main():
     try:
         # Parse arguments
         parser = argparse.ArgumentParser(description="M.I.A - Multimodal Intelligent Assistant")
-        parser.add_argument('--text-only', action='store_true', help='Text-only mode')
-        parser.add_argument('--audio-mode', action='store_true', help='Audio mode')
-        parser.add_argument('--language', choices=['en', 'pt'], default=None, 
-                          help='Interface language (en=English, pt=Portuguese)')
+        parser.add_argument('--mode', choices=['text', 'audio', 'mixed', 'auto'], default='mixed',
+                            help='Interaction mode: text|audio|mixed|auto')
+        parser.add_argument('--text-only', action='store_true', help=argparse.SUPPRESS)
+        parser.add_argument('--audio-mode', action='store_true', help=argparse.SUPPRESS)
+        parser.add_argument('--language', choices=['en', 'pt'], default=None,
+                            help='Interface language (en=English, pt=Portuguese)')
         parser.add_argument('--image-input', type=str, default=None, help='Image to process')
-        parser.add_argument('--model-id', type=str, default='deepseek-r1:latest', help='Model ID')
+        parser.add_argument('--model-id', type=str, default='deepseek-r1:1.5b', help='Model ID')
+        parser.add_argument('--debug', action='store_true', help='Enable debug logging')
         parser.add_argument('--version', action='version', version=f'M.I.A {__version__}', help='Show version information')
         parser.add_argument('--info', action='store_true', help='Show detailed version and system information')
         args = parser.parse_args()
-        
+
+        # Apply logging and warning settings after CLI is parsed
+        level = logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
+        logging.basicConfig(level=level, format='%(asctime)s - %(levelname)s - %(message)s',
+                            handlers=[logging.StreamHandler(sys.stdout)])
+        for name in ("transformers", "torch", "tensorflow", "numba", "chromadb", "urllib3", "requests"):
+            logging.getLogger(name).setLevel(logging.WARNING)
+        _suppress_warnings_env()
+
         # Initialize localization
         init_localization(args.language)
 
@@ -371,15 +374,21 @@ def main():
             print(f"💻 Platform: {sys.platform}")
             return
 
+        # Determine effective mode (support deprecated flags)
+        if getattr(args, 'text_only', False):
+            args.mode = 'text'
+        elif getattr(args, 'audio_mode', False):
+            args.mode = 'audio'
+
         # Initialize core components
         print(yellow(_("initializing")))
-        
+
         # Initialize device
         device = 'cpu'
         if HAS_TORCH and torch is not None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         logger.info(f"Using device: {device}")
-        
+
         # Initialize LLM Manager
         try:
             if LLMManager:
@@ -391,13 +400,13 @@ def main():
         except Exception as e:
             logger.error(f"Failed to initialize LLM Manager: {e}")
             llm = None
-        
+
         # Initialize audio components if not text-only mode
         audio_available = False
         audio_utils = None
         speech_processor = None
-        
-        if not args.text_only:
+
+        if args.mode in ('audio', 'mixed', 'auto'):
             try:
                 if AudioUtils and SpeechProcessor:
                     audio_utils = AudioUtils()
@@ -410,7 +419,7 @@ def main():
             except Exception as e:
                 logger.warning(f"Audio components failed to initialize: {e}")
                 audio_available = False
-        
+
         # Initialize vision processor
         vision_processor = None
         try:
@@ -421,7 +430,7 @@ def main():
                 logger.warning("Vision processor not available")
         except Exception as e:
             logger.warning(f"Vision processor failed to initialize: {e}")
-        
+
         # Initialize action executor
         action_executor = None
         try:
@@ -432,12 +441,12 @@ def main():
                 logger.warning("Action executor not available")
         except Exception as e:
             logger.warning(f"Action executor failed to initialize: {e}")
-        
+
         # Initialize other components
         performance_monitor = None
         cache_manager = None
         resource_manager = None
-        
+
         try:
             if PerformanceMonitor:
                 performance_monitor = PerformanceMonitor()
@@ -458,7 +467,7 @@ def main():
         while True:
             inputs = {}
             user_input = ""
-            
+
             try:
                 # Process image input
                 if hasattr(args, 'image_input') and args.image_input and vision_processor:
@@ -470,7 +479,7 @@ def main():
                         logger.error(f"Error processing image: {e}")
 
                 # Process audio input
-                if hasattr(args, 'audio_mode') and args.audio_mode and speech_processor and audio_available and audio_utils:
+                if args.mode == 'audio' and speech_processor and audio_available and audio_utils:
                     try:
                         print(bold("🎤 Listening... (speak now or press Ctrl+C to switch to text)"))
                         mic = audio_utils.record_audio(speech_processor, 2.0, 0.25)
@@ -483,17 +492,17 @@ def main():
                         print(green(f"🎙️  You said: {user_input}"))
                         inputs['audio'] = user_input
                     except KeyboardInterrupt:
-                        print(bold("\n🔤 Switching to text mode..."))
-                        args.audio_mode = False
+                        print(bold("\n🔥 Switching to text mode..."))
+                        args.mode = 'text'
                         continue
                     except Exception as e:
                         logger.error(f"Error processing audio: {e}")
                         print(red("❌ Audio processing failed. Switching to text mode."))
-                        args.audio_mode = False
+                        args.mode = 'text'
                         continue
                 else:
                     # Text input
-                    prompt = bold("💬 You: ") if not (hasattr(args, 'audio_mode') and args.audio_mode) else bold("🎤 You (audio): ")
+                    prompt = bold("💬 You: ") if args.mode != 'audio' else bold("🎤 You (audio): ")
                     try:
                         user_input = input(prompt).strip()
                     except (EOFError, KeyboardInterrupt):
@@ -514,14 +523,14 @@ def main():
                         print(bold(_("help_separator")))
                         print(green(_("quit_help")))
                         print(green(_("help_help")))
-                        if not getattr(args, 'text_only', False) and audio_available:
+                        if args.mode != 'text' and audio_available:
                             print(yellow(_("audio_help")))
-                        if getattr(args, 'audio_mode', False):
+                        if args.mode == 'audio':
                             print(cyan(_("text_help")))
-                        print(blue(_("status_help")))
-                        print(blue(_("models_help")))
-                        print(blue(_("clear_help")))
-                        
+                        print(cyan(_("status_help")))
+                        print(cyan(_("models_help")))
+                        print(cyan(_("clear_help")))
+
                         # Agent commands
                         if action_executor:
                             print(bold(_("agent_title")))
@@ -530,13 +539,19 @@ def main():
                             print(cyan(_("make_note_help")))
                             print(cyan(_("analyze_code_help")))
                             print(cyan(_("search_file_help")))
-                        
+
                         print(bold(_("help_separator")))
                         continue
                     elif cmd == 'status':
                         print(bold("\n📊 M.I.A Status"))
                         print(bold("─"*40))
-                        print(f"  {bold('Mode:')} {green('Text-only') if getattr(args, 'text_only', False) else yellow('Audio') if getattr(args, 'audio_mode', False) else blue('Mixed')}")
+                        mode_label = {
+                            'text': green('Text-only'),
+                            'audio': yellow('Audio'),
+                            'mixed': cyan('Mixed'),
+                            'auto': cyan('Auto'),
+                        }.get(args.mode, cyan('Mixed'))
+                        print(f"  {bold('Mode:')} {mode_label}")
                         print(f"  {bold('Model:')} {yellow(getattr(args, 'model_id', ''))}")
                         print(f"  {bold('LLM:')} {(green('Connected') if llm and hasattr(llm, 'is_available') and llm.is_available() else red('Disconnected'))}")
                         print(f"  {bold('Audio:')} {(green('Available') if audio_available else red('Not available'))}")
@@ -555,7 +570,7 @@ def main():
                     elif cmd == 'models':
                         print(bold("\n🤖 Available Models"))
                         print(bold("─"*40))
-                        print(green("  deepseek-r1:latest" + (" (current)" if getattr(args, 'model_id', '') == 'deepseek-r1:latest' else "")))
+                        print(green("  deepseek-r1:1.5b" + (" (current)" if getattr(args, 'model_id', '') == 'deepseek-r1:1.5b' else "")))
                         print(green("  gemma3:4b-it-qat" + (" (current)" if getattr(args, 'model_id', '') == 'gemma3:4b-it-qat' else "")))
                         print(cyan("  Use --model-id to change model"))
                         print(bold("─"*40))
@@ -567,12 +582,12 @@ def main():
                         if performance_monitor and hasattr(performance_monitor, 'optimize_performance'):
                             performance_monitor.optimize_performance()
                         continue
-                    elif cmd == 'audio' and not getattr(args, 'text_only', False) and speech_processor:
-                        args.audio_mode = True
+                    elif cmd == 'audio' and speech_processor:
+                        args.mode = 'audio'
                         print(yellow("🎤 Switched to audio input mode. Say something..."))
                         continue
-                    elif cmd == 'text' and getattr(args, 'audio_mode', False):
-                        args.audio_mode = False
+                    elif cmd == 'text' and args.mode == 'audio':
+                        args.mode = 'text'
                         print(cyan("🔤 Switched to text input mode."))
                         continue
                     else:
@@ -583,13 +598,13 @@ def main():
                     try:
                         # Check for agent commands first
                         input_text = inputs.get('text', inputs.get('audio', ''))
-                        
+
                         if input_text and action_executor:
                             agent_executed, agent_result = detect_and_execute_agent_commands(input_text, action_executor)
                             if agent_executed:
                                 print(agent_result)
                                 continue
-                        
+
                         # Regular LLM processing
                         if llm and hasattr(llm, 'query'):
                             if input_text:
@@ -606,7 +621,7 @@ def main():
                     except Exception as e:
                         logger.error(f"Error processing with LLM: {e}")
                         print(red(_("processing_error", error=e)))
-                
+
             except KeyboardInterrupt:
                 logger.info("Shutting down M.I.A...")
                 break
@@ -617,7 +632,7 @@ def main():
     except Exception as e:
         logger.error(f"Critical error during initialization: {e}")
         sys.exit(1)
-    
+
     finally:
         # Cleanup resources
         logger.info(_("cleanup_message"))
