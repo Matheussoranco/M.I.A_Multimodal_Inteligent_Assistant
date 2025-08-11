@@ -48,6 +48,10 @@ jobs:
       run: |
         pip install -e .
     
+    - name: Smoke test CLI
+      run: |
+        python -m mia.main --info
+    
     - name: Run tests
       run: |
         python -m pytest tests/ -v --tb=short --cov=src/mia --cov-report=xml

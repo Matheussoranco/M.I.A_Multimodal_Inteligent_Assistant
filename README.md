@@ -166,8 +166,8 @@ python main.py --mode mixed
 docker build -t mia:latest .
 
 # Run with GPU support
-# Map ports only if the API server is enabled in your image
-docker run --gpus all mia:latest
+# Map ports only if the API server is enabled (requires extras: api)
+docker run --gpus all -e MIA_API_HOST=0.0.0.0 -e MIA_API_PORT=8080 -p 8080:8080 mia:latest mia-api
 
 # Docker Compose (production)
 docker-compose up -d
