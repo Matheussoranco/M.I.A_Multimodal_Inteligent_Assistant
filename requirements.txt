@@ -128,3 +128,9 @@ pywin32; sys_platform == "win32"
 
 # ===== OPTIONAL DEPENDENCIES =====
 # tensorflow>=2.13.0  # Only if needed for specific models
+
+# ===== MISSING DEPENDENCIES FOUND DURING CODE REVIEW =====
+wikipedia>=1.4.0
+GPUtil>=1.4.0
+pywhatkit>=5.4
+structlog>=23.0.0

@@ -104,7 +104,7 @@ class TestPerformanceMonitor(unittest.TestCase):
     
     def setUp(self):
         """Set up test environment."""
-        self.perf_monitor = PerformanceMonitor()
+        self.perf_monitor = PerformanceMonitor(collection_interval=0.1)  # Fast collection for tests
         
     def tearDown(self):
         """Clean up test environment."""
@@ -128,7 +128,7 @@ class TestPerformanceMonitor(unittest.TestCase):
         
         # Wait for some metrics
         import time
-        time.sleep(1)
+        time.sleep(0.2)  # Shorter wait with fast collection
         
         # Check metrics were collected
         metrics = self.perf_monitor.get_current_metrics()
@@ -143,7 +143,7 @@ class TestPerformanceMonitor(unittest.TestCase):
         # Start monitoring and collect some metrics
         self.perf_monitor.start_monitoring()
         import time
-        time.sleep(1)
+        time.sleep(0.2)  # Shorter wait with fast collection
         
         summary = self.perf_monitor.get_performance_summary()
         
@@ -382,14 +382,14 @@ class TestIntegration(unittest.TestCase):
     def test_config_performance_integration(self):
         """Test configuration and performance monitoring integration."""
         config_manager = ConfigManager()
-        perf_monitor = PerformanceMonitor(config_manager)
+        perf_monitor = PerformanceMonitor(config_manager, collection_interval=0.1)
         
         # Start monitoring
         perf_monitor.start_monitoring()
         
         # Wait for metrics
         import time
-        time.sleep(1)
+        time.sleep(0.2)  # Shorter wait with fast collection
         
         # Check metrics
         metrics = perf_monitor.get_current_metrics()
