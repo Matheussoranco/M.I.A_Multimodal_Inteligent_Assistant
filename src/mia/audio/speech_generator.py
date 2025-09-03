@@ -38,11 +38,11 @@ except ImportError:
     device = "cpu"
 
 try:
-    from llm import llm_inference
+    from mia.llm.llm_inference import LLMInference
     LLM_AVAILABLE = True
 except ImportError:
+    LLMInference = None
     LLM_AVAILABLE = False
-    llm_inference = None
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +73,9 @@ class SpeechGenerator:
         
     def _init_tts(self):
         """Initialize TTS pipeline."""
-        if TRANSFORMERS_AVAILABLE and pipeline:
-            try:
-                self.synthesiser = pipeline("text-to-speech", model=self.model_id, device=self.device)
-                logger.info(f"TTS pipeline initialized with model {self.model_id}")
-            except Exception as e:
-                logger.error(f"Failed to initialize TTS pipeline: {e}")
-                self.synthesiser = None
-        else:
-            logger.warning("Transformers not available - TTS functionality disabled")
+        # Disable TTS pipeline due to unsupported task
+        logger.warning("TTS pipeline disabled - unsupported task 'text-to-speech'")
+        self.synthesiser = None
             
     def _init_embeddings(self):
         """Initialize speaker embeddings."""
@@ -102,9 +96,9 @@ class SpeechGenerator:
             
     def _init_llm(self):
         """Initialize LLM inference."""
-        if LLM_AVAILABLE and llm_inference and hasattr(llm_inference, 'LLMInference'):
+        if LLM_AVAILABLE and LLMInference:
             try:
-                self.llm_inference = llm_inference.LLMInference(llama_model_path=self.llama_model_path)
+                self.llm_inference = LLMInference(llama_model_path=self.llama_model_path)
                 logger.info("LLM inference initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize LLM inference: {e}")

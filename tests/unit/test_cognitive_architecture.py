@@ -1,5 +1,5 @@
 import unittest
-from mia.core.cognitive_architecture import MIACognitiveCore
+from mia.core.cognitive_architecture import MIACognitiveCore  # type: ignore
 from unittest.mock import MagicMock
 
 class TestMIACognitiveCore(unittest.TestCase):

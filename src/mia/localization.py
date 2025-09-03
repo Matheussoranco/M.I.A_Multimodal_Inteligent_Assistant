@@ -4,7 +4,7 @@ Provides internationalization support for English and Portuguese.
 """
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 class Localization:
     """Handles localization for M.I.A interface."""
@@ -151,7 +151,7 @@ class Localization:
 # Global localization instance
 _localization = None
 
-def init_localization(language: str = None) -> Localization:
+def init_localization(language: Optional[str] = None) -> Localization:
     """
     Initialize global localization.
     

@@ -61,7 +61,7 @@ class TestAgentComponents(unittest.TestCase):
     def test_main_import(self):
         """Test that main module can be imported."""
         try:
-            from mia.main import main
+            from mia.main import main  # type: ignore
             self.assertTrue(callable(main))
         except ImportError as e:
             self.fail(f"Failed to import main: {e}")
@@ -69,7 +69,7 @@ class TestAgentComponents(unittest.TestCase):
     def test_version_import(self):
         """Test that version can be imported."""
         try:
-            from mia.__version__ import __version__
+            from mia.__version__ import __version__  # type: ignore
             self.assertIsInstance(__version__, str)
             self.assertTrue(len(__version__) > 0)
         except ImportError as e:

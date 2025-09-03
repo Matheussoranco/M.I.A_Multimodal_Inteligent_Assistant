@@ -79,6 +79,7 @@ class AudioResourceManager(ResourceManager):
     
     def __init__(self, max_memory_mb: int = 500):
         super().__init__(max_memory_mb)
+        self.max_memory_mb = max_memory_mb
         self.audio_resources: Dict[str, AudioResource] = {}
         self.recording_lock = threading.Lock()
         
@@ -143,7 +144,7 @@ class AudioResourceManager(ResourceManager):
                 'resources': {}
             }
             
-            for name, resource in self.audio_resources.values():
+            for name, resource in self.audio_resources.items():
                 status['resources'][name] = {
                     'is_recording': resource.is_recording,
                     'is_playing': resource.is_playing,
@@ -170,19 +171,20 @@ class AudioResourceManager(ResourceManager):
                 logger.info(f"Cleaning up idle audio resource: {name}")
                 self.release_audio_resource(name)
     
-    def _cleanup_thread(self):
+    def _audio_cleanup_thread(self):
         """Enhanced cleanup thread for audio resources."""
-        while not self.shutdown_event.is_set():
+        while self._running:
             try:
                 # Run parent cleanup
-                super()._cleanup_thread()
+                self._cleanup_idle_resources()
+                self._check_memory_usage()
                 
                 # Run audio-specific cleanup
                 self.cleanup_idle_resources()
                 
                 # Check memory usage
                 total_memory = sum(resource.get_memory_usage() for resource in self.audio_resources.values())
-                if total_memory > self.max_memory_mb * 1024 * 1024:
+                if total_memory > self.max_memory_bytes:
                     logger.warning(f"Audio memory usage ({total_memory / 1024 / 1024:.1f}MB) exceeds limit")
                     self.cleanup_idle_resources()
                 
@@ -190,4 +192,4 @@ class AudioResourceManager(ResourceManager):
                 logger.error(f"Error in audio cleanup thread: {e}")
             
             # Wait for cleanup interval
-            self.shutdown_event.wait(self.cleanup_interval)
+            time.sleep(self._cleanup_interval)

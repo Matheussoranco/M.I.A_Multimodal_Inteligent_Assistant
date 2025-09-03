@@ -1,7 +1,7 @@
 # Audio module init
 # Minimal imports to avoid dependency issues during build
 
-__all__ = ['AudioUtils', 'SpeechProcessor', 'SpeechGenerator']
+__all__ = ['get_audio_utils', 'get_speech_processor', 'get_speech_generator']
 
 # Lazy imports to avoid build-time dependency issues
 def get_audio_utils():

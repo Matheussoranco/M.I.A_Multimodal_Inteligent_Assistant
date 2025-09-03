@@ -18,25 +18,24 @@ __all__ = [
     "__version__",
     # Lazy accessors
     "get_main",
-    "get_llm_manager",
+    "get_llm_manager", 
     "get_agent_memory",
     "get_error_handler",
-    # Common classes available via lazy getattr
+    # Lazy-loaded classes and exceptions
     "MIACognitiveCore",
     "SecurityManager",
     "AgentMemory",
-    # Exception types (exported via lazy getattr)
     "MIAException",
     "LLMProviderError",
     "AudioProcessingError",
     "VisionProcessingError",
     "SecurityError",
     "ConfigurationError",
-    "MIAMemoryError",  # alias to avoid clashing with built-in MemoryError
     "ActionExecutionError",
     "InitializationError",
     "NetworkError",
     "ValidationError",
+    "MIAMemoryError",
 ]
 
 

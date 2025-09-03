@@ -1,6 +1,6 @@
 import unittest
-from mia.config_manager import LLMConfig
-from mia.exceptions import ValidationError
+from mia.config_manager import LLMConfig  # type: ignore
+from mia.exceptions import ValidationError  # type: ignore
 
 class TestLLMConfig(unittest.TestCase):
     def test_valid_config(self):

@@ -1,5 +1,5 @@
 import unittest
-from mia.memory.knowledge_graph import AgentMemory
+from mia.memory.knowledge_graph import AgentMemory  # type: ignore
 
 class TestAgentMemory(unittest.TestCase):
     def test_init(self):

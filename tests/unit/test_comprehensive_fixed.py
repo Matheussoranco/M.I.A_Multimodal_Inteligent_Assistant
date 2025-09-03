@@ -19,7 +19,7 @@ class TestLLMManager(unittest.TestCase):
     def test_llm_manager_import(self):
         """Test that LLM Manager can be imported."""
         try:
-            from mia.llm.llm_manager import LLMManager
+            from mia.llm.llm_manager import LLMManager  # type: ignore
             self.assertTrue(True)  # If we get here, import succeeded
         except ImportError:
             # If import fails, test that we handle it gracefully
@@ -28,7 +28,7 @@ class TestLLMManager(unittest.TestCase):
     def test_openai_initialization_with_missing_key(self):
         """Test OpenAI initialization without API key."""
         try:
-            from mia.llm.llm_manager import LLMManager
+            from mia.llm.llm_manager import LLMManager  # type: ignore
             with patch.dict(os.environ, {}, clear=True):
                 llm = LLMManager(provider='openai', api_key=None)
                 self.assertFalse(llm.is_available())
@@ -39,7 +39,7 @@ class TestLLMManager(unittest.TestCase):
     def test_provider_fallback(self):
         """Test fallback when provider is not available."""
         try:
-            from mia.llm.llm_manager import LLMManager
+            from mia.llm.llm_manager import LLMManager  # type: ignore
             llm = LLMManager(provider='nonexistent')
             self.assertFalse(llm.is_available())
         except ImportError:
@@ -82,7 +82,7 @@ class TestResourceManager(unittest.TestCase):
     def test_resource_manager_import(self):
         """Test that Resource Manager can be imported."""
         try:
-            from mia.resource_manager import ResourceManager
+            from mia.resource_manager import ResourceManager  # type: ignore
             rm = ResourceManager()
             self.assertIsNotNone(rm)
         except ImportError:
@@ -91,7 +91,7 @@ class TestResourceManager(unittest.TestCase):
     def test_resource_manager_basic_operations(self):
         """Test basic resource manager operations."""
         try:
-            from mia.resource_manager import ResourceManager
+            from mia.resource_manager import ResourceManager  # type: ignore
             rm = ResourceManager(max_memory_mb=100)
             
             # Test basic methods exist
@@ -109,7 +109,7 @@ class TestConfigManager(unittest.TestCase):
     def test_config_manager_import(self):
         """Test that Config Manager can be imported."""
         try:
-            from mia.config_manager import ConfigManager
+            from mia.config_manager import ConfigManager  # type: ignore
             cm = ConfigManager()
             self.assertIsNotNone(cm)
         except ImportError:
@@ -122,7 +122,7 @@ class TestErrorHandling(unittest.TestCase):
     def test_exceptions_import(self):
         """Test that exceptions can be imported."""
         try:
-            from mia.exceptions import MIAException, ValidationError
+            from mia.exceptions import MIAException, ValidationError  # type: ignore
             self.assertTrue(issubclass(MIAException, Exception))
             self.assertTrue(issubclass(ValidationError, MIAException))
         except ImportError:
@@ -131,7 +131,7 @@ class TestErrorHandling(unittest.TestCase):
     def test_error_handler_import(self):
         """Test that error handler can be imported."""
         try:
-            from mia.error_handler import global_error_handler, with_error_handling
+            from mia.error_handler import global_error_handler, with_error_handling  # type: ignore
             # global_error_handler is an instance, not a callable
             self.assertIsNotNone(global_error_handler)
             self.assertTrue(callable(with_error_handling))

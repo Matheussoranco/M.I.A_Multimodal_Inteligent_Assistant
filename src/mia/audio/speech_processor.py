@@ -8,7 +8,7 @@ from ..config_manager import ConfigManager
 
 # Optional imports with fallbacks
 try:
-    import whisper
+    import whisper  # type: ignore
     WHISPER_AVAILABLE = True
 except ImportError:
     WHISPER_AVAILABLE = False

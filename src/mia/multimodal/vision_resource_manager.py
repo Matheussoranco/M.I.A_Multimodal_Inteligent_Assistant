@@ -21,7 +21,6 @@ class VisionResource(ManagedResource):
         self.config_manager = config_manager
         self.is_processing = False
         self.last_activity = time.time()
-        self.model_loaded = False
         
     def initialize(self) -> None:
         """Initialize the vision resource."""
@@ -31,10 +30,8 @@ class VisionResource(ManagedResource):
     def cleanup(self):
         """Clean up vision resources."""
         try:
-            if hasattr(self.data, 'unload_model'):
-                self.data.unload_model()
-            if hasattr(self.data, 'clear_cache'):
-                self.data.clear_cache()
+            if hasattr(self.data, 'stop_processing'):
+                self.data.stop_processing()
             if hasattr(self.data, 'close'):
                 self.data.close()
             logger.info(f"Vision resource {self.resource_id} cleaned up")
@@ -44,12 +41,12 @@ class VisionResource(ManagedResource):
     def get_memory_usage(self) -> int:
         """Get memory usage of vision resource."""
         try:
-            # Estimate memory usage based on model and cache
+            # Estimate memory usage based on vision buffers
             memory_usage = 0
+            if hasattr(self.data, 'buffer_size'):
+                memory_usage += getattr(self.data, 'buffer_size', 0)
             if hasattr(self.data, 'model_memory'):
                 memory_usage += getattr(self.data, 'model_memory', 0)
-            if hasattr(self.data, 'cache_memory'):
-                memory_usage += getattr(self.data, 'cache_memory', 0)
             return memory_usage
         except Exception:
             return 0
@@ -67,7 +64,7 @@ class VisionResource(ManagedResource):
 class VisionResourceManager(ResourceManager):
     """Specialized resource manager for vision components."""
     
-    def __init__(self, max_memory_mb: int = 2000):
+    def __init__(self, max_memory_mb: int = 500):
         super().__init__(max_memory_mb)
         self.vision_resources: Dict[str, VisionResource] = {}
         self.processing_lock = threading.Lock()
@@ -108,7 +105,7 @@ class VisionResourceManager(ResourceManager):
                 for resource in self.vision_resources.values():
                     if resource.is_processing:
                         resource.stop_processing()
-                logger.info("All vision processing stopped")
+                logger.info("All processing stopped")
     
     def get_vision_status(self) -> Dict[str, Any]:
         """Get status of all vision resources."""
@@ -122,7 +119,6 @@ class VisionResourceManager(ResourceManager):
             for name, resource in self.vision_resources.items():
                 status['resources'][name] = {
                     'is_processing': resource.is_processing,
-                    'model_loaded': resource.model_loaded,
                     'last_activity': resource.last_activity,
                     'memory_usage': resource.get_memory_usage()
                 }
@@ -132,7 +128,7 @@ class VisionResourceManager(ResourceManager):
     def cleanup_idle_resources(self):
         """Clean up idle vision resources."""
         current_time = time.time()
-        idle_timeout = 600  # 10 minutes for vision models
+        idle_timeout = 300  # 5 minutes
         
         with self._lock:
             idle_resources = []
@@ -147,17 +143,18 @@ class VisionResourceManager(ResourceManager):
     
     def _cleanup_thread(self):
         """Enhanced cleanup thread for vision resources."""
-        while not self.shutdown_event.is_set():
+        while self._running:
             try:
                 # Run parent cleanup
-                super()._cleanup_thread()
+                self._cleanup_idle_resources()
+                self._check_memory_usage()
                 
                 # Run vision-specific cleanup
                 self.cleanup_idle_resources()
                 
                 # Check memory usage
                 total_memory = sum(resource.get_memory_usage() for resource in self.vision_resources.values())
-                if total_memory > self.max_memory_mb * 1024 * 1024:
+                if total_memory > self.max_memory_bytes:
                     logger.warning(f"Vision memory usage ({total_memory / 1024 / 1024:.1f}MB) exceeds limit")
                     self.cleanup_idle_resources()
                 
@@ -165,4 +162,4 @@ class VisionResourceManager(ResourceManager):
                 logger.error(f"Error in vision cleanup thread: {e}")
             
             # Wait for cleanup interval
-            self.shutdown_event.wait(self.cleanup_interval)
+            time.sleep(self._cleanup_interval)

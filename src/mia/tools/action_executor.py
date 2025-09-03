@@ -18,19 +18,19 @@ from email.message import EmailMessage
 
 # Optional imports with fallbacks
 try:
-    import psutil
+    import psutil  # type: ignore
     HAS_PSUTIL = True
 except ImportError:
-    psutil = None
+    psutil = None  # type: ignore
     HAS_PSUTIL = False
 
 try:
-    import openpyxl
-    from openpyxl import Workbook
+    import openpyxl  # type: ignore
+    from openpyxl import Workbook  # type: ignore
     HAS_OPENPYXL = True
 except ImportError:
-    openpyxl = None
-    Workbook = None
+    openpyxl = None  # type: ignore
+    Workbook = None  # type: ignore
     HAS_OPENPYXL = False
 
 try:
@@ -53,31 +53,31 @@ except ImportError:
     HAS_SELENIUM = False
 
 try:
-    import pyperclip
+    import pyperclip  # type: ignore
     HAS_PYPERCLIP = True
 except ImportError:
-    pyperclip = None
+    pyperclip = None  # type: ignore
     HAS_PYPERCLIP = False
 
 try:
-    import plyer
+    import plyer  # type: ignore
     HAS_PLYER = True
 except ImportError:
-    plyer = None
+    plyer = None  # type: ignore
     HAS_PLYER = False
 
 try:
-    import pywhatkit
+    import pywhatkit  # type: ignore
     HAS_PYWHATKIT = True
 except ImportError:
     pywhatkit = None
     HAS_PYWHATKIT = False
 
 try:
-    import wikipedia
+    import wikipedia  # type: ignore
     HAS_WIKIPEDIA = True
 except ImportError:
-    wikipedia = None
+    wikipedia = None  # type: ignore
     HAS_WIKIPEDIA = False
 
 class ActionExecutor:
@@ -303,7 +303,7 @@ class ActionExecutor:
             return f"Error creating directory: {e}"
 
     # Code Generation and Analysis
-    def create_code(self, language: str, description: str, filename: str = None) -> str:
+    def create_code(self, language: str, description: str, filename: Optional[str] = None) -> str:
         """Generate code based on description and language."""
         if not language or not description:
             return "Language and description required."
@@ -441,7 +441,7 @@ body {{
         return matches or f"No file named {name} found."
 
     # Notes and Documentation
-    def make_note(self, content: str, title: str = None) -> str:
+    def make_note(self, content: str, title: Optional[str] = None) -> str:
         """Create or append to notes file."""
         if not content:
             return "No content provided for note."
@@ -495,7 +495,7 @@ body {{
             return f"Error searching notes: {e}"
 
     # Spreadsheet Operations
-    def create_sheet(self, filename: str, data: List[List[str]] = None) -> str:
+    def create_sheet(self, filename: str, data: Optional[List[List[str]]] = None) -> str:
         """Create a new spreadsheet file."""
         if not filename:
             return "No filename provided."
@@ -510,26 +510,28 @@ body {{
         except Exception as e:
             return f"Error creating sheet: {e}"
 
-    def _create_excel_sheet(self, filename: str, data: List[List[str]] = None) -> str:
+    def _create_excel_sheet(self, filename: str, data: Optional[List[List[str]]] = None) -> str:
         """Create Excel spreadsheet."""
         if not HAS_OPENPYXL:
             return "openpyxl not installed. Run: pip install openpyxl"
         
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Sheet1"
+        wb = Workbook()  # type: ignore
+        ws = wb.active  # type: ignore
+        if ws is None:
+            return "Failed to create worksheet"
+        ws.title = "Sheet1"  # type: ignore
         
         if data:
             for row in data:
-                ws.append(row)
+                ws.append(row)  # type: ignore
         else:
-            ws.append(["Column1", "Column2", "Column3"])
-            ws.append(["Sample", "Data", "Here"])
+            ws.append(["Column1", "Column2", "Column3"])  # type: ignore
+            ws.append(["Sample", "Data", "Here"])  # type: ignore
         
         wb.save(filename)
         return f"Excel sheet created: {filename}"
 
-    def _create_csv_sheet(self, filename: str, data: List[List[str]] = None) -> str:
+    def _create_csv_sheet(self, filename: str, data: Optional[List[List[str]]] = None) -> str:
         """Create CSV file."""
         with open(filename, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -561,11 +563,13 @@ body {{
         if not HAS_OPENPYXL:
             return "openpyxl not installed. Run: pip install openpyxl"
         
-        wb = openpyxl.load_workbook(filename)
-        ws = wb.active
+        wb = openpyxl.load_workbook(filename)  # type: ignore
+        ws = wb.active  # type: ignore
+        if ws is None:
+            return "Failed to load worksheet"
         
         data = []
-        for row in ws.iter_rows(values_only=True):
+        for row in ws.iter_rows(values_only=True):  # type: ignore
             data.append(row)
         
         return f"Excel sheet data from {filename}:\n{json.dumps(data, indent=2, default=str)}"
@@ -602,6 +606,8 @@ body {{
         
         wb = Workbook()
         ws = wb.active
+        if ws is None:
+            return "Failed to create worksheet"
         
         for row in data:
             ws.append(row)
@@ -963,7 +969,7 @@ body {{
         
         try:
             if HAS_PYPERCLIP:
-                pyperclip.copy(text)
+                pyperclip.copy(text)  # type: ignore
                 return f"Text copied to clipboard: {text[:50]}..."
             else:
                 return "pyperclip not installed. Run: pip install pyperclip"
@@ -974,7 +980,7 @@ body {{
         """Get text from clipboard."""
         try:
             if HAS_PYPERCLIP:
-                text = pyperclip.paste()
+                text = pyperclip.paste()  # type: ignore
                 return f"Clipboard content: {text}"
             else:
                 return "pyperclip not installed. Run: pip install pyperclip"
@@ -988,7 +994,7 @@ body {{
         
         try:
             if HAS_PLYER:
-                plyer.notification.notify(
+                plyer.notification.notify(  # type: ignore
                     title=title,
                     message=message,
                     app_name="M.I.A",
@@ -1020,7 +1026,7 @@ body {{
         try:
             import platform
             
-            info = {
+            info: Dict[str, Any] = {
                 "system": platform.system(),
                 "release": platform.release(),
                 "version": platform.version(),
@@ -1030,10 +1036,10 @@ body {{
             }
             
             if HAS_PSUTIL:
-                info.update({
-                    "cpu_count": psutil.cpu_count(),
-                    "memory": f"{psutil.virtual_memory().total / (1024**3):.2f} GB",
-                    "disk_usage": f"{psutil.disk_usage('/').percent}%"
+                info.update({  # type: ignore
+                    "cpu_count": psutil.cpu_count(),  # type: ignore
+                    "memory": f"{psutil.virtual_memory().total / (1024**3):.2f} GB",  # type: ignore
+                    "disk_usage": f"{psutil.disk_usage('/').percent}%"  # type: ignore
                 })
             else:
                 info["note"] = "psutil not installed. Run: pip install psutil for detailed system info"
@@ -1104,9 +1110,47 @@ body {{
         
         try:
             if HAS_WIKIPEDIA:
-                summary = wikipedia.summary(query, sentences=3)
+                summary = wikipedia.summary(query, sentences=3)  # type: ignore
                 return f"Wikipedia summary for '{query}': {summary}"
             else:
                 return "Wikipedia library not installed. Run: pip install wikipedia"
         except Exception as e:
             return f"Error searching Wikipedia: {e}"
+
+    def open_file(self, path: str) -> str:
+        """Open a file."""
+        if not path:
+            return "No file path provided."
+        try:
+            if os.name == 'nt':
+                os.startfile(path)
+            else:
+                subprocess.run(['xdg-open', path])
+            return f"Opened file: {path}"
+        except Exception as e:
+            return f"Error opening file: {e}"
+
+    def send_whatsapp(self, params) -> str:
+        """Send WhatsApp message."""
+        message = params.get("message", "")
+        recipient = params.get("recipient", "")
+        if not message:
+            return "No message provided."
+        if HAS_PYWHATKIT:
+            try:
+                pywhatkit.sendwhatmsg_instantly(recipient or self.config.get('whatsapp', {}).get('phone_number', ''), message)  # type: ignore
+                return f"Sent WhatsApp message to {recipient}"
+            except Exception as e:
+                return f"Error sending WhatsApp: {e}"
+        else:
+            return "WhatsApp not available. Install pywhatkit."
+
+    def control_lights(self, params) -> str:
+        """Control lights."""
+        action = params.get("action", "")
+        return f"Lights control not implemented. Action: {action}"
+
+    def control_temperature(self, params) -> str:
+        """Control temperature."""
+        action = params.get("action", "")
+        return f"Temperature control not implemented. Action: {action}"
