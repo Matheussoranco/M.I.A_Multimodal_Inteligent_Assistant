@@ -35,6 +35,9 @@ except ImportError:
     SOUNDFILE_AVAILABLE = False
     sf = None
 
+# Import resource manager
+from ..resource_manager import resource_manager, WhisperModelResource, ResourceState
+
 logger = logging.getLogger(__name__)
 
 class SpeechProcessor:
@@ -73,21 +76,36 @@ class SpeechProcessor:
         # Configuration values
         self.microphone = None
         
+        # Initialize resource manager
+        self.resource_manager = resource_manager
+        if not self.resource_manager._running:
+            self.resource_manager.start()
+        
         self._init_whisper()
         self._init_speech_recognition()
         
     def _init_whisper(self):
-        """Initialize Whisper model."""
-        if WHISPER_AVAILABLE and whisper and self.use_whisper:
-            try:
-                logger.info(f"Loading Whisper model: {self.model_name}")
-                self.whisper_model = whisper.load_model(self.model_name)
-                logger.info("Whisper model loaded successfully")
-            except Exception as e:
-                logger.error(f"Failed to load Whisper model: {e}")
-                self.whisper_model = None
-        else:
+        """Initialize Whisper model using resource manager."""
+        if not WHISPER_AVAILABLE or not whisper or not self.use_whisper:
             logger.warning("Whisper not available or disabled")
+            return
+            
+        try:
+            # Check if model is already loaded
+            resource_id = f"whisper_{self.model_name}"
+            if resource_id in self.resource_manager.resources:
+                self.whisper_model = self.resource_manager.resources[resource_id]
+                logger.info(f"Using existing Whisper model: {self.model_name}")
+            else:
+                # Create new model resource
+                model_resource = WhisperModelResource(self.model_name)
+                self.resource_manager.resources[resource_id] = model_resource
+                self.whisper_model = model_resource
+                logger.info(f"Whisper model resource created: {self.model_name}")
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize Whisper model resource: {e}")
+            self.whisper_model = None
             
     def _init_speech_recognition(self):
         """Initialize speech recognition as fallback."""
@@ -110,8 +128,12 @@ class SpeechProcessor:
         :return: Transcribed text or None if failed
         """
         # Try Whisper first
-        if self.whisper_model:
+        if self.whisper_model and isinstance(self.whisper_model, WhisperModelResource):
             try:
+                # Ensure model is loaded
+                if self.whisper_model.state == ResourceState.CREATED:
+                    self.whisper_model.initialize()
+                
                 result = self.whisper_model.transcribe(audio_file_path)
                 text = str(result.get("text", "")).strip() if isinstance(result, dict) else ""
                 if text:
@@ -148,8 +170,12 @@ class SpeechProcessor:
             return None
             
         # Try Whisper first
-        if self.whisper_model and NUMPY_AVAILABLE and np:
+        if self.whisper_model and isinstance(self.whisper_model, WhisperModelResource) and NUMPY_AVAILABLE and np:
             try:
+                # Ensure model is loaded
+                if self.whisper_model.state == ResourceState.CREATED:
+                    self.whisper_model.initialize()
+                    
                 # Convert bytes to numpy array for Whisper
                 # These are raw float32 bytes from numpy array, not a file format
                 audio_array = np.frombuffer(audio_data, dtype=np.float32)
@@ -236,6 +262,19 @@ class SpeechProcessor:
                 logger.error(f"Microphone listening failed: {e}")
         
         return None
+    
+    def cleanup(self) -> None:
+        """Clean up resources used by the speech processor."""
+        try:
+            # Note: We don't cleanup the Whisper model here as it might be shared
+            # The resource manager will handle cleanup based on usage patterns
+            if self.whisper_model and isinstance(self.whisper_model, WhisperModelResource):
+                # Just update last used time, let resource manager handle cleanup
+                self.whisper_model.update_last_used()
+                
+            logger.info("Speech processor cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during speech processor cleanup: {e}")
     
     def is_available(self) -> bool:
         """Check if any transcription method is available."""

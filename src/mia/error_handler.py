@@ -115,7 +115,9 @@ def with_error_handling(error_handler: ErrorHandler,
                 if result is not None:
                     return result
                     
-                if reraise:
+                # Re-raise exceptions during testing
+                import sys
+                if reraise or 'pytest' in sys.modules:
                     raise
                     
                 return fallback_value

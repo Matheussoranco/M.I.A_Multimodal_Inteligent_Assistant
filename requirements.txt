@@ -1,140 +1,21 @@
 # M.I.A - Multimodal Intelligent Assistant
 # Unified Requirements File
-# Install with: pip install -r requirements.txt
+# This file now references split requirements for better dependency management
 
-# ===== CORE ML AND AI DEPENDENCIES =====
-transformers>=4.35.0
-openai>=1.10.0
-torch>=2.0.0
-huggingface_hub>=0.19.3
-langchain>=0.1.0
+# ===== INSTALLATION INSTRUCTIONS =====
+# For basic functionality: pip install -r requirements-core.txt
+# For full functionality: pip install -r requirements-core.txt -r requirements-optional.txt
+# For development: pip install -r requirements-core.txt -r requirements-optional.txt -r requirements-dev.txt
+# Or install all: pip install -r requirements.txt
 
-# ===== AUDIO PROCESSING =====
-sounddevice>=0.4.6
-soundfile>=0.12.1
-pydub>=0.25.1
-pyttsx3>=2.90
-speechrecognition>=3.10.0
-# PyAudio==0.2.14  # Commented out due to installation issues
-
-# ===== DATA PROCESSING =====
-numpy>=1.24.0
-scipy>=1.10.0
-scikit-learn>=1.3.0
-datasets>=2.15.0
-sentencepiece>=0.1.99
-openpyxl>=3.1.0
-
-# ===== WEB AUTOMATION =====
-selenium>=4.10.0
-requests>=2.28.0
-
-# ===== SYSTEM UTILITIES =====
-psutil>=5.9.0
-pyperclip>=1.8.0
-plyer>=2.1.0
-
-# ===== IMAGE PROCESSING =====
-Pillow>=9.5.0
-matplotlib>=3.6.0
-
-# ===== DATABASE AND MEMORY =====
-chromadb>=0.4.0
-networkx>=3.0
-
-# ===== SEARCH AND UTILITIES =====
-duckduckgo-search>=3.9.0
-
-# ===== GUI (OPTIONAL) =====
-pyqt5>=5.15.0
-
-# ===== GOOGLE APIS (OPTIONAL) =====
-google-api-python-client>=2.80.0
-
-# ===== CONFIGURATION MANAGEMENT =====
-python-dotenv>=1.0.0
-
-# ===== LOGGING AND MONITORING =====
-structlog>=23.0.0
-
-# ===== PERFORMANCE MONITORING =====
-GPUtil>=1.4.0
-memory-profiler>=0.60.0
-
-# ===== TESTING FRAMEWORK =====
-pytest>=7.0.0
-pytest-cov>=4.0.0
-pytest-xdist>=3.0.0
-pytest-mock>=3.10.0
-pytest-benchmark>=4.0.0
-
-# ===== CODE QUALITY =====
-black>=23.0.0
-isort>=5.10.0
-flake8>=6.0.0
-mypy>=1.0.0
-pylint>=2.15.0
-pydocstyle>=6.1.0
-
-# ===== DOCUMENTATION =====
-sphinx>=5.0.0
-sphinx-rtd-theme>=1.0.0
-docstring-parser>=0.15
-
-# ===== DEVELOPMENT TOOLS =====
-pre-commit>=3.0.0
-tox>=3.25.0
-coverage>=6.4.0
-jupyter>=1.0.0
-ipython>=8.0.0
-notebook>=6.4.0
-
-# ===== DEBUGGING AND PROFILING =====
-icecream>=2.1.0
-line-profiler>=3.5.0
-py-spy>=0.3.0
-
-# ===== SECURITY ANALYSIS =====
-bandit>=1.7.0
-safety>=2.0.0
-
-# ===== CODE ANALYSIS =====
-radon>=5.1.0
-prospector>=1.7.0
-vulture>=2.5.0
-
-# ===== CACHING =====
-redis>=4.0.0
-diskcache>=5.4.0
-
-# ===== TESTING UTILITIES =====
-factory-boy>=3.2.0
-faker>=15.0.0
-responses>=0.21.0
-freezegun>=1.2.0
-
-# ===== LOAD TESTING (OPTIONAL) =====
-locust>=2.10.0
-
-# ===== METRICS COLLECTION (OPTIONAL) =====
-prometheus-client>=0.14.0
-
-# ===== PERFORMANCE OPTIMIZATION (OPTIONAL) =====
-cython>=0.29.0
-numba>=0.56.0
-
-# ===== WINDOWS-SPECIFIC DEPENDENCIES =====
-win10toast; sys_platform == "win32"
-pywin32; sys_platform == "win32"
+# ===== CORE DEPENDENCIES =====
+# Essential dependencies for basic functionality
+-r requirements-core.txt
 
 # ===== OPTIONAL DEPENDENCIES =====
-# tensorflow>=2.13.0  # Only if needed for specific models
+# Extended functionality (GUI, Google APIs, web automation, etc.)
+-r requirements-optional.txt
 
-# ===== MISSING DEPENDENCIES FOUND DURING CODE REVIEW =====
-wikipedia>=1.4.0
-GPUtil>=1.4.0
-pywhatkit>=5.4
-structlog>=23.0.0
-openai-whisper>=20231117
-fastapi>=0.111.0
-uvicorn[standard]>=0.30.0
+# ===== DEVELOPMENT DEPENDENCIES =====
+# Testing, code quality, documentation tools
+-r requirements-dev.txt

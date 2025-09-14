@@ -12,6 +12,9 @@ import tracemalloc
 
 from .config_manager import ConfigManager
 
+# Import resource manager for integration
+from .resource_manager import resource_manager
+
 logger = logging.getLogger(__name__)
 
 
@@ -194,6 +197,9 @@ class PerformanceMonitor:
             current, peak = tracemalloc.get_traced_memory()
             logger.info(f"Memory usage: current={current/1024/1024:.1f}MB, peak={peak/1024/1024:.1f}MB")
 
+        # Integrate with resource manager for model cleanup
+        self._optimize_resource_usage()
+
         # Log memory-intensive processes
         processes = []
         for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
@@ -211,46 +217,62 @@ class PerformanceMonitor:
         # Log disk usage by directory
         import os
         for root, dirs, files in os.walk('.'):
-            size = sum(os.path.getsize(os.path.join(root, file)) for file in files)
+            size = sum(os.path.getsize(os.path.join(root, file)) for file in files if os.path.exists(os.path.join(root, file)))
             if size > 100 * 1024 * 1024:  # > 100MB
                 logger.info(f"Large directory: {root} ({size/1024/1024:.1f}MB)")
 
-    def get_current_metrics(self) -> Optional[PerformanceMetrics]:
-        """Get current performance metrics."""
-        with self.lock:
-            return self.metrics_history[-1] if self.metrics_history else None
+    def _optimize_resource_usage(self):
+        """Optimize resource usage by cleaning up unused resources."""
+        try:
+            # Get resource manager stats
+            resource_stats = resource_manager.get_stats()
+            total_memory_usage = resource_stats.get('total_memory_usage', 0)
+            max_memory_limit = resource_stats.get('max_memory_limit', 1024 * 1024 * 1024)  # 1GB default
+            
+            memory_usage_percent = (total_memory_usage / max_memory_limit) * 100
+            
+            if memory_usage_percent > 70:  # If using more than 70% of memory limit
+                logger.info(f"High resource memory usage: {memory_usage_percent:.1f}%, triggering cleanup")
+                
+                # Trigger resource manager cleanup
+                resource_manager._cleanup_idle_resources()
+                
+                # Log cleanup results
+                after_stats = resource_manager.get_stats()
+                after_memory_usage = after_stats.get('total_memory_usage', 0)
+                after_percent = (after_memory_usage / max_memory_limit) * 100
+                
+                freed_memory = total_memory_usage - after_memory_usage
+                logger.info(f"Resource cleanup freed {freed_memory/1024/1024:.1f}MB, "
+                           f"memory usage now: {after_percent:.1f}%")
+                
+        except Exception as e:
+            logger.error(f"Error during resource optimization: {e}")
 
-    def get_metrics_history(self, minutes: int = 60) -> List[PerformanceMetrics]:
-        """Get performance metrics history."""
-        cutoff_time = time.time() - (minutes * 60)
-
-        with self.lock:
-            return [m for m in self.metrics_history if m.timestamp >= cutoff_time]
-
-    def get_performance_summary(self) -> Dict[str, Any]:
-        """Get performance summary."""
-        with self.lock:
-            if not self.metrics_history:
-                return {}
-
-            # Use all available metrics, minimum 1
-            recent_metrics = self.metrics_history[-max(1, min(10, len(self.metrics_history))):]
-
-            avg_cpu = sum(m.cpu_percent for m in recent_metrics) / len(recent_metrics)
-            avg_memory = sum(m.memory_percent for m in recent_metrics) / len(recent_metrics)
-            avg_threads = sum(m.active_threads for m in recent_metrics) / len(recent_metrics)
-
+    def get_resource_metrics(self) -> Dict[str, Any]:
+        """Get resource manager metrics integrated with performance metrics."""
+        try:
+            resource_stats = resource_manager.get_stats()
+            resource_info = resource_manager.get_resource_info()
+            
+            # Group resources by type
+            resource_counts = {}
+            memory_by_type = {}
+            
+            for info in resource_info:
+                resource_counts[info.type] = resource_counts.get(info.type, 0) + 1
+                memory_by_type[info.type] = memory_by_type.get(info.type, 0) + info.memory_usage
+            
             return {
-                'average_cpu_percent': avg_cpu,
-                'average_memory_percent': avg_memory,
-                'average_active_threads': avg_threads,
-                'current_open_files': recent_metrics[-1].open_files,
-                'memory_used_mb': recent_metrics[-1].memory_used_mb,
-                'memory_available_mb': recent_metrics[-1].memory_available_mb,
-                'gpu_usage': recent_metrics[-1].gpu_usage,
-                'gpu_memory_used': recent_metrics[-1].gpu_memory_used,
-                'metrics_count': len(self.metrics_history)
+                'resource_counts': resource_counts,
+                'memory_by_type': memory_by_type,
+                'total_resource_memory': resource_stats.get('total_memory_usage', 0),
+                'resource_memory_percent': resource_stats.get('memory_usage_percent', 0),
+                'active_resources': len(resource_info)
             }
+        except Exception as e:
+            logger.error(f"Error getting resource metrics: {e}")
+            return {}
 
     def optimize_performance(self):
         """Perform general performance optimization."""
@@ -259,6 +281,9 @@ class PerformanceMonitor:
         # Force garbage collection
         collected = gc.collect()
         logger.info(f"Garbage collection freed {collected} objects")
+
+        # Optimize resource usage
+        self._optimize_resource_usage()
 
         # Clear metrics history if too large
         with self.lock:
@@ -290,6 +315,113 @@ class PerformanceMonitor:
             })
 
         return consumers
+
+    def get_current_metrics(self) -> Optional[PerformanceMetrics]:
+        """
+        Get the most recent performance metrics.
+        
+        Returns:
+            PerformanceMetrics: The latest metrics, or None if no metrics available
+        """
+        with self.lock:
+            if self.metrics_history:
+                return self.metrics_history[-1]
+            else:
+                # Return current metrics if monitoring is active
+                if self.monitoring_active:
+                    return self._collect_metrics()
+                return None
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of performance metrics over the monitoring period.
+        
+        Returns:
+            Dict containing performance summary statistics
+        """
+        with self.lock:
+            if not self.metrics_history:
+                return {
+                    'status': 'no_data',
+                    'message': 'No performance metrics available'
+                }
+            
+            # Calculate summary statistics
+            metrics_count = len(self.metrics_history)
+            if metrics_count == 0:
+                return {
+                    'status': 'no_data',
+                    'message': 'No performance metrics available'
+                }
+            
+            # Extract metric values
+            cpu_values = [m.cpu_percent for m in self.metrics_history if m.cpu_percent is not None]
+            memory_values = [m.memory_percent for m in self.metrics_history if m.memory_percent is not None]
+            memory_used_values = [m.memory_used_mb for m in self.metrics_history if m.memory_used_mb is not None]
+            
+            summary = {
+                'status': 'active' if self.monitoring_active else 'stopped',
+                'total_samples': metrics_count,
+                'time_range': {
+                    'start': self.metrics_history[0].timestamp,
+                    'end': self.metrics_history[-1].timestamp,
+                    'duration_seconds': self.metrics_history[-1].timestamp - self.metrics_history[0].timestamp
+                }
+            }
+            
+            # CPU statistics
+            if cpu_values:
+                summary['cpu'] = {
+                    'current': cpu_values[-1],
+                    'average': sum(cpu_values) / len(cpu_values),
+                    'max': max(cpu_values),
+                    'min': min(cpu_values)
+                }
+                # Add flat keys for backward compatibility
+                summary['average_cpu_percent'] = summary['cpu']['average']
+                summary['current_cpu_percent'] = summary['cpu']['current']
+                summary['max_cpu_percent'] = summary['cpu']['max']
+                summary['min_cpu_percent'] = summary['cpu']['min']
+            
+            # Memory statistics
+            if memory_values:
+                summary['memory'] = {
+                    'current_percent': memory_values[-1],
+                    'average_percent': sum(memory_values) / len(memory_values),
+                    'max_percent': max(memory_values),
+                    'min_percent': min(memory_values)
+                }
+                # Add flat keys for backward compatibility
+                summary['average_memory_percent'] = summary['memory']['average_percent']
+                summary['current_memory_percent'] = summary['memory']['current_percent']
+                summary['max_memory_percent'] = summary['memory']['max_percent']
+                summary['min_memory_percent'] = summary['memory']['min_percent']
+            
+            if memory_used_values:
+                summary['memory']['current_mb'] = memory_used_values[-1]
+                summary['memory']['average_mb'] = sum(memory_used_values) / len(memory_used_values)
+                summary['memory']['max_mb'] = max(memory_used_values)
+                summary['memory']['min_mb'] = min(memory_used_values)
+                # Add flat keys for backward compatibility
+                summary['memory_used_mb'] = summary['memory']['current_mb']
+                summary['average_memory_mb'] = summary['memory']['average_mb']
+                summary['max_memory_mb'] = summary['memory']['max_mb']
+                summary['min_memory_mb'] = summary['memory']['min_mb']
+            
+            # Add metrics_count for test compatibility
+            summary['metrics_count'] = metrics_count
+            
+            # Performance issues
+            issues = []
+            if cpu_values and max(cpu_values) > 90:
+                issues.append('High CPU usage detected')
+            if memory_values and max(memory_values) > 90:
+                issues.append('High memory usage detected')
+            
+            summary['issues'] = issues
+            summary['issues_count'] = len(issues)
+            
+            return summary
 
     def cleanup(self):
         """Cleanup performance monitor."""

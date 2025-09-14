@@ -217,6 +217,84 @@ class DatabaseResource(ManagedResource[Any]):
         """Get memory usage estimate."""
         return 10 * 1024 * 1024  # 10MB estimate for database connections
 
+class WhisperModelResource(ManagedResource[Any]):
+    """Managed Whisper model resource for speech processing."""
+    
+    # Memory usage estimates for different Whisper model sizes (in MB)
+    MODEL_MEMORY_ESTIMATES = {
+        'tiny': 100,
+        'base': 200,
+        'small': 500,
+        'medium': 1500,
+        'large': 3000,
+        'large-v2': 3000,
+        'large-v3': 3000
+    }
+    
+    def __init__(self, model_name: str):
+        resource_id = f"whisper_{model_name}"
+        super().__init__(resource_id, "whisper_model")
+        self.model_name = model_name
+        self.model = None
+        self._estimated_size = self.MODEL_MEMORY_ESTIMATES.get(model_name, 500) * 1024 * 1024  # Convert to bytes
+        
+    def initialize(self) -> None:
+        """Initialize Whisper model resource."""
+        try:
+            # Import whisper here to avoid circular imports
+            try:
+                import whisper
+                logger.info(f"Loading Whisper model: {self.model_name}")
+                self.model = whisper.load_model(self.model_name)
+                logger.info(f"Whisper model {self.model_name} loaded successfully")
+            except ImportError:
+                raise MemoryError("Whisper package not available", "MISSING_WHISPER")
+            except Exception as e:
+                raise MemoryError(f"Failed to load Whisper model {self.model_name}: {str(e)}", "MODEL_LOAD_FAILED")
+        except Exception as e:
+            logger.error(f"Failed to initialize Whisper model resource {self.resource_id}: {e}")
+            raise
+    
+    def cleanup(self) -> None:
+        """Clean up Whisper model resource."""
+        try:
+            if self.model:
+                # Clear the model from memory
+                del self.model
+                self.model = None
+                
+                # Force garbage collection
+                import gc
+                gc.collect()
+            
+            # Run cleanup callbacks
+            for callback in self._cleanup_callbacks:
+                try:
+                    callback()
+                except Exception as e:
+                    logger.error(f"Cleanup callback failed: {e}")
+                    
+            logger.info(f"Whisper model resource {self.resource_id} cleaned up")
+        except Exception as e:
+            logger.error(f"Failed to cleanup Whisper model resource {self.resource_id}: {e}")
+    
+    def get_memory_usage(self) -> int:
+        """Get memory usage estimate."""
+        return self._estimated_size
+    
+    def transcribe(self, audio_data, **kwargs):
+        """Transcribe audio using the loaded model."""
+        if self.model is None:
+            raise RuntimeError(f"Whisper model {self.model_name} not loaded")
+        
+        try:
+            result = self.model.transcribe(audio_data, **kwargs)
+            self.update_last_used()
+            return result
+        except Exception as e:
+            logger.error(f"Error transcribing with Whisper model {self.model_name}: {e}")
+            raise
+
 class ResourceManager:
     """Central resource manager for M.I.A."""
     

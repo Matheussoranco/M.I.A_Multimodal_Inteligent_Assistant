@@ -129,120 +129,90 @@ class ActionExecutor:
                 return f"Permission denied for action: {action}"
         
         try:
-            # File operations
-            if action == "open_file":
-                return self.open_file(params.get("path"))
-            elif action == "create_file":
-                return self.create_file(params.get("path"), params.get("content", ""))
-            elif action == "read_file":
-                return self.read_file(params.get("path"))
-            elif action == "write_file":
-                return self.write_file(params.get("path"), params.get("content"))
-            elif action == "move_file":
-                return self.move_file(params.get("src"), params.get("dst"))
-            elif action == "delete_file":
-                return self.delete_file(params.get("path"))
-            elif action == "search_file":
-                return self.search_file(params.get("name"), params.get("directory", "."))
-            elif action == "open_directory":
-                return self.open_directory(params.get("path"))
-            elif action == "create_directory":
-                return self.create_directory(params.get("path"))
+            # Use dispatch pattern for better maintainability
+            action_dispatch = {
+                # File operations
+                "open_file": lambda: self.open_file(params.get("path")),
+                "create_file": lambda: self.create_file(params.get("path"), params.get("content", "")),
+                "read_file": lambda: self.read_file(params.get("path")),
+                "write_file": lambda: self.write_file(params.get("path"), params.get("content")),
+                "move_file": lambda: self.move_file(params.get("src"), params.get("dst")),
+                "delete_file": lambda: self.delete_file(params.get("path")),
+                "search_file": lambda: self.search_file(params.get("name"), params.get("directory", ".")),
+                "open_directory": lambda: self.open_directory(params.get("path")),
+                "create_directory": lambda: self.create_directory(params.get("path")),
+                
+                # Code generation
+                "create_code": lambda: self.create_code(params.get("language"), params.get("description"), params.get("filename")),
+                "analyze_code": lambda: self.analyze_code(params.get("path")),
+                
+                # Notes and documentation
+                "make_note": lambda: self.make_note(params.get("content"), params.get("title")),
+                "read_notes": lambda: self.read_notes(),
+                "search_notes": lambda: self.search_notes(params.get("query")),
+                
+                # Spreadsheet operations
+                "create_sheet": lambda: self.create_sheet(params.get("filename"), params.get("data")),
+                "read_sheet": lambda: self.read_sheet(params.get("filename")),
+                "write_sheet": lambda: self.write_sheet(params.get("filename"), params.get("data")),
+                
+                # Research and web operations
+                "web_search": lambda: self.web_search(params.get("query")),
+                "web_scrape": lambda: self.web_scrape(params.get("url")),
+                "research_topic": lambda: self.research_topic(params.get("topic")),
+                "wikipedia_search": lambda: self.wikipedia_search(params.get("query")),
+                
+                # Smart home integration
+                "control_device": lambda: self._handle_control_device(params),
+                
+                # System integration
+                "clipboard_copy": lambda: self.clipboard_copy(params.get("text")),
+                "clipboard_paste": lambda: self.clipboard_paste(),
+                "show_notification": lambda: self.show_notification(params.get("title"), params.get("message")),
+                "open_application": lambda: self.open_application(params.get("app_name")),
+                "get_system_info": lambda: self.get_system_info(),
+                
+                # Application control
+                "launch_app": lambda: self.launch_app(params.get("app")),
+                "close_app": lambda: self.close_app(params.get("app")),
+                "clipboard": lambda: self.clipboard_action(params),
+                "notify": lambda: self.notify(params.get("message")),
+                "system_setting": lambda: self.system_setting(params),
+                "run_command": lambda: self.run_command(params.get("command")),
+                "web_automation": lambda: self.web_automation(params),
+                
+                # Communication
+                "send_email": lambda: self.send_email(params),
+                "send_whatsapp": lambda: self.send_whatsapp(params),
+                "send_message": lambda: self.send_message(params),
+                
+                # Calendar and scheduling
+                "calendar_event": lambda: self.calendar_event(params),
+                
+                # Smart home
+                "smart_home": lambda: self.smart_home(params),
+                "control_lights": lambda: self.control_lights(params),
+                "control_temperature": lambda: self.control_temperature(params),
+            }
             
-            # Code generation
-            elif action == "create_code":
-                return self.create_code(params.get("language"), params.get("description"), params.get("filename"))
-            elif action == "analyze_code":
-                return self.analyze_code(params.get("path"))
-            
-            # Notes and documentation
-            elif action == "make_note":
-                return self.make_note(params.get("content"), params.get("title"))
-            elif action == "read_notes":
-                return self.read_notes()
-            elif action == "search_notes":
-                return self.search_notes(params.get("query"))
-            
-            # Spreadsheet operations
-            elif action == "create_sheet":
-                return self.create_sheet(params.get("filename"), params.get("data"))
-            elif action == "read_sheet":
-                return self.read_sheet(params.get("filename"))
-            elif action == "write_sheet":
-                return self.write_sheet(params.get("filename"), params.get("data"))
-            
-            # Research and web operations
-            elif action == "web_search":
-                return self.web_search(params.get("query"))
-            elif action == "web_scrape":
-                return self.web_scrape(params.get("url"))
-            elif action == "research_topic":
-                return self.research_topic(params.get("topic"))
-            elif action == "wikipedia_search":
-                return self.wikipedia_search(params.get("query"))
-            
-            # Smart home integration
-            elif action == "control_device":
-                device_type = params.get("device_type")
-                device_action = params.get("action")
-                # Remove these from params to avoid duplicate keyword arguments
-                filtered_params = {k: v for k, v in params.items() if k not in ["device_type", "action"]}
-                return self.control_device(device_type, device_action, **filtered_params)
-            
-            # System integration
-            elif action == "clipboard_copy":
-                return self.clipboard_copy(params.get("text"))
-            elif action == "clipboard_paste":
-                return self.clipboard_paste()
-            elif action == "show_notification":
-                return self.show_notification(params.get("title"), params.get("message"))
-            elif action == "open_application":
-                return self.open_application(params.get("app_name"))
-            elif action == "get_system_info":
-                return self.get_system_info()
-            
-            # Application control
-            elif action == "launch_app":
-                return self.launch_app(params.get("app"))
-            elif action == "close_app":
-                return self.close_app(params.get("app"))
-            elif action == "clipboard":
-                return self.clipboard_action(params)
-            elif action == "notify":
-                return self.notify(params.get("message"))
-            elif action == "system_setting":
-                return self.system_setting(params)
-            elif action == "run_command":
-                return self.run_command(params.get("command"))
-            elif action == "web_automation":
-                return self.web_automation(params)
-            
-            # Communication
-            elif action == "send_email":
-                return self.send_email(params)
-            elif action == "send_whatsapp":
-                return self.send_whatsapp(params)
-            elif action == "send_message":
-                return self.send_message(params)
-            
-            # Calendar and scheduling
-            elif action == "calendar_event":
-                return self.calendar_event(params)
-            
-            # Smart home
-            elif action == "smart_home":
-                return self.smart_home(params)
-            elif action == "control_lights":
-                return self.control_lights(params)
-            elif action == "control_temperature":
-                return self.control_temperature(params)
-            
+            # Execute the action if it exists
+            if action in action_dispatch:
+                return action_dispatch[action]()
             else:
                 self.logger.error(f"Unknown action: {action}")
                 return f"Unknown action: {action}"
+                
         except Exception as e:
             self.logger.error(f"Error executing {action}: {e}")
             return f"Error: {e}"
+    
+    def _handle_control_device(self, params):
+        """Handle device control with parameter filtering."""
+        device_type = params.get("device_type")
+        device_action = params.get("action")
+        # Remove these from params to avoid duplicate keyword arguments
+        filtered_params = {k: v for k, v in params.items() if k not in ["device_type", "action"]}
+        return self.control_device(device_type, device_action, **filtered_params)
 
     # Enhanced File Operations
     def create_file(self, path: str, content: str = "") -> str:
@@ -254,8 +224,12 @@ class ActionExecutor:
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
             return f"Created file: {path}"
-        except Exception as e:
+        except (OSError, IOError) as e:
             return f"Error creating file: {e}"
+        except UnicodeEncodeError as e:
+            return f"Error encoding content: {e}"
+        except Exception as e:
+            return f"Unexpected error creating file: {e}"
 
     def read_file(self, path: str) -> str:
         """Read content from a file."""
@@ -265,8 +239,16 @@ class ActionExecutor:
             with open(path, 'r', encoding='utf-8') as f:
                 content = f.read()
             return f"Content of {path}:\n{content}"
-        except Exception as e:
+        except FileNotFoundError:
+            return f"File not found: {path}"
+        except PermissionError:
+            return f"Permission denied reading file: {path}"
+        except (OSError, IOError) as e:
             return f"Error reading file: {e}"
+        except UnicodeDecodeError as e:
+            return f"Error decoding file content: {e}"
+        except Exception as e:
+            return f"Unexpected error reading file: {e}"
 
     def write_file(self, path: str, content: str) -> str:
         """Write content to a file."""
@@ -276,8 +258,14 @@ class ActionExecutor:
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
             return f"Written to file: {path}"
-        except Exception as e:
+        except PermissionError:
+            return f"Permission denied writing to file: {path}"
+        except (OSError, IOError) as e:
             return f"Error writing file: {e}"
+        except UnicodeEncodeError as e:
+            return f"Error encoding content: {e}"
+        except Exception as e:
+            return f"Unexpected error writing file: {e}"
 
     def open_directory(self, path: str) -> str:
         """Open a directory in the file explorer."""
@@ -289,8 +277,16 @@ class ActionExecutor:
             elif os.name == 'posix':  # macOS and Linux
                 subprocess.run(['open', path] if sys.platform == 'darwin' else ['xdg-open', path])
             return f"Opened directory: {path}"
-        except Exception as e:
+        except FileNotFoundError:
+            return f"Directory not found: {path}"
+        except PermissionError:
+            return f"Permission denied opening directory: {path}"
+        except (OSError, IOError) as e:
             return f"Error opening directory: {e}"
+        except subprocess.SubprocessError as e:
+            return f"Error running file manager: {e}"
+        except Exception as e:
+            return f"Unexpected error opening directory: {e}"
 
     def create_directory(self, path: str) -> str:
         """Create a new directory."""
@@ -604,7 +600,7 @@ body {{
         if not HAS_OPENPYXL:
             return "openpyxl not installed. Run: pip install openpyxl"
         
-        wb = Workbook()
+        wb = Workbook()  # type: ignore
         ws = wb.active
         if ws is None:
             return "Failed to create worksheet"
