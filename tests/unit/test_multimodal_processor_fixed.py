@@ -3,7 +3,9 @@ Unit tests for multimodal/processor.py
 """
 import pytest
 import numpy as np
-from unittest.mock import Mock, patch
+from PIL import Image
+from unittest.mock import Mock, patch, MagicMock
+from io import BytesIO
 import speech_recognition as sr
 
 from mia.multimodal.processor import MultimodalProcessor
@@ -23,6 +25,7 @@ class TestMultimodalProcessor:
     @patch('speech_recognition.Recognizer')
     def test_process_audio_success_google(self, mock_recognizer_class):
         """Test successful audio processing with Google recognition."""
+        # Setup mocks
         mock_recognizer = Mock()
         mock_recognizer_class.return_value = mock_recognizer
         mock_recognizer.recognize_google.return_value = "Hello world"
@@ -30,6 +33,7 @@ class TestMultimodalProcessor:
         processor = MultimodalProcessor()
         processor.recognizer = mock_recognizer
 
+        # Mock audio data
         mock_audio = Mock()
         mock_audio.get_raw_data.return_value = b'test audio data'
 
@@ -43,6 +47,7 @@ class TestMultimodalProcessor:
     @patch('speech_recognition.Recognizer')
     def test_process_audio_google_unknown_value_error(self, mock_recognizer_class):
         """Test audio processing when Google recognition fails with UnknownValueError."""
+        # Setup mocks
         mock_recognizer = Mock()
         mock_recognizer_class.return_value = mock_recognizer
         mock_recognizer.recognize_google.side_effect = sr.UnknownValueError()
@@ -58,6 +63,7 @@ class TestMultimodalProcessor:
     @patch('speech_recognition.Recognizer')
     def test_process_audio_google_request_error_fallback_sphinx(self, mock_recognizer_class):
         """Test audio processing with Google request error, fallback to Sphinx."""
+        # Setup mocks
         mock_recognizer = Mock()
         mock_recognizer_class.return_value = mock_recognizer
         mock_recognizer.recognize_google.side_effect = sr.RequestError("Request error")
@@ -79,6 +85,7 @@ class TestMultimodalProcessor:
     @patch('speech_recognition.Recognizer')
     def test_process_audio_all_recognition_fail(self, mock_recognizer_class):
         """Test audio processing when all recognition methods fail."""
+        # Setup mocks
         mock_recognizer = Mock()
         mock_recognizer_class.return_value = mock_recognizer
         mock_recognizer.recognize_google.side_effect = sr.RequestError("Request error")
@@ -92,10 +99,41 @@ class TestMultimodalProcessor:
 
         assert result == {"error": "Could not process audio"}
 
+    def test_analyze_emotion_high_energy_noisy(self):
+        """Test emotion analysis for high energy, noisy audio."""
+        processor = MultimodalProcessor()
+
+        # Create mock audio with high energy and high zero crossings
+        mock_audio = Mock()
+        # Create noisy high-energy signal with many zero crossings
+        t = np.linspace(0, 0.1, 1000)
+        noisy_data = 0.3 * np.sin(2 * np.pi * 1000 * t)  # High frequency = high zero crossings
+        mock_audio.get_raw_data.return_value = (noisy_data * 32767).astype(np.int16).tobytes()
+
+        result = processor._analyze_emotion(mock_audio)
+
+        assert result == "excited"
+
+    def test_analyze_emotion_high_energy_smooth(self):
+        """Test emotion analysis for high energy, smooth audio."""
+        processor = MultimodalProcessor()
+
+        # Create mock audio with high energy but low zero crossings
+        mock_audio = Mock()
+        # Create a smooth sine wave with high amplitude
+        t = np.linspace(0, 0.1, 1000)
+        smooth_data = 0.3 * np.sin(2 * np.pi * 50 * t)  # Low frequency = low zero crossings
+        mock_audio.get_raw_data.return_value = (smooth_data * 32767).astype(np.int16).tobytes()
+
+        result = processor._analyze_emotion(mock_audio)
+
+        assert result == "angry"
+
     def test_analyze_emotion_low_energy(self):
         """Test emotion analysis for low energy audio."""
         processor = MultimodalProcessor()
 
+        # Create mock audio with very low energy
         mock_audio = Mock()
         low_energy_data = np.random.rand(1000) * 0.0005  # Very low amplitude
         mock_audio.get_raw_data.return_value = low_energy_data.astype(np.int16).tobytes()
@@ -104,16 +142,102 @@ class TestMultimodalProcessor:
 
         assert result == "sad"
 
+    def test_analyze_emotion_high_pitch(self):
+        """Test emotion analysis for high pitch audio."""
+        processor = MultimodalProcessor()
+
+        # Create mock audio with medium energy but high pitch
+        mock_audio = Mock()
+        t = np.linspace(0, 0.1, 2000)
+        high_pitch_data = 0.01 * np.sin(2 * np.pi * 400 * t)  # High frequency
+        mock_audio.get_raw_data.return_value = (high_pitch_data * 32767).astype(np.int16).tobytes()
+
+        result = processor._analyze_emotion(mock_audio)
+
+        assert result == "happy"
+
+    def test_analyze_emotion_moderate_noise(self):
+        """Test emotion analysis for moderately noisy audio."""
+        processor = MultimodalProcessor()
+
+        # Create mock audio with medium energy and moderate zero crossings
+        mock_audio = Mock()
+        t = np.linspace(0, 0.1, 1000)
+        moderate_data = 0.01 * np.sin(2 * np.pi * 300 * t)  # Medium frequency
+        mock_audio.get_raw_data.return_value = (moderate_data * 32767).astype(np.int16).tobytes()
+
+        result = processor._analyze_emotion(mock_audio)
+
+        assert result == "anxious"
+
+    def test_analyze_emotion_neutral(self):
+        """Test emotion analysis for neutral audio."""
+        processor = MultimodalProcessor()
+
+        # Create mock audio with medium energy and low noise
+        mock_audio = Mock()
+        t = np.linspace(0, 0.1, 1000)
+        neutral_data = 0.005 * np.sin(2 * np.pi * 150 * t)  # Medium amplitude, medium frequency
+        mock_audio.get_raw_data.return_value = (neutral_data * 32767).astype(np.int16).tobytes()
+
+        result = processor._analyze_emotion(mock_audio)
+
+        assert result == "neutral"
+
     def test_analyze_emotion_exception(self):
         """Test emotion analysis when exception occurs."""
         processor = MultimodalProcessor()
 
+        # Create mock audio that will cause an exception
         mock_audio = Mock()
         mock_audio.get_raw_data.side_effect = Exception("Mock error")
 
         result = processor._analyze_emotion(mock_audio)
 
         assert result == "neutral"
+
+    def test_get_dominant_color_rgb_image(self):
+        """Test dominant color extraction from RGB image."""
+        processor = MultimodalProcessor()
+
+        # Create a mock image with red pixels
+        mock_img = Mock()
+        mock_img.mode = 'RGB'
+        mock_img.size = (10, 10)
+
+        # Create image data with mostly red pixels
+        red_pixels = np.full((100, 3), [255, 0, 0], dtype=np.uint8)
+        mock_img.getdata.return_value = red_pixels.flatten()
+
+        with patch('PIL.Image.Image.resize', return_value=mock_img):
+            result = processor._get_dominant_color(mock_img)
+
+        assert result['hex'] == '#ff0000'
+        assert result['rgb'] == (255, 0, 0)
+        assert result['name'] == 'red'
+
+    def test_get_dominant_color_non_rgb_image(self):
+        """Test dominant color extraction from non-RGB image."""
+        processor = MultimodalProcessor()
+
+        # Create a mock image that needs conversion
+        mock_img = Mock()
+        mock_img.mode = 'L'  # Grayscale
+
+        mock_rgb_img = Mock()
+        mock_rgb_img.mode = 'RGB'
+        mock_rgb_img.size = (10, 10)
+
+        red_pixels = np.full((100, 3), [255, 0, 0], dtype=np.uint8)
+        mock_rgb_img.getdata.return_value = red_pixels.flatten()
+
+        with patch('PIL.Image.Image.convert', return_value=mock_rgb_img):
+            with patch('PIL.Image.Image.resize', return_value=mock_rgb_img):
+                result = processor._get_dominant_color(mock_img)
+
+        assert result['hex'] == '#ff0000'
+        assert result['rgb'] == (255, 0, 0)
+        assert result['name'] == 'red'
 
     def test_get_dominant_color_exception(self):
         """Test dominant color extraction when exception occurs."""
@@ -190,6 +314,33 @@ class TestMultimodalProcessor:
         result = processor._color_name((150, 80, 120))
         assert result == "unknown"
 
+    @patch('pytesseract.image_to_string')
+    def test_extract_text_with_pytesseract(self, mock_pytesseract):
+        """Test text extraction with pytesseract available."""
+        processor = MultimodalProcessor()
+
+        mock_img = Mock()
+        mock_pytesseract.return_value = "Extracted text from image"
+
+        with patch.dict('sys.modules', {'pytesseract': Mock()}):
+            result = processor._extract_text(mock_img)
+
+        assert result == "Extracted text from image"
+        mock_pytesseract.assert_called_once_with(mock_img)
+
+    @patch('pytesseract.image_to_string')
+    def test_extract_text_pytesseract_empty(self, mock_pytesseract):
+        """Test text extraction with pytesseract returning empty text."""
+        processor = MultimodalProcessor()
+
+        mock_img = Mock()
+        mock_pytesseract.return_value = "   \n\t   "
+
+        with patch.dict('sys.modules', {'pytesseract': Mock()}):
+            result = processor._extract_text(mock_img)
+
+        assert result == ""
+
     def test_extract_text_pytesseract_not_available(self):
         """Test text extraction when pytesseract is not available."""
         processor = MultimodalProcessor()
@@ -218,6 +369,7 @@ class TestMultimodalProcessor:
         """Test basic OCR with high contrast image."""
         processor = MultimodalProcessor()
 
+        # Create mock image with high contrast
         mock_img = Mock()
         mock_img.mode = 'L'
         mock_img.size = (100, 100)
@@ -238,6 +390,7 @@ class TestMultimodalProcessor:
         """Test basic OCR with low contrast image."""
         processor = MultimodalProcessor()
 
+        # Create mock image with low contrast
         mock_img = Mock()
         mock_img.mode = 'L'
         mock_img.size = (100, 100)
@@ -249,6 +402,24 @@ class TestMultimodalProcessor:
         result = processor._basic_ocr(mock_img)
 
         assert result == ""
+
+    def test_basic_ocr_grayscale_conversion(self):
+        """Test basic OCR with image that needs grayscale conversion."""
+        processor = MultimodalProcessor()
+
+        # Create mock color image
+        mock_img = Mock()
+        mock_img.mode = 'RGB'
+        mock_img.size = (100, 100)
+
+        mock_gray_img = Mock()
+        mock_gray_img.getdata.return_value = [120] * 10000
+
+        with patch.object(mock_img, 'convert', return_value=mock_gray_img):
+            result = processor._basic_ocr(mock_img)
+
+        assert result == ""
+        mock_img.convert.assert_called_once_with('L')
 
     def test_basic_ocr_exception(self):
         """Test basic OCR when exception occurs."""
