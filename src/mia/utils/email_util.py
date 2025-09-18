@@ -4,7 +4,7 @@ from email.mime.multipart import MIMEMultipart
 
 class EmailUtil:
     @staticmethod
-    def send_email(smtp_server, port, login, password, recipient, subject, body):
+    def send_email(smtp_server: str, port: int, login: str, password: str, recipient: str, subject: str, body: str) -> str:
         """
         Send an email using the specified SMTP server.
 

@@ -2,13 +2,11 @@
 Vision Resource Manager - Specialized resource management for vision components
 """
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import threading
 import time
-import weakref
 
 from ..resource_manager import ManagedResource, ResourceManager, ResourceState
-from ..exceptions import ResourceError, VisionError
 
 logger = logging.getLogger(__name__)
 

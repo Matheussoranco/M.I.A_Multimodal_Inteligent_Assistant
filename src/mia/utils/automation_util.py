@@ -4,10 +4,11 @@ import platform
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from typing import Optional
 
 class AutomationUtil:
     @staticmethod
-    def open_website(url):
+    def open_website(url: str) -> str:
         """
         Open a website in the default web browser.
 
@@ -21,7 +22,7 @@ class AutomationUtil:
             return f"Failed to open website: {e}"
 
     @staticmethod
-    def open_program(program_path):
+    def open_program(program_path: str) -> str:
         """
         Open a program based on the operating system.
 
@@ -45,7 +46,7 @@ class AutomationUtil:
             return f"Failed to open program: {e}"
 
     @staticmethod
-    def open_file(file_path):
+    def open_file(file_path: str) -> str:
         """
         Open a file using the default application for its type.
 
@@ -69,7 +70,7 @@ class AutomationUtil:
             return f"Failed to open file: {e}"
 
     @staticmethod
-    def autofill_login(url, username, password):
+    def autofill_login(url: str, username: str, password: str) -> str:
         """
         Autofill login fields on a website using Selenium.
 

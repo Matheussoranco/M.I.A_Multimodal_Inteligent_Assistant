@@ -1,6 +1,5 @@
 import logging
 import numpy as np
-import time
 from typing import Generator, Optional
 
 # Optional imports with error handling

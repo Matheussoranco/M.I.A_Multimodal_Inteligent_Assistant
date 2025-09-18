@@ -1,7 +1,7 @@
 import speech_recognition as sr
 from PIL import Image
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 class MultimodalProcessor:
     def __init__(self):

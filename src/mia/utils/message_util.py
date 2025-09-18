@@ -2,7 +2,7 @@ import requests
 
 class MessageUtil:
     @staticmethod
-    def send_message(api_url, api_key, recipient_id, message, platform):
+    def send_message(api_url: str, api_key: str, recipient_id: str, message: str, platform: str) -> str:
         """
         Send a message on any platform using a specified API.
 

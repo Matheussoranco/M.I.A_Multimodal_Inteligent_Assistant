@@ -1,7 +1,6 @@
 """Speech processing module for audio transcription and recognition."""
 import logging
 from typing import Optional, Any, Dict
-import io
 
 # Import configuration manager
 from ..config_manager import ConfigManager

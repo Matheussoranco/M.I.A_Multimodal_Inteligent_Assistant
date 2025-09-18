@@ -4,7 +4,7 @@ Vision Processor: Handles image/video input and context fusion.
 
 from PIL import Image
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import os
 
 class VisionProcessor:

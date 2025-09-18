@@ -1,6 +1,5 @@
 """Speech generation module with TTS and LLM capabilities."""
 import logging
-from typing import Optional, Any
 
 # Optional imports with fallbacks
 try:

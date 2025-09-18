@@ -5,15 +5,12 @@ import time
 import pickle
 import hashlib
 import logging
-from typing import Any, Dict, Optional, Callable, Union, List
+from typing import Any, Dict, Optional, Callable, List
 from dataclasses import dataclass
 from threading import Lock, RLock
-import weakref
-import os
 import json
 from pathlib import Path
 
-from .exceptions import CacheError
 from .config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)

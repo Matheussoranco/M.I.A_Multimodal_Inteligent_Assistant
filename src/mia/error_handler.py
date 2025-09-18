@@ -6,7 +6,7 @@ import logging
 import traceback
 from typing import Optional, Dict, Any, Callable, Type
 from functools import wraps
-from .exceptions import MIAException, LLMProviderError, NetworkError
+from .exceptions import LLMProviderError, NetworkError
 
 logger = logging.getLogger(__name__)
 

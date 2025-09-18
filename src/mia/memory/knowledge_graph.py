@@ -1,10 +1,9 @@
 import networkx as nx
 import logging
-from typing import Optional, List, Any
+from typing import Optional, List
 
 # Import custom exceptions and error handling
 from ..exceptions import MemoryError, InitializationError, ValidationError
-from ..error_handler import global_error_handler, with_error_handling, safe_execute
 
 # Optional Chroma import with fallback
 try:
@@ -21,7 +20,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class AgentMemory:
-    def __init__(self, persist_directory="memory/"):
+    def __init__(self, persist_directory: str = "memory/") -> None:
         self.kg = nx.DiGraph()
         self.vector_db = None
         self.collection = None
@@ -29,7 +28,7 @@ class AgentMemory:
         
         self._init_vector_db()
         
-    def _init_vector_db(self):
+    def _init_vector_db(self) -> None:
         """Initialize vector database with comprehensive error handling."""
         if not CHROMADB_AVAILABLE:
             logger.warning("ChromaDB not available - vector memory disabled")

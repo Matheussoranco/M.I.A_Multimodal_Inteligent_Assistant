@@ -1,10 +1,10 @@
 ﻿import torch
 import warnings
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, List
 
 # Import custom exceptions and error handling
 from ..exceptions import VisionProcessingError, InitializationError, ValidationError
-from ..error_handler import global_error_handler, with_error_handling, safe_execute
+from ..error_handler import global_error_handler, with_error_handling
 from ..audio.speech_processor import SpeechProcessor
 
 # Suppress transformers warnings
@@ -24,7 +24,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class MIACognitiveCore:
-    def __init__(self, llm_client, device=None):
+    def __init__(self, llm_client: Any, device: Optional[str] = None) -> None:
         self.llm = llm_client
         self.device = device if device is not None else ('cuda' if torch.cuda.is_available() else 'cpu')
         self.vision_processor: Optional[Any] = None
@@ -41,7 +41,7 @@ class MIACognitiveCore:
         self.long_term_memory = {}
         self.knowledge_graph = {}
         
-    def _init_vision_components(self):
+    def _init_vision_components(self) -> None:
         if not HAS_CLIP:
             logger.warning('CLIP components not available - vision processing disabled')
             return
@@ -83,7 +83,7 @@ class MIACognitiveCore:
             raise InitializationError(f'Unexpected error initializing vision components: {str(e)}', 
                                    'VISION_INIT_FAILED')
         
-    def _init_speech_processor(self):
+    def _init_speech_processor(self) -> None:
         try:
             self.speech_processor = SpeechProcessor()
             logger.info('Speech processor initialized successfully')
@@ -169,12 +169,12 @@ class MIACognitiveCore:
         try:
             if hasattr(self.llm, 'query') and self.llm.query:
                 response = self.llm.query(f'Reason about: {context}')
-                result = {'text': response}
+                result: Dict[str, Any] = {'text': response}
             elif hasattr(self.llm, 'query_model') and self.llm.query_model:
                 response = self.llm.query_model(f'Reason about: {context}')
-                result = {'text': response}
+                result: Dict[str, Any] = {'text': response}
             else:
-                result = {'text': ''}
+                result: Dict[str, Any] = {'text': ''}
                 
             # Generate embeddings for the reasoning result
             if result.get('text'):
@@ -186,7 +186,7 @@ class MIACognitiveCore:
             logger.error(f'Reasoning pipeline error: {e}')
             return {'text': 'Error in reasoning pipeline'}
     
-    def generate_embeddings(self, text: Optional[str]) -> list:
+    def generate_embeddings(self, text: Optional[str]) -> List[float]:
         try:
             import hashlib
             

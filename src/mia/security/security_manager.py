@@ -1,7 +1,6 @@
 """
 Security Manager: Handles user data protection, permissions, and explainability.
 """
-import hashlib
 import time
 import logging
 from typing import Dict, List, Set, Optional
@@ -9,7 +8,7 @@ from pathlib import Path
 
 # Import custom exceptions and error handling
 from ..exceptions import SecurityError, ValidationError, ConfigurationError
-from ..error_handler import global_error_handler, with_error_handling, safe_execute
+from ..error_handler import global_error_handler, with_error_handling
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ Runs performance benchmarks for various M.I.A components.
 import argparse
 import time
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from pathlib import Path
 
 # Add src to path

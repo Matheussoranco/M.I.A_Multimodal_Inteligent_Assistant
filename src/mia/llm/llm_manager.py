@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, Union
 
 # Import custom exceptions and error handling
 from ..exceptions import LLMProviderError, NetworkError, ConfigurationError, InitializationError
-from ..error_handler import global_error_handler, with_error_handling, safe_execute
+from ..error_handler import global_error_handler, with_error_handling
 from ..config_manager import ConfigManager
 
 # Optional imports with error handling
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 class LLMManager:
     """Unified LLM manager supporting multiple providers."""
     
-    def __init__(self, provider=None, model_id=None, api_key=None, url=None, local_model_path=None, config_manager=None, **kwargs):
+    def __init__(self, provider: Optional[str] = None, model_id: Optional[str] = None, api_key: Optional[str] = None, url: Optional[str] = None, local_model_path: Optional[str] = None, config_manager: Optional[Any] = None, **kwargs: Any) -> None:
         # Initialize configuration manager
         self.config_manager = config_manager or ConfigManager()
         
@@ -89,7 +89,7 @@ class LLMManager:
             if 'pytest' in sys.modules or os.getenv('TESTING') == 'true':
                 raise e
     
-    def _initialize_provider(self):
+    def _initialize_provider(self) -> None:
         """Initialize the specific provider with comprehensive error handling."""
         try:
             if self.provider == 'openai':
@@ -117,7 +117,7 @@ class LLMManager:
                 raise InitializationError(f"Failed to initialize provider {self.provider}: {str(e)}", 
                                         "PROVIDER_INIT_FAILED", error_context)
     
-    def _initialize_openai(self):
+    def _initialize_openai(self) -> None:
         """Initialize OpenAI provider with specific error handling."""
         if not HAS_OPENAI:
             raise InitializationError("OpenAI package not installed. Run: pip install openai", 
@@ -138,7 +138,7 @@ class LLMManager:
             raise InitializationError(f"OpenAI client initialization failed: {str(e)}", 
                                     "CLIENT_INIT_FAILED")
     
-    def _initialize_huggingface(self):
+    def _initialize_huggingface(self) -> None:
         """Initialize HuggingFace provider with specific error handling."""
         if not HAS_TRANSFORMERS:
             raise InitializationError("Transformers package not installed. Run: pip install transformers", 
@@ -155,7 +155,7 @@ class LLMManager:
             raise InitializationError(f"HuggingFace pipeline initialization failed: {str(e)}", 
                                     "PIPELINE_INIT_FAILED")
     
-    def _initialize_local(self):
+    def _initialize_local(self) -> None:
         """Initialize local model provider with specific error handling."""
         if not HAS_TRANSFORMERS:
             raise InitializationError("Transformers package not installed. Run: pip install transformers", 
@@ -175,7 +175,7 @@ class LLMManager:
             raise InitializationError(f"Local model initialization failed: {str(e)}", 
                                     "MODEL_LOAD_FAILED")
     
-    def _initialize_api_provider(self):
+    def _initialize_api_provider(self) -> None:
         """Initialize API-based providers."""
         # API-based providers don't need special initialization
         # but we can validate configuration here
