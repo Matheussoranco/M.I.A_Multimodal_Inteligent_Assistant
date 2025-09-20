@@ -37,7 +37,7 @@ mia-api = "mia.api.server:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "mia.__version__.__version__"}
-dependencies = {file = ["requirements.txt"]}
+dependencies = {file = ["requirements-core.txt"]}
 
 [tool.setuptools.packages.find]
 where = ["src"]

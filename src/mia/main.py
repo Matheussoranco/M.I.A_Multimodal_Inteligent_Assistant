@@ -919,6 +919,7 @@ def run_interaction_loop(args, components):
 
 def main():
     """Main function for M.I.A application"""
+    components = {}  # Initialize components to avoid UnboundLocalError in finally block
     try:
         # Parse arguments
         args = parse_arguments()
