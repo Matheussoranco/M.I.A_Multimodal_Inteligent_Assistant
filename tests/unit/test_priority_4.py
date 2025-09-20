@@ -15,37 +15,24 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 # Try to import real classes, fall back to mocks if import fails
 try:
-    # Use importlib to avoid linter issues
-    mia_config_manager = importlib.import_module('mia.config_manager')  # type: ignore
-    ConfigManager = mia_config_manager.ConfigManager  # type: ignore
-    
-    mia_performance_monitor = importlib.import_module('mia.performance_monitor')  # type: ignore
-    PerformanceMonitor = mia_performance_monitor.PerformanceMonitor  # type: ignore
-    
-    mia_cache_manager = importlib.import_module('mia.cache_manager')  # type: ignore
-    CacheManager = mia_cache_manager.CacheManager  # type: ignore
-    LRUCache = mia_cache_manager.LRUCache  # type: ignore
-    
-    mia_resource_manager = importlib.import_module('mia.resource_manager')  # type: ignore
-    ResourceManager = mia_resource_manager.ResourceManager  # type: ignore
-    
-    mia_error_handler = importlib.import_module('mia.error_handler')  # type: ignore
-    ErrorHandler = mia_error_handler.ErrorHandler  # type: ignore
-    with_error_handling = mia_error_handler.with_error_handling  # type: ignore
-    
-    mia_exceptions = importlib.import_module('mia.exceptions')  # type: ignore
-    MIAException = mia_exceptions.MIAException  # type: ignore
-    LLMProviderError = mia_exceptions.LLMProviderError  # type: ignore
-    AudioProcessingError = mia_exceptions.AudioProcessingError  # type: ignore
-    VisionProcessingError = mia_exceptions.VisionProcessingError  # type: ignore
-    SecurityError = mia_exceptions.SecurityError  # type: ignore
-    ConfigurationError = mia_exceptions.ConfigurationError  # type: ignore
-    MemoryError = mia_exceptions.MemoryError  # type: ignore
-    ActionExecutionError = mia_exceptions.ActionExecutionError  # type: ignore
-    InitializationError = mia_exceptions.InitializationError  # type: ignore
-    NetworkError = mia_exceptions.NetworkError  # type: ignore
-    ValidationError = mia_exceptions.ValidationError  # type: ignore
-    
+    from mia.config_manager import ConfigManager
+    from mia.performance_monitor import PerformanceMonitor
+    from mia.cache_manager import CacheManager, LRUCache
+    from mia.resource_manager import ResourceManager
+    from mia.error_handler import ErrorHandler, with_error_handling
+    from mia.exceptions import (
+        MIAException,
+        LLMProviderError,
+        AudioProcessingError,
+        VisionProcessingError,
+        SecurityError,
+        ConfigurationError,
+        MemoryError,
+        ActionExecutionError,
+        InitializationError,
+        NetworkError,
+        ValidationError,
+    )
     IMPORTS_SUCCESSFUL = True
     print("Successfully imported real M.I.A modules")
     
