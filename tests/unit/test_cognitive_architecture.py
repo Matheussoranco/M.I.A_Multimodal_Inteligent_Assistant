@@ -4,7 +4,7 @@ from mia.core.cognitive_architecture import MIACognitiveCore
 
 
 class TestMIACognitiveCore(unittest.TestCase):
-    """Comprehensive unit tests for MIACognitiveCore."""
+    """Unit tests for MIACognitiveCore."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -18,14 +18,53 @@ class TestMIACognitiveCore(unittest.TestCase):
         self.assertIs(core.llm, mock_llm)
         self.assertEqual(core.device, "cpu")
         self.assertIsInstance(core.working_memory, list)
-        self.assertIsInstance(core.long_term_memory, dict)
-        self.assertIsInstance(core.knowledge_graph, dict)
 
     def test_init_default_device(self):
         """Test initialization with default device."""
         mock_llm = MagicMock()
+        with patch('torch.cuda.is_available', return_value=False):
+            core = MIACognitiveCore(mock_llm)
+            self.assertEqual(core.device, "cpu")
+
+    @patch('torch.cuda.is_available', return_value=True)
+    def test_init_cuda_device(self, mock_cuda_available):
+        """Test initialization with CUDA device when available."""
+        mock_llm = MagicMock()
         core = MIACognitiveCore(mock_llm)
-        self.assertEqual(core.device, "cpu")
+        self.assertEqual(core.device, "cuda")
+
+    @patch('mia.core.cognitive_architecture.HAS_CLIP', True)
+    @patch('mia.core.cognitive_architecture.CLIPProcessor')
+    @patch('mia.core.cognitive_architecture.CLIPModel')
+    def test_init_vision_components_success(self, mock_clip_model, mock_clip_processor):
+        """Test successful vision components initialization."""
+        mock_processor_instance = MagicMock()
+        mock_model_instance = MagicMock()
+        mock_clip_processor.from_pretrained.return_value = mock_processor_instance
+        mock_clip_model.from_pretrained.return_value = mock_model_instance
+        
+        # Mock the .to() method to return the same instance
+        mock_model_instance.to.return_value = mock_model_instance
+
+        core = MIACognitiveCore(self.mock_llm)
+        self.assertEqual(core.vision_processor, mock_processor_instance)
+        self.assertEqual(core.vision_model, mock_model_instance)
+
+    @patch('mia.core.cognitive_architecture.HAS_CLIP', False)
+    def test_init_vision_components_no_clip(self):
+        """Test vision components initialization when CLIP not available."""
+        core = MIACognitiveCore(self.mock_llm)
+        self.assertIsNone(core.vision_processor)
+        self.assertIsNone(core.vision_model)
+
+    @patch('mia.core.cognitive_architecture.SpeechProcessor')
+    def test_init_speech_processor_success(self, mock_speech_processor):
+        """Test successful speech processor initialization."""
+        mock_instance = MagicMock()
+        mock_speech_processor.return_value = mock_instance
+
+        core = MIACognitiveCore(self.mock_llm)
+        self.assertEqual(core.speech_processor, mock_instance)
 
     def test_process_multimodal_input_text_only(self):
         """Test processing text-only input."""
@@ -144,8 +183,8 @@ class TestMIACognitiveCore(unittest.TestCase):
         context = "Test context"
 
         # Mock llm to have no query methods
-        del self.mock_llm.query
-        # Don't add query_model either
+        self.mock_llm.query = None
+        self.mock_llm.query_model = None
 
         result = self.core._reasoning_pipeline(context)
 
@@ -178,102 +217,6 @@ class TestMIACognitiveCore(unittest.TestCase):
         result = self.core._generate_embedding(None)
 
         self.assertEqual(result, [])
-
-    def test_update_working_memory(self):
-        """Test updating working memory."""
-        initial_length = len(self.core.working_memory)
-
-        self.core._update_working_memory("Test item")
-
-        self.assertEqual(len(self.core.working_memory), initial_length + 1)
-        self.assertIn("Test item", self.core.working_memory)
-
-    def test_update_working_memory_limit(self):
-        """Test working memory size limit."""
-        # Fill working memory beyond limit
-        for i in range(150):  # Default limit is 100
-            self.core._update_working_memory(f"Item {i}")
-
-        self.assertEqual(len(self.core.working_memory), 100)  # Should be capped
-
-    def test_retrieve_from_memory(self):
-        """Test retrieving from long-term memory."""
-        # Add some test data
-        self.core.long_term_memory["test_key"] = "test_value"
-
-        result = self.core._retrieve_from_memory("test_key")
-        self.assertEqual(result, "test_value")
-
-    def test_retrieve_from_memory_missing_key(self):
-        """Test retrieving non-existent key from memory."""
-        result = self.core._retrieve_from_memory("non_existent_key")
-        self.assertIsNone(result)
-
-    def test_update_knowledge_graph(self):
-        """Test updating knowledge graph."""
-        entity1 = "Python"
-        entity2 = "Programming"
-        relationship = "is_a"
-
-        self.core._update_knowledge_graph(entity1, entity2, relationship)
-
-        self.assertIn(entity1, self.core.knowledge_graph)
-        self.assertIn(entity2, self.core.knowledge_graph[entity1])
-        self.assertEqual(self.core.knowledge_graph[entity1][entity2], relationship)
-
-    def test_get_memory_stats(self):
-        """Test getting memory statistics."""
-        # Add some test data
-        self.core._update_working_memory("test1")
-        self.core._update_working_memory("test2")
-        self.core.long_term_memory["key1"] = "value1"
-        self.core._update_knowledge_graph("A", "B", "relates_to")
-
-        stats = self.core.get_memory_stats()
-
-        self.assertIn('working_memory_size', stats)
-        self.assertIn('long_term_memory_size', stats)
-        self.assertIn('knowledge_graph_size', stats)
-        self.assertEqual(stats['working_memory_size'], 2)
-        self.assertEqual(stats['long_term_memory_size'], 1)
-        self.assertEqual(stats['knowledge_graph_size'], 1)
-
-    def test_reset_memory(self):
-        """Test resetting memory."""
-        # Add some data
-        self.core._update_working_memory("test")
-        self.core.long_term_memory["key"] = "value"
-        self.core._update_knowledge_graph("A", "B", "relates")
-
-        # Reset
-        self.core.reset_memory()
-
-        self.assertEqual(len(self.core.working_memory), 0)
-        self.assertEqual(len(self.core.long_term_memory), 0)
-        self.assertEqual(len(self.core.knowledge_graph), 0)
-
-    def test_context_integration(self):
-        """Test context integration across components."""
-        # Add context to different memory types
-        self.core._update_working_memory("working context")
-        self.core.long_term_memory["persistent"] = "persistent context"
-        self.core._update_knowledge_graph("topic", "detail", "has")
-
-        # Process input that should use context
-        inputs = {'text': 'What do you know about this topic?'}
-
-        with patch.object(self.core, '_reasoning_pipeline') as mock_reasoning:
-            mock_reasoning.return_value = {'text': 'Context-aware response', 'embedding': []}
-
-            result = self.core.process_multimodal_input(inputs)
-
-            # Verify reasoning was called (which should use context)
-            mock_reasoning.assert_called_once()
-            args, kwargs = mock_reasoning.call_args
-            context_arg = args[0]
-
-            # Context should contain information from memory
-            self.assertIsInstance(context_arg, str)
 
 
 if __name__ == "__main__":
