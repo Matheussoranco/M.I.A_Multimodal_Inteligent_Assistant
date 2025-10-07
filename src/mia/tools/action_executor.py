@@ -69,7 +69,7 @@ except ImportError:
 try:
     import pywhatkit  # type: ignore
     HAS_PYWHATKIT = True
-except ImportError:
+except Exception:
     pywhatkit = None
     HAS_PYWHATKIT = False
 

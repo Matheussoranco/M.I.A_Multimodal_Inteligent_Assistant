@@ -7,12 +7,20 @@ try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
+
     HAS_SELENIUM = True
 except ImportError:
     HAS_SELENIUM = False
 
+
 class LLMInference:
-    def __init__(self, model_id='mistral:instruct', url='http://localhost:11434/v1', api_key='ollama', llama_model_path=None):
+    def __init__(
+        self,
+        model_id="mistral:instruct",
+        url="http://localhost:11434/v1",
+        api_key="ollama",
+        llama_model_path=None,
+    ):
         """
         Initialize the LLMInference with support for multiple APIs and LLama models.
 
@@ -49,9 +57,12 @@ class LLMInference:
         response = self.client.chat.completions.create(
             model=self.model_id,
             messages=[
-                {"role": "system", "content": "You are Liva, a helpful assistant. You provide single-sentence, accurate answers to the user's question."},
-                {"role": "user", "content": text}
-            ]
+                {
+                    "role": "system",
+                    "content": "You are Liva, a helpful assistant. You provide single-sentence, accurate answers to the user's question.",
+                },
+                {"role": "user", "content": text},
+            ],
         )
         return response.choices[0].message.content
 
@@ -126,7 +137,9 @@ class LLMInference:
         :return: Confirmation of autofill success.
         """
         if not HAS_SELENIUM:
-            return "Selenium not available. Install selenium for web automation features."
+            return (
+                "Selenium not available. Install selenium for web automation features."
+            )
 
         driver = webdriver.Chrome()  # Adjust driver path if needed
         driver.get(url)
@@ -141,6 +154,7 @@ class LLMInference:
             return "Login fields filled successfully."
         except Exception as e:
             return f"Failed to autofill login: {e}"
+
 
 # Example usage:
 # llm = LLMInference(llama_model_path="path/to/llama/model")

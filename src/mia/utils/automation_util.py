@@ -8,9 +8,11 @@ try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
+
     HAS_SELENIUM = True
 except ImportError:
     HAS_SELENIUM = False
+
 
 class AutomationUtil:
     @staticmethod
@@ -86,10 +88,14 @@ class AutomationUtil:
         :return: Confirmation of autofill success.
         """
         if not HAS_SELENIUM:
-            return "Selenium not available. Install selenium for web automation features."
-        
+            return (
+                "Selenium not available. Install selenium for web automation features."
+            )
+
         try:
-            driver = webdriver.Chrome()  # Ensure the correct WebDriver is installed and in PATH
+            driver = (
+                webdriver.Chrome()
+            )  # Ensure the correct WebDriver is installed and in PATH
             driver.get(url)
 
             # Locate the username and password fields
@@ -106,6 +112,7 @@ class AutomationUtil:
             return f"Failed to autofill login: {e}"
         finally:
             driver.quit()
+
 
 # Example usage:
 # AutomationUtil.open_website("https://www.example.com")
