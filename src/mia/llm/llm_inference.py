@@ -1,9 +1,15 @@
 from openai import OpenAI
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 import webbrowser
 import os
+
+# Optional selenium import
+try:
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    HAS_SELENIUM = True
+except ImportError:
+    HAS_SELENIUM = False
 
 class LLMInference:
     def __init__(self, model_id='mistral:instruct', url='http://localhost:11434/v1', api_key='ollama', llama_model_path=None):
@@ -119,6 +125,8 @@ class LLMInference:
         :param password: Password for login.
         :return: Confirmation of autofill success.
         """
+        if not HAS_SELENIUM:
+            return "Selenium not available. Install selenium for web automation features."
 
         driver = webdriver.Chrome()  # Adjust driver path if needed
         driver.get(url)
