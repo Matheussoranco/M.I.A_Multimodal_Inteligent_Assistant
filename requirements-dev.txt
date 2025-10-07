@@ -3,57 +3,57 @@
 # Install with: pip install -r requirements-dev.txt
 
 # ===== TESTING FRAMEWORK =====
-pytest==7.0.0
-pytest-cov==4.0.0
-pytest-xdist==3.0.0
-pytest-mock==3.10.0
-pytest-benchmark==4.0.0
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-xdist>=3.0.0
+pytest-mock>=3.10.0
+pytest-benchmark>=4.0.0
 
 # ===== CODE QUALITY =====
-black==23.0.0
-isort==5.10.0
-flake8==6.0.0
-mypy==1.0.0
-pylint==2.15.0
-pydocstyle==6.1.0
+black>=23.0.0
+isort>=5.10.0
+flake8>=6.0.0
+mypy>=1.0.0
+pylint>=2.15.0
+pydocstyle>=6.1.0
 
 # ===== DOCUMENTATION =====
-sphinx==5.0.0
-sphinx-rtd-theme==1.0.0
-docstring-parser==0.15
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0
+docstring-parser>=0.15
 
 # ===== DEVELOPMENT TOOLS =====
-pre-commit==3.0.0
-tox==3.25.0
-coverage==6.4.0
-jupyter==1.0.0
-ipython==8.0.0
-notebook==6.4.0
+pre-commit>=3.0.0
+tox>=3.25.0
+coverage>=6.4.0
+jupyter>=1.0.0
+ipython>=8.0.0
+notebook>=6.4.0
 
 # ===== DEBUGGING AND PROFILING =====
-icecream==2.1.0
-line-profiler==3.5.0
-py-spy==0.3.0
+icecream>=2.1.0
+line-profiler>=3.5.0
+py-spy>=0.3.0
 
 # ===== SECURITY ANALYSIS =====
-bandit==1.7.0
-safety==2.0.0
+bandit>=1.7.0
+safety>=2.0.0
 
 # ===== CODE ANALYSIS =====
-radon==5.1.0
-prospector==1.7.0
-vulture==2.5.0
+radon>=5.1.0
+prospector>=1.7.0
+vulture>=2.5.0
 
 # ===== CACHING =====
-redis==4.0.0
-diskcache==5.4.0
+redis>=4.0.0
+diskcache>=5.4.0
 
 # ===== TESTING UTILITIES =====
-factory-boy==3.2.0
-faker==15.0.0
-responses==0.21.0
-freezegun==1.2.0
+factory-boy>=3.2.0
+faker>=15.0.0
+responses>=0.21.0
+freezegun>=1.2.0
 
 # ===== PERFORMANCE MONITORING =====
-GPUtil==1.4.0
-memory-profiler==0.60.0
+GPUtil>=1.4.0
+memory-profiler>=0.60.0
