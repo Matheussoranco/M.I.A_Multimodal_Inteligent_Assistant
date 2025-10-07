@@ -32,7 +32,7 @@ plyer==2.1.0
 Pillow==9.5.0
 
 # ===== DATABASE AND MEMORY =====
-chromadb==0.4.0
+chromadb>=0.5.0
 networkx==3.0
 
 # ===== SEARCH AND UTILITIES =====
