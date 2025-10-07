@@ -36,15 +36,15 @@ chromadb==0.4.0
 networkx==3.0
 
 # ===== SEARCH AND UTILITIES =====
-duckduckgo-search==3.9.0
-wikipedia==1.4.0
+duckduckgo-search>=6.0.0
+wikipedia>=1.4.0
 pywhatkit==5.4
 
 # ===== CONFIGURATION MANAGEMENT =====
 python-dotenv==1.0.0
 
 # ===== LOGGING =====
-structlog==23.0.0
+structlog>=23.0.0
 
 # ===== WHISPER AND FASTAPI =====
 openai-whisper==20231117
