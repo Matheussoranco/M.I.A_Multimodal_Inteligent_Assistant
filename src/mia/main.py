@@ -3,6 +3,15 @@ import sys
 import logging
 import os
 import warnings
+from typing import Tuple
+
+# Try to import colorama for Windows ANSI support
+try:
+    import colorama
+    colorama.init()
+    HAS_COLORAMA = True
+except ImportError:
+    HAS_COLORAMA = False
 
 # Import version information
 from .__version__ import __version__, get_full_version
@@ -191,7 +200,7 @@ def choose_mode():
 
 def detect_and_execute_agent_commands(
     user_input: str, action_executor
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     """
     Detects and executes agent commands based on user input.
 

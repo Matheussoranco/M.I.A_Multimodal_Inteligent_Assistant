@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class LLMConfig:
     """Configuration for LLM providers."""
     provider: str = "ollama"
-    model_id: str = "gemma3:4b-it-qat"
+    model_id: str = "deepseek-r1:1.5b"
     api_key: Optional[str] = None
     url: Optional[str] = None
     max_tokens: int = 1024
@@ -30,7 +30,7 @@ class LLMConfig:
         if not self.provider:
             raise ValidationError("Provider cannot be empty", "EMPTY_PROVIDER")
         
-        if self.provider not in ['openai', 'ollama', 'huggingface', 'anthropic', 'gemini', 'groq', 'grok', 'local']:
+        if self.provider not in ['openai', 'ollama', 'huggingface', 'anthropic', 'gemini', 'groq', 'grok', 'local', 'nanochat']:
             raise ValidationError(f"Unsupported provider: {self.provider}", "UNSUPPORTED_PROVIDER")
         
         if self.max_tokens <= 0:
@@ -440,5 +440,15 @@ class ConfigManager:
             logger.error(f"Configuration validation failed: {str(e)}")
             raise ConfigurationError(f"Configuration validation failed: {str(e)}", "VALIDATION_FAILED")
 
-# Global configuration manager instance
-config_manager = ConfigManager()
+# Lazy-loaded global configuration manager instance
+_config_manager_instance: Optional[ConfigManager] = None
+
+def get_config_manager(config_dir: str = "config") -> ConfigManager:
+    """Get the global configuration manager instance (lazy-loaded)."""
+    global _config_manager_instance
+    if _config_manager_instance is None:
+        _config_manager_instance = ConfigManager(config_dir)
+    return _config_manager_instance
+
+# For backward compatibility, provide a lazy-loaded instance
+config_manager = property(lambda self: get_config_manager())

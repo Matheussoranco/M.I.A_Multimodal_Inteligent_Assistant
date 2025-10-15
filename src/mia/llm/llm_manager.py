@@ -98,7 +98,7 @@ class LLMManager:
                 self._initialize_huggingface()
             elif self.provider == 'local':
                 self._initialize_local()
-            elif self.provider in ['grok', 'gemini', 'ollama', 'groq', 'anthropic']:
+            elif self.provider in ['grok', 'gemini', 'ollama', 'groq', 'anthropic', 'nanochat']:
                 self._initialize_api_provider()
             else:
                 raise ConfigurationError(f"Unknown provider: {self.provider}", "UNKNOWN_PROVIDER")
@@ -244,6 +244,8 @@ class LLMManager:
                 return await self._query_groq_async(prompt, **kwargs)
             elif self.provider == 'grok':
                 return await self._query_grok_async(prompt, **kwargs)
+            elif self.provider == 'nanochat':
+                return await self._query_nanochat_async(prompt, **kwargs)
             elif self.provider == 'huggingface':
                 return self._query_huggingface(prompt, **kwargs)  # Sync for now
             elif self.provider == 'local':
@@ -278,6 +280,8 @@ class LLMManager:
                 return self._query_groq(prompt, **kwargs)
             elif self.provider == 'grok':
                 return self._query_grok(prompt, **kwargs)
+            elif self.provider == 'nanochat':
+                return self._query_nanochat(prompt, **kwargs)
             elif self.provider == 'huggingface':
                 return self._query_huggingface(prompt, **kwargs)
             elif self.provider == 'local':
@@ -507,6 +511,34 @@ class LLMManager:
             logger.error(f"Grok API error: {e}")
             return None
 
+    def _query_nanochat(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query Nanochat API."""
+        try:
+            headers = {'Content-Type': 'application/json'}
+            data = {
+                'model': self.model_id or 'nanochat-model',
+                'prompt': prompt,
+                'stream': False,
+                'max_tokens': kwargs.get('max_tokens', self.max_tokens),
+                'temperature': kwargs.get('temperature', self.temperature)
+            }
+
+            if self.api_key:
+                headers['Authorization'] = f'Bearer {self.api_key}'
+
+            url = self.url or 'http://localhost:8081/api/generate'
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            result = response.json()
+
+            if 'response' not in result:
+                raise LLMProviderError("Nanochat response missing 'response' field", "MISSING_RESPONSE")
+
+            return result['response']
+        except Exception as e:
+            logger.error(f"Nanochat API error: {e}")
+            return None
+
     # Async methods for better performance
     async def _query_openai_async(self, prompt: str, **kwargs) -> Optional[str]:
         """Async query OpenAI."""
@@ -677,6 +709,39 @@ class LLMManager:
                     return result['choices'][0]['message']['content']
         except Exception as e:
             logger.error(f"Grok async API error: {e}")
+            return None
+
+    async def _query_nanochat_async(self, prompt: str, **kwargs) -> Optional[str]:
+        """Async query Nanochat API."""
+        if not HAS_AIOHTTP or aiohttp is None:
+            return self._query_nanochat(prompt, **kwargs)
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {'Content-Type': 'application/json'}
+                data = {
+                    'model': self.model_id or 'nanochat-model',
+                    'prompt': prompt,
+                    'stream': False,
+                    'max_tokens': kwargs.get('max_tokens', self.max_tokens),
+                    'temperature': kwargs.get('temperature', self.temperature)
+                }
+
+                if self.api_key:
+                    headers['Authorization'] = f'Bearer {self.api_key}'
+
+                url = self.url or 'http://localhost:8081/api/generate'  # Default nanochat port
+
+                async with session.post(url, headers=headers, json=data) as response:
+                    response.raise_for_status()
+                    result = await response.json()
+
+                    if 'response' not in result:
+                        raise LLMProviderError("Nanochat response missing 'response' field", "MISSING_RESPONSE")
+
+                    return result['response']
+        except Exception as e:
+            logger.error(f"Nanochat async API error: {e}")
             return None
 
     def is_available(self) -> bool:

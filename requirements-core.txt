@@ -42,6 +42,7 @@ pywhatkit>=5.4
 
 # ===== CONFIGURATION MANAGEMENT =====
 python-dotenv>=1.0.0
+colorama>=0.4.6
 
 # ===== LOGGING =====
 structlog>=23.0.0

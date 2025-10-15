@@ -55,8 +55,8 @@ RUN mkdir -p logs memory config
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "from mia.__version__ import __version__; print(__version__)" || exit 1
 
-# Expose port (if web interface is added later)
-EXPOSE 8000
+# Expose port (matches MIA_API_PORT default)
+EXPOSE 8080
 
 # Default command (CLI)
 CMD ["python", "-m", "mia.main", "--info"]

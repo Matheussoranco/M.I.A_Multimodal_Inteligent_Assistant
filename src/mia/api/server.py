@@ -52,6 +52,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     - MIA_API_HOST (default: 0.0.0.0)
     - MIA_API_PORT (default: 8080)
     """
+    print("Starting M.I.A API server...")
     if FastAPI is None or uvicorn is None:  # pragma: no cover
         sys.stderr.write(
             f"FastAPI/uvicorn not installed. Install API extras: pip install .[api].\nOriginal error: {_IMPORT_ERROR}\n"
@@ -65,7 +66,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     except ValueError:
         port = 8080
 
+    print(f"Server will run on {host}:{port}")
     app = create_app()
+    print("App created successfully")
     uvicorn.run(app, host=host, port=port)
     return 0
 
