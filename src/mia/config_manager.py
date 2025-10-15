@@ -185,9 +185,9 @@ class ConfigManager:
             self.config_dir / "config.json",
             self.config_dir / "config.yaml",
             self.config_dir / "config.yml",
-            "config.json",
-            "config.yaml",
-            "config.yml"
+            Path("config.json"),
+            Path("config.yaml"),
+            Path("config.yml")
         ]
         # Load .env early if present (non-fatal if missing)
         try:
@@ -217,6 +217,8 @@ class ConfigManager:
             config_file = Path(config_path)
             if not config_file.exists():
                 raise ConfigurationError(f"Configuration file not found: {config_path}", "CONFIG_NOT_FOUND")
+        elif self._explicit_config_file:
+            config_file = self._explicit_config_file
         else:
             config_file = self._find_config_file()
         
