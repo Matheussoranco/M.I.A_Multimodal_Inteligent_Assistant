@@ -14,7 +14,7 @@ M.I.A is a sophisticated AI system implementing advanced cognitive architectures
 
 ### Core Features
 - **Multimodal Processing**: Text, audio, and vision input processing
-- **LLM Integration**: Support for Ollama, OpenAI, and other providers
+- **LLM Integration**: Support for OpenAI, Ollama (optional), and other providers
 - **Cognitive Architecture**: Chain-of-thought reasoning with visual grounding
 - **Memory Systems**: Vector memory, knowledge graphs, and conversation history
 - **Audio Processing**: Real-time speech recognition and synthesis
@@ -31,7 +31,7 @@ cd M.I.A-The-successor-of-pseudoJarvis
 # Install dependencies
 pip install -r requirements.txt
 
-# Install Ollama
+# Optional: Install Ollama for local LLM support
 curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull deepseek-r1:1.5b
 
@@ -42,7 +42,7 @@ python main.py --mode mixed
 ### Requirements
 - Python 3.8+
 - PyTorch 2.0+
-- Ollama runtime
+- OpenAI API key (or Ollama for local models)
 - ChromaDB
 
 ## Usage

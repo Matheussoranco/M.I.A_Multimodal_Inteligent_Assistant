@@ -3,10 +3,10 @@
 
 # LLM Configuration
 llm:
-  provider: ollama              # Options: openai, ollama, huggingface, anthropic, gemini, groq, grok, local
-  model_id: deepseek-r1:1.5b    # Model identifier
+  provider: openai              # Options: openai, ollama, huggingface, anthropic, gemini, groq, grok, local
+  model_id: gpt-3.5-turbo       # Model identifier
   api_key: null                 # API key (can be set via environment variable)
-  url: http://localhost:11434/api/generate  # API endpoint URL
+  url: https://api.openai.com/v1/chat/completions  # API endpoint URL
   max_tokens: 1024              # Maximum tokens per response
   temperature: 0.7              # Response creativity (0.0-2.0)
   timeout: 30                   # Request timeout in seconds

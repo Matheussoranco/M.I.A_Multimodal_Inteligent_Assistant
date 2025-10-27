@@ -17,7 +17,7 @@ class TestLLMManager(unittest.TestCase):
         self.mock_config = MagicMock()
         self.mock_config.config = MagicMock()
         self.mock_config.config.llm = MagicMock()
-        self.mock_config.config.llm.provider = 'ollama'
+        self.mock_config.config.llm.provider = 'openai'
         self.mock_config.config.llm.model_id = 'test-model'
         self.mock_config.config.llm.api_key = 'test-key'
         self.mock_config.config.llm.url = 'http://test-url'
@@ -32,7 +32,7 @@ class TestLLMManager(unittest.TestCase):
 
         manager = LLMManager()
         self.assertIsNotNone(manager)
-        self.assertEqual(manager.provider, 'ollama')
+        self.assertEqual(manager.provider, 'openai')
         self.assertEqual(manager.model_id, 'test-model')
         self.assertEqual(manager.api_key, 'test-key')
 

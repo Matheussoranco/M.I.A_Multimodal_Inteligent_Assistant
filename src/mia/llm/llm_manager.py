@@ -64,10 +64,10 @@ class LLMManager:
             self.timeout = config.llm.timeout
         else:
             # Default values if config is not available
-            self.provider = provider or 'ollama'
-            self.model_id = model_id or 'deepseek-r1:latest'
+            self.provider = provider or 'openai'
+            self.model_id = model_id or 'gpt-3.5-turbo'
             self.api_key = api_key or os.getenv('OPENAI_API_KEY')
-            self.url = url or 'http://localhost:11434/api/generate'
+            self.url = url or 'https://api.openai.com/v1/chat/completions'
             self.max_tokens = 2048
             self.temperature = 0.7
             self.timeout = 30
@@ -83,7 +83,20 @@ class LLMManager:
             self._initialize_provider()
         except Exception as e:
             logger.warning(f"Failed to initialize LLM provider {self.provider}: {e}")
-            self._available = False
+            # Try fallback provider if ollama fails
+            if self.provider == 'ollama':
+                logger.info("Trying fallback to OpenAI provider...")
+                try:
+                    self.provider = 'openai'
+                    self.model_id = 'gpt-3.5-turbo'
+                    self.url = 'https://api.openai.com/v1/chat/completions'
+                    self._initialize_provider()
+                    logger.info("Successfully fell back to OpenAI provider")
+                except Exception as fallback_e:
+                    logger.warning(f"Fallback to OpenAI also failed: {fallback_e}")
+                    self._available = False
+            else:
+                self._available = False
             # Re-raise exceptions during testing
             import sys
             if 'pytest' in sys.modules or os.getenv('TESTING') == 'true':
