@@ -448,7 +448,7 @@ def display_status(components, args):
         "auto": cyan("Auto"),
     }.get(args.mode, cyan("Mixed"))
     print(f"  {bold('Mode:')} {mode_label}")
-    print(f"  {bold('Model:')} {yellow(getattr(args, 'model_id', ''))}")
+    print(f"  {bold('Model:')} {yellow(llm.model_id if llm else getattr(args, 'model_id', ''))}")
     print(
         f"  {bold('LLM:')} {(green('Connected') if llm and hasattr(llm, 'is_available') and llm.is_available() else red('Disconnected'))}"
     )

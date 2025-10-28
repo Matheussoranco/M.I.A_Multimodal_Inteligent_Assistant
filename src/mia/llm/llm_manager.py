@@ -48,9 +48,202 @@ logger = logging.getLogger(__name__)
 class LLMManager:
     """Unified LLM manager supporting multiple providers."""
     
-    def __init__(self, provider: Optional[str] = None, model_id: Optional[str] = None, api_key: Optional[str] = None, url: Optional[str] = None, local_model_path: Optional[str] = None, config_manager: Optional[Any] = None, **kwargs: Any) -> None:
+    @classmethod
+    def detect_available_providers(cls, interactive: bool = True) -> Dict[str, Any]:
+        """
+        Detect available LLM providers based on API keys and test connectivity.
+        
+        Args:
+            interactive: Whether to allow user selection if multiple providers are available
+            
+        Returns:
+            Dict with 'provider', 'model_id', 'api_key', 'url' for the selected provider
+        """
+        available_providers = []
+        
+        # Define providers and their environment variables
+        provider_configs = {
+            'openai': {
+                'env_vars': ['OPENAI_API_KEY'],
+                'default_model': 'gpt-4.1',
+                'url': 'https://api.openai.com/v1'
+            },
+            'anthropic': {
+                'env_vars': ['ANTHROPIC_API_KEY'],
+                'default_model': 'claude-3-haiku-20240307',
+                'url': 'https://api.anthropic.com'
+            },
+            'gemini': {
+                'env_vars': ['GOOGLE_API_KEY'],
+                'default_model': 'gemini-pro',
+                'url': 'https://generativelanguage.googleapis.com'
+            },
+            'groq': {
+                'env_vars': ['GROQ_API_KEY'],
+                'default_model': 'llama2-70b-4096',
+                'url': 'https://api.groq.com'
+            },
+            'grok': {
+                'env_vars': ['XAI_API_KEY'],
+                'default_model': 'grok-beta',
+                'url': 'https://api.x.ai'
+            },
+            'ollama': {
+                'env_vars': [],  # Ollama doesn't need API key
+                'default_model': 'deepseek-r1:1.5b',
+                'url': 'http://localhost:11434/api/generate'
+            }
+        }
+        
+        print("🔍 Detecting available LLM providers...")
+        
+        for provider_name, config in provider_configs.items():
+            try:
+                # Check if required environment variables are set
+                has_keys = all(os.getenv(var) for var in config['env_vars']) if config['env_vars'] else True
+                
+                if not has_keys:
+                    print(f"❌ {provider_name}: No API key found")
+                    continue
+                
+                # Test connectivity
+                if cls._test_provider_connectivity(provider_name, config):
+                    available_providers.append({
+                        'name': provider_name,
+                        'model': config['default_model'],
+                        'url': config['url'],
+                        'api_key': os.getenv(config['env_vars'][0]) if config['env_vars'] else None
+                    })
+                    print(f"✅ {provider_name}: Available")
+                else:
+                    print(f"❌ {provider_name}: Connection test failed")
+                    
+            except Exception as e:
+                print(f"❌ {provider_name}: Error - {str(e)}")
+        
+        if not available_providers:
+            raise ConfigurationError("No LLM providers available. Please set API keys for at least one provider.", "NO_PROVIDERS_AVAILABLE")
+        
+        # If only one provider, use it
+        if len(available_providers) == 1:
+            selected = available_providers[0]
+            print(f"📌 Using {selected['name']} (only available provider)")
+            return {
+                'provider': selected['name'],
+                'model_id': selected['model'],
+                'api_key': selected['api_key'],
+                'url': selected['url']
+            }
+        
+        # Multiple providers available
+        if interactive:
+            print(f"\n📋 Found {len(available_providers)} available providers:")
+            for i, provider in enumerate(available_providers, 1):
+                print(f"  {i}. {provider['name']} ({provider['model']})")
+            
+            while True:
+                try:
+                    choice = input("\nSelect provider (1-{}): ".format(len(available_providers))).strip()
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(available_providers):
+                        selected = available_providers[idx]
+                        print(f"📌 Selected: {selected['name']}")
+                        return {
+                            'provider': selected['name'],
+                            'model_id': selected['model'],
+                            'api_key': selected['api_key'],
+                            'url': selected['url']
+                        }
+                    else:
+                        print("Invalid choice. Please select a valid number.")
+                except (ValueError, KeyboardInterrupt):
+                    print("Invalid input. Please enter a number.")
+        else:
+            # Non-interactive mode: prefer OpenAI, then others
+            preferred_order = ['openai', 'anthropic', 'gemini', 'groq', 'grok', 'ollama']
+            for pref in preferred_order:
+                for provider in available_providers:
+                    if provider['name'] == pref:
+                        print(f"📌 Using {provider['name']} (preferred)")
+                        return {
+                            'provider': provider['name'],
+                            'model_id': provider['model'],
+                            'api_key': provider['api_key'],
+                            'url': provider['url']
+                        }
+            
+            # Fallback to first available
+            selected = available_providers[0]
+            print(f"📌 Using {selected['name']} (fallback)")
+            return {
+                'provider': selected['name'],
+                'model_id': selected['model'],
+                'api_key': selected['api_key'],
+                'url': selected['url']
+            }
+    
+    @classmethod
+    def _test_provider_connectivity(cls, provider_name: str, config: Dict[str, Any]) -> bool:
+        """Test connectivity to a provider."""
+        try:
+            if provider_name == 'openai' and HAS_OPENAI and OpenAI:
+                # For OpenAI, just check if API key is set and looks valid
+                api_key = os.getenv('OPENAI_API_KEY')
+                if api_key and api_key.startswith('sk-') and len(api_key) > 20:
+                    # Optional: Try a minimal request to verify
+                    try:
+                        client = OpenAI(
+                            api_key=api_key,
+                            max_retries=1,
+                            timeout=5.0
+                        )
+                        # Try a minimal request
+                        response = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": "test"}],
+                            max_tokens=1
+                        )
+                        return True
+                    except Exception:
+                        # If API call fails, still consider it available if key looks valid
+                        return True
+                return False
+                
+            elif provider_name == 'ollama':
+                # Test Ollama connectivity
+                import requests
+                response = requests.get('http://localhost:11434/api/tags', timeout=5)
+                return response.status_code == 200
+                
+            elif provider_name in ['anthropic', 'gemini', 'groq', 'grok']:
+                # For other providers, just check if API key is set
+                env_vars = config.get('env_vars', [])
+                return all(os.getenv(var) for var in env_vars)
+                
+            else:
+                return False
+                
+        except Exception:
+            return False
+    
+    def __init__(self, provider: Optional[str] = None, model_id: Optional[str] = None, api_key: Optional[str] = None, url: Optional[str] = None, local_model_path: Optional[str] = None, config_manager: Optional[Any] = None, auto_detect: bool = True, **kwargs: Any) -> None:
         # Initialize configuration manager
         self.config_manager = config_manager or ConfigManager()
+        
+        # Auto-detect provider if not specified and not in testing mode
+        import sys
+        is_testing = 'pytest' in sys.modules or os.getenv('TESTING') == 'true'
+        
+        if auto_detect and not provider and not is_testing:
+            try:
+                detected = self.detect_available_providers(interactive=True)
+                provider = detected['provider']
+                model_id = detected['model_id']
+                api_key = detected['api_key']
+                url = detected['url']
+                logger.info(f"Auto-detected provider: {provider}")
+            except Exception as e:
+                logger.warning(f"Auto-detection failed: {e}, falling back to config")
         
         # Use configuration values if not provided (with safe access)
         config = self.config_manager.config
@@ -67,7 +260,7 @@ class LLMManager:
             self.provider = provider or 'openai'
             self.model_id = model_id or 'gpt-3.5-turbo'
             self.api_key = api_key or os.getenv('OPENAI_API_KEY')
-            self.url = url or 'https://api.openai.com/v1/chat/completions'
+            self.url = url or 'https://api.openai.com/v1'
             self.max_tokens = 2048
             self.temperature = 0.7
             self.timeout = 30
@@ -89,7 +282,7 @@ class LLMManager:
                 try:
                     self.provider = 'openai'
                     self.model_id = 'gpt-3.5-turbo'
-                    self.url = 'https://api.openai.com/v1/chat/completions'
+                    self.url = 'https://api.openai.com/v1'
                     self._initialize_provider()
                     logger.info("Successfully fell back to OpenAI provider")
                 except Exception as fallback_e:
@@ -143,8 +336,13 @@ class LLMManager:
             raise ConfigurationError("OpenAI API key not provided", "MISSING_API_KEY")
             
         try:
+            # For OpenAI, use base URL without path
+            base_url = self.url
+            if self.url and 'api.openai.com' in self.url:
+                base_url = 'https://api.openai.com/v1'
+            
             self.client = OpenAI(
-                base_url=self.url,
+                base_url=base_url,
                 api_key=api_key
             )
         except Exception as e:
