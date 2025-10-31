@@ -65,33 +65,50 @@ class LLMManager:
         provider_configs = {
             'openai': {
                 'env_vars': ['OPENAI_API_KEY'],
+                'api_key_env': 'OPENAI_API_KEY',
                 'default_model': 'gpt-4.1',
                 'url': 'https://api.openai.com/v1'
             },
             'anthropic': {
                 'env_vars': ['ANTHROPIC_API_KEY'],
+                'api_key_env': 'ANTHROPIC_API_KEY',
                 'default_model': 'claude-3-haiku-20240307',
                 'url': 'https://api.anthropic.com'
             },
             'gemini': {
                 'env_vars': ['GOOGLE_API_KEY'],
+                'api_key_env': 'GOOGLE_API_KEY',
                 'default_model': 'gemini-pro',
                 'url': 'https://generativelanguage.googleapis.com'
             },
             'groq': {
                 'env_vars': ['GROQ_API_KEY'],
+                'api_key_env': 'GROQ_API_KEY',
                 'default_model': 'llama2-70b-4096',
                 'url': 'https://api.groq.com'
             },
             'grok': {
                 'env_vars': ['XAI_API_KEY'],
+                'api_key_env': 'XAI_API_KEY',
                 'default_model': 'grok-beta',
                 'url': 'https://api.x.ai'
+            },
+            'minimax': {
+                'env_vars': ['MINIMAX_API_KEY'],
+                'api_key_env': 'MINIMAX_API_KEY',
+                'default_model': 'abab5.5-chat',
+                'url': os.getenv('MINIMAX_URL') or 'https://api.minimax.chat/v1/text/chatcompletion'
+            },
+            'nanochat': {
+                'env_vars': [],
+                'api_key_env': 'NANOCHAT_API_KEY',
+                'default_model': 'nanochat-model',
+                'url': os.getenv('NANOCHAT_URL') or 'http://localhost:8081/api/generate'
             },
             'ollama': {
                 'env_vars': [],  # Ollama doesn't need API key
                 'default_model': 'deepseek-r1:1.5b',
-                'url': 'http://localhost:11434/api/generate'
+                'url': os.getenv('OLLAMA_URL') or 'http://localhost:11434/api/generate'
             }
         }
         
@@ -108,11 +125,13 @@ class LLMManager:
                 
                 # Test connectivity
                 if cls._test_provider_connectivity(provider_name, config):
+                    api_key_env = config.get('api_key_env')
+                    api_key_value = os.getenv(api_key_env) if api_key_env else (os.getenv(config['env_vars'][0]) if config['env_vars'] else None)
                     available_providers.append({
                         'name': provider_name,
                         'model': config['default_model'],
                         'url': config['url'],
-                        'api_key': os.getenv(config['env_vars'][0]) if config['env_vars'] else None
+                        'api_key': api_key_value
                     })
                     print(f"✅ {provider_name}: Available")
                 else:
@@ -160,7 +179,7 @@ class LLMManager:
                     print("Invalid input. Please enter a number.")
         else:
             # Non-interactive mode: prefer OpenAI, then others
-            preferred_order = ['openai', 'anthropic', 'gemini', 'groq', 'grok', 'ollama']
+            preferred_order = ['openai', 'anthropic', 'gemini', 'groq', 'grok', 'minimax', 'nanochat', 'ollama']
             for pref in preferred_order:
                 for provider in available_providers:
                     if provider['name'] == pref:
@@ -215,10 +234,26 @@ class LLMManager:
                 response = requests.get('http://localhost:11434/api/tags', timeout=5)
                 return response.status_code == 200
                 
-            elif provider_name in ['anthropic', 'gemini', 'groq', 'grok']:
+            elif provider_name in ['anthropic', 'gemini', 'groq', 'grok', 'minimax']:
                 # For other providers, just check if API key is set
                 env_vars = config.get('env_vars', [])
                 return all(os.getenv(var) for var in env_vars)
+            elif provider_name == 'nanochat':
+                env_vars = config.get('env_vars', [])
+                if env_vars and not all(os.getenv(var) for var in env_vars):
+                    return False
+
+                url = os.getenv('NANOCHAT_URL') or config.get('url')
+                if not url:
+                    return True
+
+                # Attempt a lightweight connectivity check; accept common auth-required responses
+                import requests
+                try:
+                    response = requests.get(url, timeout=5)
+                    return response.status_code in (200, 201, 202, 204, 401, 403, 405)
+                except requests.exceptions.RequestException:
+                    return False
                 
             else:
                 return False
@@ -304,7 +339,7 @@ class LLMManager:
                 self._initialize_huggingface()
             elif self.provider == 'local':
                 self._initialize_local()
-            elif self.provider in ['grok', 'gemini', 'ollama', 'groq', 'anthropic', 'nanochat']:
+            elif self.provider in ['grok', 'gemini', 'ollama', 'groq', 'anthropic', 'nanochat', 'minimax']:
                 self._initialize_api_provider()
             else:
                 raise ConfigurationError(f"Unknown provider: {self.provider}", "UNKNOWN_PROVIDER")
@@ -394,6 +429,12 @@ class LLMManager:
             # Validate Ollama configuration
             if not self.url and not os.getenv('OLLAMA_URL'):
                 self.url = 'http://localhost:11434/api/generate'
+        elif self.provider == 'nanochat':
+            if not self.url:
+                self.url = os.getenv('NANOCHAT_URL') or 'http://localhost:8081/api/generate'
+        elif self.provider == 'minimax':
+            if not self.url:
+                self.url = os.getenv('MINIMAX_URL') or 'https://api.minimax.chat/v1/text/chatcompletion'
         
         logger.info(f"Initialized API provider: {self.provider}")
 
@@ -457,6 +498,8 @@ class LLMManager:
                 return await self._query_grok_async(prompt, **kwargs)
             elif self.provider == 'nanochat':
                 return await self._query_nanochat_async(prompt, **kwargs)
+            elif self.provider == 'minimax':
+                return await self._query_minimax_async(prompt, **kwargs)
             elif self.provider == 'huggingface':
                 return self._query_huggingface(prompt, **kwargs)  # Sync for now
             elif self.provider == 'local':
@@ -493,6 +536,8 @@ class LLMManager:
                 return self._query_grok(prompt, **kwargs)
             elif self.provider == 'nanochat':
                 return self._query_nanochat(prompt, **kwargs)
+            elif self.provider == 'minimax':
+                return self._query_minimax(prompt, **kwargs)
             elif self.provider == 'huggingface':
                 return self._query_huggingface(prompt, **kwargs)
             elif self.provider == 'local':
@@ -524,9 +569,15 @@ class LLMManager:
             if completions_attr is None:
                 raise LLMProviderError("OpenAI client missing completions attribute", "CLIENT_MALFORMED")
                 
+            chat_messages = kwargs.get('messages')
+            if isinstance(chat_messages, list) and chat_messages:
+                formatted_messages = chat_messages
+            else:
+                formatted_messages = [{"role": "user", "content": prompt}]
+
             response = completions_attr.create(
                 model=self.model_id or 'gpt-3.5-turbo',
-                messages=[{"role": "user", "content": prompt}],
+                messages=formatted_messages,
                 max_tokens=kwargs.get('max_tokens', 1024),
                 temperature=kwargs.get('temperature', 0.7)
             )
@@ -600,7 +651,7 @@ class LLMManager:
             data = {
                 'model': self.model_id or 'claude-3-opus-20240229',
                 'max_tokens': kwargs.get('max_tokens', 1024),
-                'messages': [{"role": "user", "content": prompt}]
+                'messages': kwargs.get('messages') if isinstance(kwargs.get('messages'), list) and kwargs.get('messages') else [{"role": "user", "content": prompt}]
             }
             url = self.url or 'https://api.anthropic.com/v1/messages'
             response = requests.post(url, headers=headers, json=data)
@@ -750,6 +801,60 @@ class LLMManager:
             logger.error(f"Nanochat API error: {e}")
             return None
 
+    def _query_minimax(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query Minimax AI API."""
+        api_key = self.api_key or os.getenv('MINIMAX_API_KEY')
+        if not api_key:
+            raise ConfigurationError("Minimax API key not provided", "MISSING_API_KEY")
+
+        url = self.url or os.getenv('MINIMAX_URL') or 'https://api.minimax.chat/v1/text/chatcompletion'
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+
+        group_id = kwargs.get('group_id') or os.getenv('MINIMAX_GROUP_ID')
+        if group_id:
+            headers['X-Group-Id'] = group_id
+
+        messages = kwargs.get('messages')
+        if not messages:
+            # Default to chat-completion structure expected by Minimax
+            messages = [{'sender_type': 'USER', 'text': prompt}]
+
+        payload: Dict[str, Any] = {
+            'model': kwargs.get('model') or self.model_id or 'abab5.5-chat',
+            'messages': messages,
+            'tokens_to_generate': kwargs.get('max_tokens', self.max_tokens),
+            'temperature': kwargs.get('temperature', self.temperature)
+        }
+
+        if kwargs.get('stream') is not None:
+            payload['stream'] = kwargs['stream']
+
+        if kwargs.get('bot_setting'):
+            payload['bot_setting'] = kwargs['bot_setting']
+
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=kwargs.get('timeout', self.timeout))
+            response.raise_for_status()
+            result = response.json()
+            extracted = self._extract_minimax_text(result)
+            if extracted is None:
+                raise LLMProviderError("Minimax response did not contain textual output", "EMPTY_RESPONSE")
+            return extracted
+        except requests.exceptions.Timeout as exc:
+            raise NetworkError("Minimax request timed out", "TIMEOUT") from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise NetworkError("Unable to reach Minimax API", "CONNECTION_ERROR") from exc
+        except requests.exceptions.HTTPError as exc:
+            raise NetworkError(f"Minimax HTTP error: {exc}", "HTTP_ERROR") from exc
+        except (ConfigurationError, NetworkError, LLMProviderError):
+            raise
+        except Exception as exc:
+            logger.error(f"Minimax API error: {exc}")
+            return None
+
     # Async methods for better performance
     async def _query_openai_async(self, prompt: str, **kwargs) -> Optional[str]:
         """Async query OpenAI."""
@@ -767,7 +872,7 @@ class LLMManager:
                 }
                 data = {
                     'model': self.model_id or 'gpt-3.5-turbo',
-                    'messages': [{"role": "user", "content": prompt}],
+                    'messages': kwargs.get('messages') if isinstance(kwargs.get('messages'), list) and kwargs.get('messages') else [{"role": "user", "content": prompt}],
                     'max_tokens': kwargs.get('max_tokens', 1024),
                     'temperature': kwargs.get('temperature', 0.7)
                 }
@@ -796,7 +901,7 @@ class LLMManager:
                 data = {
                     'model': self.model_id or 'claude-3-opus-20240229',
                     'max_tokens': kwargs.get('max_tokens', 1024),
-                    'messages': [{"role": "user", "content": prompt}]
+                    'messages': kwargs.get('messages') if isinstance(kwargs.get('messages'), list) and kwargs.get('messages') else [{"role": "user", "content": prompt}]
                 }
                 url = self.url or 'https://api.anthropic.com/v1/messages'
 
@@ -954,6 +1059,110 @@ class LLMManager:
         except Exception as e:
             logger.error(f"Nanochat async API error: {e}")
             return None
+
+    async def _query_minimax_async(self, prompt: str, **kwargs) -> Optional[str]:
+        """Async query Minimax AI API."""
+        if not HAS_AIOHTTP or aiohttp is None:
+            return self._query_minimax(prompt, **kwargs)
+
+        api_key = self.api_key or os.getenv('MINIMAX_API_KEY')
+        if not api_key:
+            raise ConfigurationError("Minimax API key not provided", "MISSING_API_KEY")
+
+        url = self.url or os.getenv('MINIMAX_URL') or 'https://api.minimax.chat/v1/text/chatcompletion'
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+
+        group_id = kwargs.get('group_id') or os.getenv('MINIMAX_GROUP_ID')
+        if group_id:
+            headers['X-Group-Id'] = group_id
+
+        messages = kwargs.get('messages')
+        if not messages:
+            messages = [{'sender_type': 'USER', 'text': prompt}]
+
+        payload: Dict[str, Any] = {
+            'model': kwargs.get('model') or self.model_id or 'abab5.5-chat',
+            'messages': messages,
+            'tokens_to_generate': kwargs.get('max_tokens', self.max_tokens),
+            'temperature': kwargs.get('temperature', self.temperature)
+        }
+
+        if kwargs.get('stream') is not None:
+            payload['stream'] = kwargs['stream']
+
+        if kwargs.get('bot_setting'):
+            payload['bot_setting'] = kwargs['bot_setting']
+
+        timeout_val = kwargs.get('timeout', self.timeout)
+        timeout = aiohttp.ClientTimeout(total=timeout_val)
+
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status >= 400:
+                        error_body = await response.text()
+                        raise NetworkError(
+                            f"Minimax HTTP error {response.status}: {error_body}",
+                            "HTTP_ERROR",
+                            {"status": response.status}
+                        )
+
+                    result = await response.json()
+                    extracted = self._extract_minimax_text(result)
+                    if extracted is None:
+                        raise LLMProviderError("Minimax response did not contain textual output", "EMPTY_RESPONSE")
+                    return extracted
+        except asyncio.TimeoutError as exc:  # type: ignore[attr-defined]
+            raise NetworkError("Minimax request timed out", "TIMEOUT") from exc
+        except NetworkError:
+            raise
+        except Exception as exc:
+            logger.error(f"Minimax async API error: {exc}")
+            return None
+
+    @staticmethod
+    def _extract_minimax_text(payload: Dict[str, Any]) -> Optional[str]:
+        """Extract textual content from Minimax responses."""
+        if not payload:
+            return None
+
+        choices = payload.get('choices')
+        if isinstance(choices, list) and choices:
+            choice = choices[0]
+            if isinstance(choice, dict):
+                message = choice.get('message')
+                if isinstance(message, dict):
+                    content = message.get('content') or message.get('text')
+                    if isinstance(content, str):
+                        return content
+
+                messages = choice.get('messages')
+                if isinstance(messages, list):
+                    for item in messages:
+                        if not isinstance(item, dict):
+                            continue
+                        sender_type = item.get('sender_type') or item.get('role')
+                        if sender_type and str(sender_type).lower() in {'bot', 'assistant', 'ai'}:
+                            content = item.get('text') or item.get('content')
+                            if isinstance(content, str):
+                                return content
+
+        for key in ('output_text', 'reply', 'result'):
+            content = payload.get(key)
+            if isinstance(content, str) and content.strip():
+                return content
+
+        data_section = payload.get('data')
+        if isinstance(data_section, dict):
+            for key in ('text', 'output_text', 'content'):
+                data_content = data_section.get(key)
+                if isinstance(data_content, str) and data_content.strip():
+                    return data_content
+
+        return None
 
     def is_available(self) -> bool:
         """Check if the LLM provider is available and working."""

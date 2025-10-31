@@ -1,147 +1,148 @@
-from openai import OpenAI
-import webbrowser
-import os
+"""Unified inference helper built on top of :class:`LLMManager`."""
 
-# Optional selenium import
+from __future__ import annotations
+
+import os
+import webbrowser
+from typing import Any, Dict, List, Optional
+
+from ..config_manager import ConfigManager
+from .llm_manager import LLMManager
+
+# Optional selenium import (kept for backwards compatibility with automation helpers)
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
 
     HAS_SELENIUM = True
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency
     HAS_SELENIUM = False
 
 
 class LLMInference:
+    """High-level interface for querying LLM providers.
+
+    This class wraps :class:`LLMManager` to expose a simplified interface that can
+    seamlessly switch between local (e.g., Ollama) and remote providers
+    (OpenAI, Anthropic, NanoChat, Minimax, etc.).
+    """
+
     def __init__(
         self,
-        model_id="mistral:instruct",
-        url="http://localhost:11434/v1",
-        api_key="ollama",
-        llama_model_path=None,
-    ):
-        """
-        Initialize the LLMInference with support for multiple APIs and LLama models.
+        provider: Optional[str] = None,
+        model_id: Optional[str] = None,
+        api_key: Optional[str] = None,
+        url: Optional[str] = None,
+        llama_model_path: Optional[str] = None,
+        local_model_path: Optional[str] = None,
+        config_manager: Optional[ConfigManager] = None,
+        auto_detect: bool = True,
+        **manager_kwargs: Any,
+    ) -> None:
+        """Create a new inference helper.
 
-        :param model_id: Model identifier for API-based models.
-        :param url: Base URL for the API.
-        :param api_key: API key for authentication.
-        :param llama_model_path: Path to local LLama 70B model (if applicable).
+        Args:
+            provider: Preferred provider override. Falls back to configuration
+                or auto-detection when omitted.
+            model_id: Optional model identifier to override configuration.
+            api_key: Optional API key for remote providers.
+            url: Optional base URL/endpoint for the provider.
+            llama_model_path: Backwards compatible alias for ``local_model_path``.
+            local_model_path: Filesystem path to a local model when using
+                ``provider='local'`` or Ollama custom models.
+            config_manager: Optional shared :class:`ConfigManager` instance.
+            auto_detect: When ``True``, attempt to discover available providers
+                if none are explicitly configured.
+            **manager_kwargs: Additional keyword arguments forwarded to
+                :class:`LLMManager`.
         """
-        self.model_id = model_id
-        self.url = url
-        self.api_key = api_key
-        self.client = OpenAI(base_url=self.url, api_key=self.api_key)
-        self.llama_model_path = llama_model_path
 
-    def query_model(self, text):
-        """
-        Query the model using the API or local LLama model.
+        resolved_local_path = local_model_path or llama_model_path
+        inferred_provider = provider
 
-        :param text: User input to the model.
-        :return: Model response as text.
-        """
-        if self.llama_model_path:
-            return self._query_llama(text)
-        else:
-            return self._query_api(text)
+        if resolved_local_path and not inferred_provider:
+            # Maintain backwards compatibility with legacy constructor usage.
+            inferred_provider = 'local'
 
-    def _query_api(self, text):
-        """
-        Query the API-based model.
-
-        :param text: User input to the model.
-        :return: Model response as text.
-        """
-        response = self.client.chat.completions.create(
-            model=self.model_id,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are Liva, a helpful assistant. You provide single-sentence, accurate answers to the user's question.",
-                },
-                {"role": "user", "content": text},
-            ],
+        self.config_manager = config_manager or ConfigManager()
+        self.manager = LLMManager(
+            provider=inferred_provider,
+            model_id=model_id,
+            api_key=api_key,
+            url=url,
+            local_model_path=resolved_local_path,
+            config_manager=self.config_manager,
+            auto_detect=auto_detect,
+            **manager_kwargs,
         )
-        return response.choices[0].message.content
 
-    def _query_llama(self, text):
-        """
-        Query the LLama model locally (placeholder for actual LLama integration).
+    # ---------------------------------------------------------------------
+    # Core inference helpers
+    # ---------------------------------------------------------------------
+    def query_model(self, text: str, **kwargs: Any) -> Optional[str]:
+        """Query the configured model with a single prompt."""
+        return self.manager.query(text, **kwargs)
 
-        :param text: User input to the model.
-        :return: Model response as text.
-        """
-        # Placeholder: Integrate with LLama-specific library like HuggingFace's Transformers.
-        # Example: `from transformers import AutoModelForCausalLM, AutoTokenizer`
-        return "LLama model response (placeholder)"
+    def generate_response(self, prompt: str, **kwargs: Any) -> Optional[str]:
+        """Alias for :meth:`query_model` for semantic clarity."""
+        return self.query_model(prompt, **kwargs)
 
-    def write_email(self, recipient, subject, body):
-        """
-        Compose and send an email.
+    def generate_chat_completion(self, messages: List[Dict[str, str]], **kwargs: Any) -> Optional[str]:
+        """Support multi-turn chat style prompts by joining user content."""
+        if not messages:
+            return None
 
-        :param recipient: Recipient email address.
-        :param subject: Email subject.
-        :param body: Email body content.
-        :return: Confirmation of email sent.
-        """
-        # Placeholder for actual email sending logic (e.g., using smtplib or a third-party service like SendGrid).
+        # Delegate to provider with best-effort formatting.
+        provider = self.manager.provider
+        if provider in {'openai', 'anthropic', 'gemini', 'groq', 'grok', 'minimax'}:
+            kwargs.setdefault('messages', messages)
+            return self.manager.query(messages[-1].get('content', ''), **kwargs)
+
+        # For local providers, concatenate content for a pragmatic fallback.
+        combined_prompt = "\n".join(msg.get('content', '') for msg in messages if msg.get('content'))
+        return self.manager.query(combined_prompt, **kwargs)
+
+    def switch_provider(self, provider: str, **overrides: Any) -> None:
+        """Re-initialize the underlying manager with a new provider."""
+        self.manager = LLMManager(
+            provider=provider,
+            model_id=overrides.get('model_id'),
+            api_key=overrides.get('api_key'),
+            url=overrides.get('url'),
+            local_model_path=overrides.get('local_model_path'),
+            config_manager=self.config_manager,
+            auto_detect=False,
+        )
+
+    def available_providers(self) -> Dict[str, Any]:
+        """Inspect the currently active provider metadata."""
+        return self.manager.get_model_info()
+
+    # ---------------------------------------------------------------------
+    # Legacy helper stubs (email, messaging, automation)
+    # ---------------------------------------------------------------------
+    def write_email(self, recipient: str, subject: str, body: str) -> str:
         return f"Email to {recipient} with subject '{subject}' sent successfully."
 
-    def write_message(self, platform, recipient, message):
-        """
-        Send a message on a specified platform.
-
-        :param platform: Messaging platform (e.g., WhatsApp, Slack).
-        :param recipient: Recipient's identifier on the platform.
-        :param message: Message content.
-        :return: Confirmation of message sent.
-        """
-        # Placeholder for actual messaging logic (e.g., using platform-specific APIs).
+    def write_message(self, platform: str, recipient: str, message: str) -> str:
         return f"Message to {recipient} on {platform} sent successfully."
 
-    def take_note(self, app, content):
-        """
-        Create a note in a specified app.
-
-        :param app: Note-taking app (e.g., Notion, Evernote).
-        :param content: Content of the note.
-        :return: Confirmation of note saved.
-        """
-        # Placeholder for integration with app-specific APIs.
+    def take_note(self, app: str, content: str) -> str:
         return f"Note saved in {app} with content: '{content}'"
 
-    def open_program_or_website(self, target):
-        """
-        Open a program or website.
-
-        :param target: Path to the program or URL of the website.
-        :return: Confirmation of action.
-        """
-
+    def open_program_or_website(self, target: str) -> str:
         if target.startswith("http"):
             webbrowser.open(target)
             return f"Website {target} opened."
-        else:
-            os.system(f"open {target}")  # Adjust for Windows/Linux if needed
-            return f"Program {target} opened."
+        os.system(target)  # pragma: no cover - platform specific
+        return f"Program {target} opened."
 
-    def autofill_login(self, url, username, password):
-        """
-        Autofill login fields on a website.
-
-        :param url: URL of the login page.
-        :param username: Username for login.
-        :param password: Password for login.
-        :return: Confirmation of autofill success.
-        """
+    def autofill_login(self, url: str, username: str, password: str) -> str:
         if not HAS_SELENIUM:
-            return (
-                "Selenium not available. Install selenium for web automation features."
-            )
+            return "Selenium not available. Install selenium for web automation features."
 
-        driver = webdriver.Chrome()  # Adjust driver path if needed
+        driver = webdriver.Chrome()  # pragma: no cover - requires selenium runtime
         driver.get(url)
 
         try:
@@ -152,10 +153,10 @@ class LLMInference:
             pass_field.send_keys(password)
             pass_field.send_keys(Keys.RETURN)
             return "Login fields filled successfully."
-        except Exception as e:
-            return f"Failed to autofill login: {e}"
+        except Exception as exc:  # pragma: no cover - runtime dependent
+            return f"Failed to autofill login: {exc}"
 
 
 # Example usage:
-# llm = LLMInference(llama_model_path="path/to/llama/model")
+# llm = LLMInference(provider="ollama", model_id="mistral:instruct")
 # print(llm.query_model("What's the weather today?"))

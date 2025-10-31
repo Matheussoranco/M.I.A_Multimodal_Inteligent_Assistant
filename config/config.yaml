@@ -3,7 +3,7 @@
 
 # LLM Configuration
 llm:
-  provider: openai              # Options: openai, ollama, huggingface, anthropic, gemini, groq, grok, local
+  provider: openai              # Options: openai, ollama, huggingface, anthropic, gemini, groq, grok, nanochat, minimax, local
   model_id: gpt-3.5-turbo       # Model identifier
   api_key: null                 # API key (can be set via environment variable)
   url: https://api.openai.com/v1  # API endpoint URL
@@ -20,6 +20,14 @@ audio:
   input_threshold: 0.01        # Audio input threshold
   speech_model: openai/whisper-base.en  # Speech recognition model
   tts_enabled: true            # Enable text-to-speech
+  tts_provider: local          # Options: local, nanochat, minimax, openai, custom
+  tts_model_id: null           # Model identifier for selected TTS provider
+  tts_api_key: null            # API key for external TTS providers
+  tts_url: null                # Base URL for external TTS providers
+  llm_provider: null           # Override LLM provider for audio workflows (fallback to global LLM when null)
+  llm_model_id: null           # Override LLM model for audio workflows
+  llm_api_key: null            # Override LLM API key for audio workflows
+  llm_url: null                # Override LLM endpoint for audio workflows
 
 # Vision Configuration
 vision:

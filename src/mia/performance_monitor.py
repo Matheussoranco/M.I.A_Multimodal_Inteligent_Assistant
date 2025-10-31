@@ -384,29 +384,39 @@ class PerformanceMonitor:
                 summary['min_cpu_percent'] = summary['cpu']['min']
             
             # Memory statistics
+            memory_section: Dict[str, Any] = {}
+            memory_section_has_data = False
+            
             if memory_values:
-                summary['memory'] = {
+                memory_section_has_data = True
+                memory_section.update({
                     'current_percent': memory_values[-1],
                     'average_percent': sum(memory_values) / len(memory_values),
                     'max_percent': max(memory_values),
                     'min_percent': min(memory_values)
-                }
+                })
                 # Add flat keys for backward compatibility
-                summary['average_memory_percent'] = summary['memory']['average_percent']
-                summary['current_memory_percent'] = summary['memory']['current_percent']
-                summary['max_memory_percent'] = summary['memory']['max_percent']
-                summary['min_memory_percent'] = summary['memory']['min_percent']
+                summary['average_memory_percent'] = memory_section['average_percent']
+                summary['current_memory_percent'] = memory_section['current_percent']
+                summary['max_memory_percent'] = memory_section['max_percent']
+                summary['min_memory_percent'] = memory_section['min_percent']
             
             if memory_used_values:
-                summary['memory']['current_mb'] = memory_used_values[-1]
-                summary['memory']['average_mb'] = sum(memory_used_values) / len(memory_used_values)
-                summary['memory']['max_mb'] = max(memory_used_values)
-                summary['memory']['min_mb'] = min(memory_used_values)
+                memory_section_has_data = True
+                memory_section.update({
+                    'current_mb': memory_used_values[-1],
+                    'average_mb': sum(memory_used_values) / len(memory_used_values),
+                    'max_mb': max(memory_used_values),
+                    'min_mb': min(memory_used_values)
+                })
                 # Add flat keys for backward compatibility
-                summary['memory_used_mb'] = summary['memory']['current_mb']
-                summary['average_memory_mb'] = summary['memory']['average_mb']
-                summary['max_memory_mb'] = summary['memory']['max_mb']
-                summary['min_memory_mb'] = summary['memory']['min_mb']
+                summary['memory_used_mb'] = memory_section['current_mb']
+                summary['average_memory_mb'] = memory_section['average_mb']
+                summary['max_memory_mb'] = memory_section['max_mb']
+                summary['min_memory_mb'] = memory_section['min_mb']
+            
+            if memory_section_has_data:
+                summary['memory'] = memory_section
             
             # Add metrics_count for test compatibility
             summary['metrics_count'] = metrics_count

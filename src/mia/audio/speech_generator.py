@@ -1,5 +1,10 @@
 """Speech generation module with TTS and LLM capabilities."""
+import base64
 import logging
+import os
+from typing import Any, Dict, Optional
+
+import requests
 
 # Optional imports with fallbacks
 try:
@@ -37,6 +42,11 @@ except ImportError:
     device = "cpu"
 
 try:
+    from ..config_manager import ConfigManager
+except ImportError:  # pragma: no cover - optional during isolated tests
+    ConfigManager = None
+
+try:
     from mia.llm.llm_inference import LLMInference
     LLM_AVAILABLE = True
 except ImportError:
@@ -46,7 +56,17 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class SpeechGenerator:
-    def __init__(self, device=None, model_id="microsoft/speecht5_tts", speaker=7306, llama_model_path=None):
+    def __init__(
+        self,
+        device: Optional[str] = None,
+        model_id: str = "microsoft/speecht5_tts",
+        speaker: int = 7306,
+        llama_model_path: Optional[str] = None,
+        config_manager: Optional[Any] = None,
+        audio_config: Optional[Any] = None,
+        default_tts_provider: Optional[str] = None,
+        llm_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
         Initialize the SpeechGenerator with TTS and LLM capabilities.
 
@@ -54,11 +74,26 @@ class SpeechGenerator:
         :param model_id: Model identifier for text-to-speech.
         :param speaker: Speaker ID for voice synthesis.
         :param llama_model_path: Path to local LLama model for text generation.
+        :param config_manager: Optional configuration manager instance (shared across components).
+        :param audio_config: Optional audio configuration object (overrides derived config).
+        :param default_tts_provider: Optional override for default TTS provider.
+        :param llm_kwargs: Additional keyword arguments forwarded to :class:`LLMInference`.
         """
         self.device = device or globals().get('device', 'cpu')
         self.model_id = model_id
         self.speaker = speaker
         self.llama_model_path = llama_model_path
+        self._llm_kwargs = llm_kwargs or {}
+
+        self.config_manager = config_manager or (ConfigManager() if ConfigManager else None)
+        self.audio_config = audio_config
+        if self.audio_config is None and self.config_manager and getattr(self.config_manager, 'config', None):
+            self.audio_config = getattr(self.config_manager.config, 'audio', None)
+        self.tts_provider = default_tts_provider
+        if not self.tts_provider and self.audio_config and hasattr(self.audio_config, 'tts_provider'):
+            self.tts_provider = self.audio_config.tts_provider
+        self.tts_provider = self.tts_provider or 'local'
+        self.tts_providers: Dict[str, Dict[str, Any]] = {}
         
         # Initialize components if available
         self.synthesiser = None
@@ -69,6 +104,7 @@ class SpeechGenerator:
         self._init_tts()
         self._init_embeddings()
         self._init_llm()
+        self._init_api_providers()
         
     def _init_tts(self):
         """Initialize TTS pipeline."""
@@ -95,15 +131,130 @@ class SpeechGenerator:
             
     def _init_llm(self):
         """Initialize LLM inference."""
-        if LLM_AVAILABLE and LLMInference:
-            try:
-                self.llm_inference = LLMInference(llama_model_path=self.llama_model_path)
-                logger.info("LLM inference initialized")
-            except Exception as e:
-                logger.error(f"Failed to initialize LLM inference: {e}")
-                self.llm_inference = None
-        else:
+        if not (LLM_AVAILABLE and LLMInference):
             logger.warning("LLM inference not available")
+            return
+
+        provider_override = None
+        model_override = None
+        api_key_override = None
+        url_override = None
+
+        if self.audio_config:
+            provider_override = getattr(self.audio_config, 'llm_provider', None) or None
+            model_override = getattr(self.audio_config, 'llm_model_id', None) or None
+            api_key_override = getattr(self.audio_config, 'llm_api_key', None) or None
+            url_override = getattr(self.audio_config, 'llm_url', None) or None
+
+        llm_params: Dict[str, Any] = dict(self._llm_kwargs)
+
+        if provider_override:
+            llm_params.setdefault('provider', provider_override)
+        if model_override:
+            llm_params.setdefault('model_id', model_override)
+        if api_key_override:
+            llm_params.setdefault('api_key', api_key_override)
+        if url_override:
+            llm_params.setdefault('url', url_override)
+
+        # Preserve backwards compatibility with local model usage
+        if self.llama_model_path:
+            llm_params.setdefault('llama_model_path', self.llama_model_path)
+
+        llm_params.setdefault('config_manager', self.config_manager)
+
+        try:
+            self.llm_inference = LLMInference(**llm_params)
+            logger.info("LLM inference initialized")
+        except Exception as exc:
+            logger.error(f"Failed to initialize LLM inference: {exc}")
+            self.llm_inference = None
+
+    def _init_api_providers(self) -> None:
+        """Configure metadata for external TTS providers."""
+        self.tts_providers = {}
+
+        def _resolve_from_config(provider_name: str, attribute: str, fallback: Optional[str]) -> Optional[str]:
+            if self.audio_config and getattr(self.audio_config, 'tts_provider', None) == provider_name:
+                value = getattr(self.audio_config, attribute, None)
+                if value:
+                    return value
+            return fallback
+
+        # NanoChat
+        nanochat_url = _resolve_from_config(
+            'nanochat',
+            'tts_url',
+            os.getenv('NANOCHAT_TTS_URL') or os.getenv('NANOCHAT_URL') or 'http://localhost:8081/api/tts'
+        )
+        self.tts_providers['nanochat'] = {
+            'url': nanochat_url,
+            'api_key': _resolve_from_config('nanochat', 'tts_api_key', os.getenv('NANOCHAT_TTS_API_KEY') or os.getenv('NANOCHAT_API_KEY')),
+            'model_id': _resolve_from_config('nanochat', 'tts_model_id', os.getenv('NANOCHAT_TTS_MODEL') or 'nanochat-voice'),
+            'format': 'mp3'
+        }
+
+        # Minimax AI
+        minimax_url = _resolve_from_config(
+            'minimax',
+            'tts_url',
+            os.getenv('MINIMAX_TTS_URL') or 'https://api.minimax.chat/v1/text-to-speech'
+        )
+        self.tts_providers['minimax'] = {
+            'url': minimax_url,
+            'api_key': _resolve_from_config('minimax', 'tts_api_key', os.getenv('MINIMAX_TTS_API_KEY') or os.getenv('MINIMAX_API_KEY')),
+            'model_id': _resolve_from_config('minimax', 'tts_model_id', os.getenv('MINIMAX_TTS_MODEL') or 'minimax-tts'),
+            'voice': os.getenv('MINIMAX_TTS_VOICE'),
+            'format': os.getenv('MINIMAX_TTS_FORMAT') or 'mp3'
+        }
+
+        # OpenAI TTS endpoint (optional)
+        openai_url = _resolve_from_config(
+            'openai',
+            'tts_url',
+            os.getenv('OPENAI_TTS_URL') or 'https://api.openai.com/v1/audio/speech'
+        )
+        self.tts_providers['openai'] = {
+            'url': openai_url,
+            'api_key': _resolve_from_config('openai', 'tts_api_key', os.getenv('OPENAI_API_KEY')),
+            'model_id': _resolve_from_config('openai', 'tts_model_id', os.getenv('OPENAI_TTS_MODEL') or 'gpt-4o-mini-tts'),
+            'voice': os.getenv('OPENAI_TTS_VOICE') or 'alloy',
+            'format': _resolve_from_config('openai', 'tts_format', os.getenv('OPENAI_TTS_FORMAT') or 'mp3')
+        }
+
+        # Custom provider supplied via configuration
+        if self.audio_config and getattr(self.audio_config, 'tts_provider', None) == 'custom':
+            custom_url = getattr(self.audio_config, 'tts_url', None)
+            if custom_url:
+                self.tts_providers['custom'] = {
+                    'url': custom_url,
+                    'api_key': getattr(self.audio_config, 'tts_api_key', None),
+                    'model_id': getattr(self.audio_config, 'tts_model_id', None),
+                    'format': getattr(self.audio_config, 'tts_format', None)
+                }
+
+    def _get_tts_provider_config(self, provider: Optional[str]) -> Optional[Dict[str, Any]]:
+        if not provider or provider == 'local':
+            return None
+
+        config = dict(self.tts_providers.get(provider, {}))
+        if not config:
+            logger.debug("No configuration found for TTS provider %s", provider)
+            return None
+
+        # Environment overrides take precedence
+        prefix = provider.upper()
+        config['url'] = os.getenv(f'{prefix}_TTS_URL', config.get('url'))
+        config['api_key'] = os.getenv(f'{prefix}_TTS_API_KEY', config.get('api_key'))
+        config['model_id'] = os.getenv(f'{prefix}_TTS_MODEL', config.get('model_id'))
+
+        # Final fallback to configuration defaults
+        if (not config.get('url')) and self.audio_config and getattr(self.audio_config, 'tts_provider', None) == provider:
+            config['url'] = getattr(self.audio_config, 'tts_url', None)
+            config['api_key'] = getattr(self.audio_config, 'tts_api_key', None)
+            config['model_id'] = getattr(self.audio_config, 'tts_model_id', None)
+
+        return config if config.get('url') else None
 
     def set_speaker(self, speaker_id):
         """Set the speaker for TTS voice."""
@@ -129,46 +280,232 @@ class SpeechGenerator:
         female_speaker_id = 7306  # Default female speaker
         return self.set_speaker(female_speaker_id)
 
-    def generate_speech(self, text):
-        """Generate speech from text."""
-        if not self.synthesiser:
-            logger.error("TTS synthesizer not available")
-            return None
-            
+    def generate_speech(self, text: str, provider: Optional[str] = None, **kwargs: Any) -> Optional[Any]:
+        """Generate speech from text using local or API-based providers."""
         if not text or not text.strip():
             logger.warning("Empty text provided for speech generation")
             return None
-            
+
+        provider = provider or self.tts_provider
+
+        if provider and provider != 'local':
+            api_payload = self.generate_speech_via_api(text, provider=provider, **kwargs)
+            if api_payload is not None:
+                return api_payload
+            logger.debug("Falling back to local TTS after API provider '%s' returned no result", provider)
+
+        if not self.synthesiser:
+            logger.error("TTS synthesizer not available")
+            return None
+
         try:
             if self.speaker_embedding is not None:
                 speech = self.synthesiser(text, forward_params={"speaker_embeddings": self.speaker_embedding})
             else:
                 speech = self.synthesiser(text)
             return speech
-        except Exception as e:
-            logger.error(f"Failed to generate speech: {e}")
+        except Exception as exc:
+            logger.error(f"Failed to generate speech: {exc}")
             return None
 
-    def generate_response_and_speech(self, prompt):
-        """Generate text response using LLM and convert to speech."""
+    def generate_speech_via_api(self, text: str, provider: Optional[str] = None, **kwargs: Any) -> Optional[Dict[str, Any]]:
+        """Call an external TTS API provider."""
+        provider = provider or self.tts_provider
+        if not provider or provider == 'local':
+            return None
+
+        config = self._get_tts_provider_config(provider)
+        if not config:
+            logger.warning("No configuration available for TTS provider %s", provider)
+            return None
+
+        payload = self._build_tts_payload(provider, text, config, kwargs)
+        if payload is None:
+            logger.warning("Failed to build payload for TTS provider %s", provider)
+            return None
+
+        headers = {'Content-Type': 'application/json'}
+        if config.get('api_key'):
+            headers['Authorization'] = f"Bearer {config['api_key']}"
+
+        timeout = kwargs.get('timeout', 60)
+
+        try:
+            response = requests.post(config['url'], headers=headers, json=payload, timeout=timeout)
+            response.raise_for_status()
+            return self._parse_tts_response(provider, response, config, kwargs)
+        except requests.exceptions.Timeout:
+            logger.error("%s TTS request timed out", provider)
+        except requests.exceptions.RequestException as exc:
+            logger.error("%s TTS request failed: %s", provider, exc)
+        except Exception as exc:
+            logger.error("Failed to process %s TTS response: %s", provider, exc)
+
+        return None
+
+    def _build_tts_payload(
+        self,
+        provider: str,
+        text: str,
+        config: Dict[str, Any],
+        options: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        model_id = options.get('model_id') or config.get('model_id')
+        fmt = options.get('format') or config.get('format') or 'mp3'
+        voice = options.get('voice') or config.get('voice')
+
+        if provider == 'nanochat':
+            payload = {
+                'model': model_id or 'nanochat-voice',
+                'text': text,
+                'format': fmt,
+                'stream': options.get('stream', False)
+            }
+            if voice:
+                payload['voice'] = voice
+            if options.get('language'):
+                payload['language'] = options['language']
+            return payload
+
+        if provider == 'minimax':
+            payload = {
+                'model': model_id or 'minimax-tts',
+                'text': text,
+                'format': fmt,
+            }
+            if voice:
+                payload['voice_id'] = voice
+            if options.get('style') or config.get('style'):
+                payload['style'] = options.get('style') or config.get('style')
+            return payload
+
+        if provider == 'openai':
+            payload = {
+                'model': model_id or 'gpt-4o-mini-tts',
+                'input': text,
+                'voice': voice or 'alloy',
+                'format': fmt,
+            }
+            return payload
+
+        if provider == 'custom':
+            base_payload = dict(config.get('payload_template', {}))
+            base_payload.setdefault('text', text)
+            if model_id:
+                base_payload.setdefault('model', model_id)
+            if voice:
+                base_payload.setdefault('voice', voice)
+            base_payload.setdefault('format', fmt)
+            extra_payload = options.get('extra_payload') or {}
+            base_payload.update(extra_payload)
+            return base_payload
+
+        logger.warning("No payload builder available for provider %s", provider)
+        return None
+
+    def _parse_tts_response(
+        self,
+        provider: str,
+        response: requests.Response,
+        config: Dict[str, Any],
+        options: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        content_type = (response.headers.get('Content-Type') or '').lower()
+
+        if 'application/json' in content_type:
+            data = response.json()
+            for key in ('audio', 'audio_base64', 'audio_data', 'data'):
+                audio_blob = data.get(key)
+                if isinstance(audio_blob, dict):
+                    audio_blob = audio_blob.get('audio') or audio_blob.get('content')
+                if isinstance(audio_blob, str):
+                    audio_bytes = self._decode_audio_blob(audio_blob)
+                    if audio_bytes:
+                        return {
+                            'provider': provider,
+                            'audio_bytes': audio_bytes,
+                            'mime_type': self._infer_mime_type(config, data, options),
+                            'raw': data
+                        }
+
+            audio_url = data.get('audio_url') or data.get('url')
+            if audio_url:
+                return {'provider': provider, 'audio_url': audio_url, 'raw': data}
+
+            text_response = data.get('text') or data.get('response')
+            if text_response:
+                return {'provider': provider, 'text': text_response, 'raw': data}
+
+            return {'provider': provider, 'raw': data}
+
+        # Fallback to treating the response body as binary audio
+        return {
+            'provider': provider,
+            'audio_bytes': response.content,
+            'mime_type': response.headers.get('Content-Type', self._infer_mime_type(config, {}, options))
+        }
+
+    @staticmethod
+    def _decode_audio_blob(blob: str) -> Optional[bytes]:
+        try:
+            return base64.b64decode(blob)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _infer_mime_type(config: Dict[str, Any], data: Dict[str, Any], options: Dict[str, Any]) -> str:
+        fmt = options.get('format') or data.get('format') or config.get('format') or 'mp3'
+        mapping = {
+            'mp3': 'audio/mpeg',
+            'mpeg': 'audio/mpeg',
+            'wav': 'audio/wav',
+            'ogg': 'audio/ogg',
+            'opus': 'audio/opus',
+            'flac': 'audio/flac'
+        }
+        return mapping.get(str(fmt).lower(), 'audio/mpeg')
+
+    def set_tts_provider(self, provider: str) -> bool:
+        if provider == 'local':
+            self.tts_provider = provider
+            return True
+        if provider not in self.tts_providers:
+            logger.warning("Unknown TTS provider: %s", provider)
+            return False
+        self.tts_provider = provider
+        return True
+
+    def generate_response_and_speech(
+        self,
+        prompt: str,
+        *,
+        tts_provider: Optional[str] = None,
+        llm_options: Optional[Dict[str, Any]] = None,
+        tts_options: Optional[Dict[str, Any]] = None,
+    ) -> tuple[Optional[str], Optional[Any]]:
+        """Generate text response using an LLM and convert it to speech."""
         if not self.llm_inference:
             logger.error("LLM inference not available")
             return None, None
-            
+
+        llm_kwargs = llm_options or {}
+        tts_kwargs = tts_options or {}
+
         try:
-            response = self.llm_inference.generate_response(prompt)
-            if response:
-                speech = self.generate_speech(response)
-                return response, speech
-            else:
+            response = self.llm_inference.generate_response(prompt, **llm_kwargs)
+            if not response:
                 return None, None
-        except Exception as e:
-            logger.error(f"Failed to generate response and speech: {e}")
+
+            speech = self.generate_speech(response, provider=tts_provider, **tts_kwargs)
+            return response, speech
+        except Exception as exc:
+            logger.error(f"Failed to generate response and speech: {exc}")
             return None, None
 
     def is_available(self):
         """Check if TTS functionality is available."""
-        return self.synthesiser is not None
+        has_api_provider = self._get_tts_provider_config(self.tts_provider) is not None
+        return self.synthesiser is not None or has_api_provider
         
     def get_status(self):
         """Get status of all components."""
@@ -179,5 +516,7 @@ class SpeechGenerator:
             "torch_available": TORCH_AVAILABLE,
             "transformers_available": TRANSFORMERS_AVAILABLE,
             "datasets_available": DATASETS_AVAILABLE,
-            "sounddevice_available": SOUNDDEVICE_AVAILABLE
+            "sounddevice_available": SOUNDDEVICE_AVAILABLE,
+            "tts_provider": self.tts_provider,
+            "available_tts_providers": sorted(list(self.tts_providers.keys()))
         }

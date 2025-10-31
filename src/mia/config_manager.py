@@ -14,6 +14,20 @@ from .error_handler import global_error_handler, with_error_handling
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_LLM_PROVIDERS = {
+    'openai',
+    'ollama',
+    'huggingface',
+    'anthropic',
+    'gemini',
+    'groq',
+    'grok',
+    'local',
+    'nanochat',
+    'minimax'
+}
+
+
 @dataclass
 class LLMConfig:
     """Configuration for LLM providers."""
@@ -30,7 +44,7 @@ class LLMConfig:
         if not self.provider:
             raise ValidationError("Provider cannot be empty", "EMPTY_PROVIDER")
         
-        if self.provider not in ['openai', 'ollama', 'huggingface', 'anthropic', 'gemini', 'groq', 'grok', 'local', 'nanochat']:
+        if self.provider not in SUPPORTED_LLM_PROVIDERS:
             raise ValidationError(f"Unsupported provider: {self.provider}", "UNSUPPORTED_PROVIDER")
         
         if self.max_tokens <= 0:
@@ -42,6 +56,15 @@ class LLMConfig:
         if self.timeout <= 0:
             raise ValidationError("Timeout must be positive", "INVALID_TIMEOUT")
 
+SUPPORTED_TTS_PROVIDERS = {
+    'local',
+    'nanochat',
+    'minimax',
+    'openai',
+    'custom'
+}
+
+
 @dataclass
 class AudioConfig:
     """Configuration for audio processing."""
@@ -52,6 +75,14 @@ class AudioConfig:
     input_threshold: float = 0.01
     speech_model: str = "openai/whisper-base.en"
     tts_enabled: bool = True
+    tts_provider: str = "local"
+    tts_model_id: Optional[str] = None
+    tts_api_key: Optional[str] = None
+    tts_url: Optional[str] = None
+    llm_provider: Optional[str] = None
+    llm_model_id: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    llm_url: Optional[str] = None
     
     def validate(self) -> None:
         """Validate audio configuration."""
@@ -63,6 +94,12 @@ class AudioConfig:
         
         if not 0.0 <= self.input_threshold <= 1.0:
             raise ValidationError("Input threshold must be between 0.0 and 1.0", "INVALID_THRESHOLD")
+
+        if self.tts_provider and self.tts_provider not in SUPPORTED_TTS_PROVIDERS:
+            raise ValidationError(f"Unsupported TTS provider: {self.tts_provider}", "UNSUPPORTED_TTS_PROVIDER")
+
+        if self.llm_provider and self.llm_provider not in SUPPORTED_LLM_PROVIDERS:
+            raise ValidationError(f"Unsupported audio LLM provider: {self.llm_provider}", "UNSUPPORTED_AUDIO_LLM_PROVIDER")
 
 @dataclass
 class VisionConfig:
@@ -295,6 +332,14 @@ class ConfigManager:
             'MIA_LLM_API_KEY': ('llm', 'api_key'),
             'MIA_LLM_URL': ('llm', 'url'),
             'MIA_AUDIO_ENABLED': ('audio', 'enabled'),
+            'MIA_AUDIO_TTS_PROVIDER': ('audio', 'tts_provider'),
+            'MIA_AUDIO_TTS_MODEL_ID': ('audio', 'tts_model_id'),
+            'MIA_AUDIO_TTS_API_KEY': ('audio', 'tts_api_key'),
+            'MIA_AUDIO_TTS_URL': ('audio', 'tts_url'),
+            'MIA_AUDIO_LLM_PROVIDER': ('audio', 'llm_provider'),
+            'MIA_AUDIO_LLM_MODEL_ID': ('audio', 'llm_model_id'),
+            'MIA_AUDIO_LLM_API_KEY': ('audio', 'llm_api_key'),
+            'MIA_AUDIO_LLM_URL': ('audio', 'llm_url'),
             'MIA_VISION_ENABLED': ('vision', 'enabled'),
             'MIA_MEMORY_ENABLED': ('memory', 'enabled'),
             'MIA_SECURITY_ENABLED': ('security', 'enabled'),
@@ -368,7 +413,15 @@ class ConfigManager:
                 'device_id': self.config.audio.device_id,
                 'input_threshold': self.config.audio.input_threshold,
                 'speech_model': self.config.audio.speech_model,
-                'tts_enabled': self.config.audio.tts_enabled
+                'tts_enabled': self.config.audio.tts_enabled,
+                'tts_provider': self.config.audio.tts_provider,
+                'tts_model_id': self.config.audio.tts_model_id,
+                'tts_api_key': self.config.audio.tts_api_key,
+                'tts_url': self.config.audio.tts_url,
+                'llm_provider': self.config.audio.llm_provider,
+                'llm_model_id': self.config.audio.llm_model_id,
+                'llm_api_key': self.config.audio.llm_api_key,
+                'llm_url': self.config.audio.llm_url
             },
             'vision': {
                 'enabled': self.config.vision.enabled,

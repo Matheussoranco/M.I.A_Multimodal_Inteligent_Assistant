@@ -1,7 +1,9 @@
-import unittest
-import pytest
+import asyncio
 import os
-from unittest.mock import patch, MagicMock, mock_open
+import unittest
+
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock, mock_open
 from mia.llm.llm_manager import LLMManager
 from mia.exceptions import LLMProviderError, ConfigurationError, InitializationError
 
@@ -136,24 +138,34 @@ class TestLLMManager(unittest.TestCase):
 
     @patch('mia.llm.llm_manager.ConfigManager')
     @patch('mia.llm.llm_manager.HAS_AIOHTTP', True)
-    @patch('mia.llm.llm_manager.aiohttp')
-    @patch('mia.llm.llm_manager.asyncio')
-    def test_query_async_success(self, mock_asyncio, mock_aiohttp, mock_config_class):
-        """Test successful async query."""
+    def test_query_async_success(self, mock_config_class):
+        """Test that query dispatches to async path when aiohttp is available."""
         mock_config_class.return_value = self.mock_config
 
-        # Mock async context
-        mock_session = MagicMock()
-        mock_response = MagicMock()
-        mock_response.json = MagicMock(return_value={'response': 'test response'})
-        mock_session.post = MagicMock(return_value=mock_response)
-        mock_aiohttp.ClientSession.return_value.__aenter__ = MagicMock(return_value=mock_session)
-        mock_aiohttp.ClientSession.return_value.__aexit__ = MagicMock(return_value=None)
-
         manager = LLMManager(provider='ollama')
-        result = manager.query("test prompt")
 
-        self.assertIsNotNone(result)
+        class _TestLoop:
+            """Event loop shim that executes awaited coroutines on a fresh loop."""
+
+            @staticmethod
+            def is_running():
+                return False
+
+            @staticmethod
+            def run_until_complete(coro):
+                loop = asyncio.new_event_loop()
+                try:
+                    return loop.run_until_complete(coro)
+                finally:
+                    loop.close()
+
+        with patch('mia.llm.llm_manager.asyncio.get_event_loop', return_value=_TestLoop()):
+            with patch.object(manager, 'query_async', new_callable=AsyncMock) as mock_query_async:
+                mock_query_async.return_value = 'async response'
+                result = manager.query("test prompt")
+
+        self.assertEqual(result, 'async response')
+        mock_query_async.assert_awaited_once_with("test prompt")
 
     @patch('mia.llm.llm_manager.ConfigManager')
     def test_query_empty_prompt(self, mock_config_class):
@@ -190,6 +202,30 @@ class TestLLMManager(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertEqual(result, 'sync response')
+
+    @patch('mia.llm.llm_manager.HAS_AIOHTTP', False)
+    @patch('mia.llm.llm_manager.requests.post')
+    @patch('mia.llm.llm_manager.ConfigManager')
+    def test_query_minimax_success(self, mock_config_class, mock_post, *_):
+        """Ensure Minimax provider parses responses correctly."""
+        mock_config_class.return_value = self.mock_config
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'choices': [
+                {
+                    'messages': [
+                        {'sender_type': 'BOT', 'text': 'Minimax reply'}
+                    ]
+                }
+            ]
+        }
+        mock_post.return_value = mock_response
+
+        manager = LLMManager(provider='minimax', api_key='test-key')
+        result = manager.query("Hello from user")
+
+        self.assertEqual(result, 'Minimax reply')
 
     @patch('mia.llm.llm_manager.ConfigManager')
     @patch('mia.llm.llm_manager.requests')
