@@ -4,6 +4,7 @@ from typing import Optional, Any, Dict
 
 # Import configuration manager
 from ..config_manager import ConfigManager
+from .vad_detector import VoiceActivityDetector
 
 # Optional imports with fallbacks
 try:
@@ -60,6 +61,13 @@ class SpeechProcessor:
             self.chunk_size = config.audio.chunk_size
             self.device_id = config.audio.device_id
             self.input_threshold = config.audio.input_threshold
+            self._vad_detector = VoiceActivityDetector(
+                aggressiveness=config.audio.vad_aggressiveness,
+                frame_duration_ms=config.audio.vad_frame_duration_ms,
+                min_active_duration_ms=config.audio.vad_silence_duration_ms,
+                enabled=config.audio.vad_enabled,
+                logger_instance=logger,
+            )
         else:
             # Default values if config is not available
             self.model_name = model_name or "base"
@@ -67,6 +75,7 @@ class SpeechProcessor:
             self.chunk_size = 1024
             self.device_id = None
             self.input_threshold = 0.5
+            self._vad_detector = VoiceActivityDetector(enabled=False)
             
         self.use_whisper = use_whisper
         self.whisper_model = None
@@ -167,6 +176,22 @@ class SpeechProcessor:
         if not audio_data:
             logger.warning("Empty audio data provided")
             return None
+
+        if (
+            self._vad_detector
+            and self._vad_detector.is_available()
+            and NUMPY_AVAILABLE
+            and np is not None
+        ):
+            try:
+                audio_array = np.frombuffer(audio_data, dtype=np.float32)
+                pcm16 = np.clip(audio_array, -1.0, 1.0)
+                pcm16 = (pcm16 * 32767).astype(np.int16).tobytes()
+                if not self._vad_detector.has_speech(pcm16, sample_rate):
+                    logger.info("VAD rejected audio data as silence")
+                    return None
+            except Exception as exc:
+                logger.debug("VAD preprocessing failed: %s", exc)
             
         # Try Whisper first
         if self.whisper_model and isinstance(self.whisper_model, WhisperModelResource) and NUMPY_AVAILABLE and np:
@@ -230,12 +255,22 @@ class SpeechProcessor:
             with self.microphone as source:
                 audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
             
+            sample_rate = getattr(audio, 'sample_rate', 16000)  # type: ignore
+
+            if self._vad_detector and self._vad_detector.is_available():
+                try:
+                    raw_pcm = audio.get_raw_data(convert_rate=sample_rate, convert_width=2)  # type: ignore
+                    if not self._vad_detector.has_speech(raw_pcm, sample_rate):
+                        logger.info("No speech detected by VAD; skipping transcription")
+                        return None
+                except Exception as exc:
+                    logger.debug("VAD check failed: %s", exc)
+
             # Try Whisper first if available
             if self.whisper_model:
                 try:
                     # Convert to format suitable for Whisper
                     audio_data = getattr(audio, 'get_wav_data')()  # type: ignore
-                    sample_rate = getattr(audio, 'sample_rate', 16000)  # type: ignore
                     return self.transcribe_audio_data(audio_data, sample_rate)
                 except Exception as e:
                     logger.error(f"Whisper microphone transcription failed: {e}")
@@ -290,6 +325,7 @@ class SpeechProcessor:
                 "whisper": WHISPER_AVAILABLE,
                 "speech_recognition": SPEECH_RECOGNITION_AVAILABLE,
                 "numpy": NUMPY_AVAILABLE,
-                "soundfile": SOUNDFILE_AVAILABLE
+                "soundfile": SOUNDFILE_AVAILABLE,
+                "webrtcvad": self._vad_detector.is_available() if self._vad_detector else False,
             }
         }

@@ -1,0 +1,12 @@
+# Tooling for development, testing, and QA
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+isort>=5.10.0
+mypy>=1.0.0
+flake8>=6.0.0
+bandit>=1.7.0
+safety>=2.0.0
+factory-boy>=3.2.0
+faker>=15.0.0
+responses>=0.21.0

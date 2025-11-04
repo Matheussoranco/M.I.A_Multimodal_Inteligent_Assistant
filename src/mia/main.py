@@ -3,7 +3,8 @@ import sys
 import logging
 import os
 import warnings
-from typing import Tuple
+import re
+from typing import Tuple, Optional, Dict, Any, List
 
 try:
     import colorama
@@ -14,6 +15,7 @@ except ImportError:
 
 from .__version__ import __version__, get_full_version
 from .localization import init_localization, _
+from .providers import provider_registry, ProviderLookupError
 
 try:
     from .exceptions import *
@@ -35,55 +37,6 @@ try:
 except ImportError:
     torch = None
     HAS_TORCH = False
-
-OPTIONAL_MODULES = {}
-
-def _import_optional_module(module_path: str, module_name: str):
-    try:
-        if module_path.startswith('.'):
-            full_module_path = f"mia{module_path}"
-        else:
-            full_module_path = module_path
-        module = __import__(full_module_path, fromlist=[module_name])
-        OPTIONAL_MODULES[module_name] = getattr(module, module_name, None)
-        return True
-    except (ImportError, ModuleNotFoundError, AttributeError):
-        OPTIONAL_MODULES[module_name] = None
-        return False
-
-_import_optional_module('.audio.audio_utils', 'AudioUtils')
-_import_optional_module('.audio.speech_processor', 'SpeechProcessor')
-_import_optional_module('.audio.speech_generator', 'SpeechGenerator')
-_import_optional_module('.llm.llm_manager', 'LLMManager')
-_import_optional_module('.core.cognitive_architecture', 'MIACognitiveCore')
-_import_optional_module('.multimodal.processor', 'MultimodalProcessor')
-_import_optional_module('.multimodal.vision_processor', 'VisionProcessor')
-_import_optional_module('.memory.knowledge_graph', 'AgentMemory')
-_import_optional_module('.memory.long_term_memory', 'LongTermMemory')
-_import_optional_module('.langchain.langchain_verifier', 'LangChainVerifier')
-_import_optional_module('.system.system_control', 'SystemControl')
-_import_optional_module('.utils.automation_util', 'AutomationUtil')
-_import_optional_module('.tools.action_executor', 'ActionExecutor')
-_import_optional_module('.plugins.plugin_manager', 'PluginManager')
-_import_optional_module('.security.security_manager', 'SecurityManager')
-_import_optional_module('.security.security_manager', 'SecurityManager')
-
-# Extract imported modules for easier access
-AudioUtils = OPTIONAL_MODULES.get('AudioUtils')
-SpeechProcessor = OPTIONAL_MODULES.get('SpeechProcessor')
-SpeechGenerator = OPTIONAL_MODULES.get('SpeechGenerator')
-LLMManager = OPTIONAL_MODULES.get('LLMManager')
-MIACognitiveCore = OPTIONAL_MODULES.get('MIACognitiveCore')
-MultimodalProcessor = OPTIONAL_MODULES.get('MultimodalProcessor')
-VisionProcessor = OPTIONAL_MODULES.get('VisionProcessor')
-AgentMemory = OPTIONAL_MODULES.get('AgentMemory')
-LongTermMemory = OPTIONAL_MODULES.get('LongTermMemory')
-LangChainVerifier = OPTIONAL_MODULES.get('LangChainVerifier')
-SystemControl = OPTIONAL_MODULES.get('SystemControl')
-AutomationUtil = OPTIONAL_MODULES.get('AutomationUtil')
-ActionExecutor = OPTIONAL_MODULES.get('ActionExecutor')
-PluginManager = OPTIONAL_MODULES.get('PluginManager')
-SecurityManager = OPTIONAL_MODULES.get('SecurityManager')
 
 
 # Color formatting functions
@@ -112,6 +65,59 @@ def cyan(text):
     return f"\033[36m{text}\033[0m"
 
 
+def _extract_filepath(text: str, extensions: Optional[List[str]] = None) -> Optional[str]:
+    """Extract a probable file path from free-form text."""
+
+    if not text:
+        return None
+
+    candidates = re.findall(r"[\w./\\:-]+", text)
+    if not candidates:
+        return None
+
+    if extensions:
+        lowered_exts = [ext.lower() for ext in extensions]
+        for token in candidates:
+            lowered = token.lower()
+            if any(lowered.endswith(ext) for ext in lowered_exts):
+                return token.strip('\"\'')
+
+    return candidates[-1].strip('\"\'') if candidates else None
+
+
+def prompt_user_consent(action: str, params: Optional[Dict[str, Any]] = None) -> bool:
+    """Ask the user to confirm sensitive actions before execution."""
+    auto_consent = os.getenv("MIA_AUTO_CONSENT", "").strip().lower()
+    if auto_consent in {"1", "true", "yes", "y", "sim", "s"}:
+        return True
+
+    action_label = action.replace("_", " ")
+    target = ""
+    if params:
+        for key in ("recipient", "to", "path", "url", "filename"):
+            value = params.get(key)
+            if value:
+                target = str(value)
+                break
+
+    message = f"⚠️ Confirmar ação '{action_label}'"
+    if target:
+        message += f" para '{target}'"
+    message += "? [y/N]: "
+
+    while True:
+        try:
+            choice = input(message).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+
+        if choice in {"y", "yes", "s", "sim"}:
+            return True
+        if choice in {"n", "no", "nao", "não", ""}:
+            return False
+        print("Por favor, responda com 'y' ou 'n'.")
+
+
 def _suppress_warnings_env() -> None:
     """Set environment variables and warning filters to reduce noise (opt-in)."""
     os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
@@ -126,7 +132,6 @@ def _suppress_warnings_env() -> None:
 
 
 logger = logging.getLogger(__name__)
-
 
 def choose_mode():
     """Interactive mode selection for M.I.A initialization."""
@@ -220,6 +225,7 @@ def detect_and_execute_agent_commands(
                     remaining = user_input[content_start:].strip()
                     if '"' in remaining or "'" in remaining:
                         # Extract text between quotes
+
                         import re
 
                         match = re.search(r'["\']([^"\']*)["\']', remaining)
@@ -232,6 +238,72 @@ def detect_and_execute_agent_commands(
             return True, _("agent_file_created", filename=filename)
         except Exception as e:
             return True, _("agent_file_error", error=e)
+
+    # Document commands (DOCX)
+    elif any(
+        keyword in user_input_lower
+        for keyword in ["docx", "documento", "word", "gera doc"]
+    ) and ("criar" in user_input_lower or "gerar" in user_input_lower):
+        try:
+            import re
+
+            quote_pairs = re.findall(r'"([^\"]+)"|\'([^\']+)\'', user_input)
+            extracted = [first or second for first, second in quote_pairs]
+            title = extracted[0] if extracted else None
+            summary = extracted[1] if len(extracted) > 1 else None
+
+            template = "proposal"
+            if "relatorio" in user_input_lower or "report" in user_input_lower:
+                template = "report"
+
+            result = action_executor.execute(
+                "create_docx",
+                {
+                    "title": title,
+                    "summary": summary,
+                    "template": template,
+                },
+            )
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # Document commands (PDF)
+    elif "pdf" in user_input_lower and ("criar" in user_input_lower or "gerar" in user_input_lower):
+        try:
+            import re
+
+            quote_pairs = re.findall(r'"([^\"]+)"|\'([^\']+)\'', user_input)
+            extracted = [first or second for first, second in quote_pairs]
+            title = extracted[0] if extracted else None
+            summary = extracted[1] if len(extracted) > 1 else None
+
+            template = "report" if "relatorio" in user_input_lower or "report" in user_input_lower else "proposal"
+
+            result = action_executor.execute(
+                "create_pdf",
+                {
+                    "title": title,
+                    "summary": summary,
+                    "template": template,
+                },
+            )
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # Sandbox command
+    elif any(keyword in user_input_lower for keyword in ["sandbox", "wasm", "wasi"]):
+        try:
+            result = action_executor.execute(
+                "run_sandboxed",
+                {
+                    "module_path": _extract_filepath(user_input, extensions=[".wasm", ".wat"]),
+                },
+            )
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
 
     # Code analysis command detection
     elif any(
@@ -261,6 +333,121 @@ def detect_and_execute_agent_commands(
 
             result = action_executor.execute("analyze_code", {"path": filepath})
             return True, _("agent_code_analysis", result=result)
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # WhatsApp message command detection
+    elif any(
+        keyword in user_input_lower
+        for keyword in ["whatsapp", "enviar whatsapp", "send whatsapp", "mensagem whatsapp"]
+    ):
+        try:
+            import re
+            # Extract phone number (e.g., +5511999999999) if present
+            phone_match = re.search(r"(\+\d{10,15}|\d{10,15})", user_input)
+            recipient = phone_match.group(1) if phone_match else ""
+
+            # Extract message between quotes, else take remainder
+            msg_match = re.search(r'["\']([^"\']+)["\']', user_input)
+            message = msg_match.group(1) if msg_match else user_input
+
+            result = action_executor.execute(
+                "send_whatsapp",
+                {"recipient": recipient, "message": message},
+            )
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # Telegram message command detection
+    elif any(
+        keyword in user_input_lower
+        for keyword in ["telegram", "enviar telegram", "send telegram", "mensagem telegram"]
+    ):
+        try:
+            import re
+            # Extract chat id or username (numeric id recommended)
+            chat_match = re.search(r"(?:para|to)\s+(@?[\w\d_\-]+)", user_input_lower)
+            to_id = chat_match.group(1) if chat_match else ""
+
+            msg_match = re.search(r'["\']([^"\']+)["\']', user_input)
+            message = msg_match.group(1) if msg_match else user_input
+
+            result = action_executor.execute(
+                "send_telegram",
+                {"to": to_id, "message": message},
+            )
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # Email command detection
+    elif any(
+        keyword in user_input_lower
+        for keyword in ["enviar email", "send email", "mandar email", "email"]
+    ):
+        try:
+            import re
+            to_match = re.search(r"(?:para|to)\s+([\w\.-]+@[\w\.-]+)", user_input_lower)
+            to_addr = to_match.group(1) if to_match else ""
+
+            subj_match = re.search(r"assunto\s*[\:\-]?\s*[\"\']([^\"\']+)[\"\']|subject\s*[\:\-]?\s*[\"\']([^\"\']+)[\"\']", user_input_lower)
+            subject = next((g for g in (subj_match.group(1) if subj_match else None, subj_match.group(2) if subj_match else None) if g), "(No Subject)")
+
+            body_match = re.search(r"(?:corpo|body)\s*[\:\-]?\s*[\"\']([^\"\']+)[\"\']", user_input)
+            body = body_match.group(1) if body_match else user_input
+
+            params = {"to": to_addr, "subject": subject, "body": body}
+            result = action_executor.execute("send_email", params)
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # Web navigation command detection
+    elif any(
+        keyword in user_input_lower
+        for keyword in ["abrir ", "navegar", "open url", "visit", "acessar"]
+    ):
+        try:
+            import re
+            url_match = re.search(r"(https?://\S+)", user_input)
+            url = url_match.group(1) if url_match else None
+            if not url:
+                return True, _("agent_specify_file")
+            result = action_executor.execute("web_automation", {"url": url})
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # Spreadsheet creation command detection
+    elif any(
+        keyword in user_input_lower
+        for keyword in ["criar planilha", "create spreadsheet", "create sheet", "nova planilha"]
+    ):
+        try:
+            import re
+            # look for filename with .xlsx or .csv
+            file_match = re.search(r"\b(\S+\.(?:xlsx|csv))\b", user_input_lower)
+            filename = file_match.group(1) if file_match else "planilha.xlsx"
+            result = action_executor.execute("create_sheet", {"filename": filename})
+            return True, result
+        except Exception as e:
+            return True, _("agent_analysis_error", error=e)
+
+    # Presentation creation command detection
+    elif any(
+        keyword in user_input_lower
+        for keyword in ["criar apresentação", "criar apresentacao", "create presentation", "criar powerpoint", "create powerpoint"]
+    ):
+        try:
+            import re
+            file_match = re.search(r"\b(\S+\.pptx)\b", user_input_lower)
+            filename = file_match.group(1) if file_match else "apresentacao.pptx"
+            # Optional title in quotes
+            title_match = re.search(r'["\']([^"\']+)["\']', user_input)
+            title = title_match.group(1) if title_match else ""
+            result = action_executor.execute("create_presentation", {"filename": filename, "title": title})
+            return True, result
         except Exception as e:
             return True, _("agent_analysis_error", error=e)
 
@@ -339,14 +526,16 @@ def initialize_components(args):
     components['device'] = device
     logger.info(f"Using device: {device}")
 
-    # Initialize LLM Manager
+    # Initialize LLM Manager lazily via provider registry
     try:
-        if LLMManager:
-            components['llm'] = LLMManager(model_id=args.model_id)
+        components['llm'] = provider_registry.create('llm', model_id=getattr(args, 'model_id', None))
+        if components['llm']:
             logger.info("LLM Manager initialized successfully")
         else:
-            logger.warning("LLM Manager not available - some features will be disabled")
-            components['llm'] = None
+            logger.warning("LLM provider returned no instance - text processing disabled")
+    except ProviderLookupError:
+        logger.warning("LLM provider not registered - some features will be disabled")
+        components['llm'] = None
     except Exception as e:
         logger.error(f"Failed to initialize LLM Manager: {e}")
         components['llm'] = None
@@ -358,38 +547,49 @@ def initialize_components(args):
 
     if args.mode in ("audio", "mixed", "auto"):
         try:
-            if AudioUtils and SpeechProcessor:
-                components['audio_utils'] = AudioUtils()
-                components['speech_processor'] = SpeechProcessor()
-                components['audio_available'] = True
+            audio_utils = provider_registry.create('audio', 'utils')
+            speech_processor = provider_registry.create('audio', 'processor')
+            components['audio_utils'] = audio_utils
+            components['speech_processor'] = speech_processor
+            components['audio_available'] = bool(audio_utils and speech_processor)
+            if components['audio_available']:
                 logger.info("Audio components initialized successfully")
             else:
-                logger.warning("Audio components not available")
-                components['audio_available'] = False
+                logger.warning("Audio components unavailable or returned None")
+        except ProviderLookupError:
+            logger.warning("Audio providers not registered")
+            components['audio_available'] = False
         except Exception as e:
             logger.warning(f"Audio components failed to initialize: {e}")
             components['audio_available'] = False
 
     # Initialize vision processor
     try:
-        if VisionProcessor:
-            components['vision_processor'] = VisionProcessor()
+        components['vision_processor'] = provider_registry.create('vision')
+        if components['vision_processor']:
             logger.info("Vision processor initialized successfully")
         else:
-            logger.warning("Vision processor not available")
-            components['vision_processor'] = None
+            logger.warning("Vision provider returned no instance")
+    except ProviderLookupError:
+        logger.warning("Vision provider not registered")
+        components['vision_processor'] = None
     except Exception as e:
         logger.warning(f"Vision processor failed to initialize: {e}")
         components['vision_processor'] = None
 
     # Initialize action executor
     try:
-        if ActionExecutor:
-            components['action_executor'] = ActionExecutor()
+        components['action_executor'] = provider_registry.create(
+            'actions',
+            consent_callback=prompt_user_consent
+        )
+        if components['action_executor']:
             logger.info("Action executor initialized successfully")
         else:
-            logger.warning("Action executor not available")
-            components['action_executor'] = None
+            logger.warning("Action executor provider returned no instance")
+    except ProviderLookupError:
+        logger.warning("Action executor provider not registered")
+        components['action_executor'] = None
     except Exception as e:
         logger.warning(f"Action executor failed to initialize: {e}")
         components['action_executor'] = None

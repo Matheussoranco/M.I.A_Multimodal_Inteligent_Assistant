@@ -13,83 +13,93 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Callable
 from email.message import EmailMessage
 
-# Optional imports with fallbacks
-try:
-    import psutil  # type: ignore
-    HAS_PSUTIL = True
-except ImportError:
-    psutil = None  # type: ignore
-    HAS_PSUTIL = False
+from ..providers import provider_registry, ProviderLookupError
 
-try:
-    import openpyxl  # type: ignore
-    from openpyxl import Workbook  # type: ignore
-    HAS_OPENPYXL = True
-except ImportError:
-    openpyxl = None  # type: ignore
-    Workbook = None  # type: ignore
-    HAS_OPENPYXL = False
-
-try:
-    import pandas as pd
-    HAS_PANDAS = True
-except ImportError:
-    pd = None
-    HAS_PANDAS = False
-
-try:
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.common.keys import Keys
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.chrome.options import Options
-    HAS_SELENIUM = True
-except ImportError:
-    webdriver = None
-    HAS_SELENIUM = False
-
-try:
-    import pyperclip  # type: ignore
-    HAS_PYPERCLIP = True
-except ImportError:
-    pyperclip = None  # type: ignore
-    HAS_PYPERCLIP = False
-
-try:
-    import plyer  # type: ignore
-    HAS_PLYER = True
-except ImportError:
-    plyer = None  # type: ignore
-    HAS_PLYER = False
-
-try:
-    import pywhatkit  # type: ignore
-    HAS_PYWHATKIT = True
-except Exception:
-    pywhatkit = None
-    HAS_PYWHATKIT = False
-
-try:
-    import wikipedia  # type: ignore
-    HAS_WIKIPEDIA = True
-except ImportError:
-    wikipedia = None  # type: ignore
-    HAS_WIKIPEDIA = False
+DEFAULT_SENSITIVE_ACTIONS = {
+    "send_email",
+    "send_whatsapp",
+    "send_message",
+    "send_telegram",
+    "run_command",
+    "run_sandboxed",
+    "web_automation",
+    "open_file",
+    "open_directory",
+    "create_presentation",
+    "add_presentation_slide",
+}
 
 class ActionExecutor:
-    def __init__(self, permissions=None, logger=None, consent_callback=None):
+    def __init__(
+        self,
+        permissions: Optional[Dict[str, bool]] = None,
+        logger: Optional[logging.Logger] = None,
+        consent_callback: Optional[Callable[[str, Dict[str, Any]], bool]] = None,
+        sensitive_actions: Optional[List[str]] = None,
+    ) -> None:
         self.permissions = permissions or {}
         self.logger = logger or logging.getLogger(__name__)
-        self.consent_callback = consent_callback or (lambda action: True)
+        self.consent_callback = consent_callback or (lambda action, params: True)
+        self.sensitive_actions = set(sensitive_actions or DEFAULT_SENSITIVE_ACTIONS)
         self.notes_file = "mia_notes.md"
         self.config = self._load_config()
+        self._document_factory = self._load_provider_factory('documents')
+        self._sandbox_factory = self._load_provider_factory('sandbox')
+        self._telegram_factory = self._load_provider_factory('messaging', 'telegram')
+        self._memory_factory = self._load_provider_factory('memory', 'manager')
+        self._document_generator_instance: Optional[Any] = None
+        self._sandbox_instance: Optional[Any] = None
+        self._telegram_client: Optional[Any] = None
+        self._memory_instance: Optional[Any] = None
         
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config file or environment variables."""
+        def _to_int(env_var: str, default: int) -> int:
+            value = os.getenv(env_var)
+            if value is None:
+                return default
+            try:
+                return int(value)
+            except ValueError:
+                self.logger.warning("Invalid integer for %s: %s", env_var, value)
+                return default
+
+        def _env(*names: str, default: Optional[str] = None) -> Optional[str]:
+            for name in names:
+                value = os.getenv(name)
+                if value not in (None, ""):
+                    return value
+            return default
+
+        def _to_int_env(*names: str, default: Optional[int] = None) -> Optional[int]:
+            raw = _env(*names)
+            if raw in (None, ""):
+                return default
+            try:
+                return int(str(raw))
+            except ValueError:
+                self.logger.warning("Invalid integer value for %s: %s", names[0], raw)
+                return default
+
+        def _to_bool_env(*names: str, default: bool = False) -> bool:
+            raw = _env(*names)
+            if raw is None:
+                return default
+            return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+        def _to_float_env(*names: str, default: Optional[float] = None) -> Optional[float]:
+            raw = _env(*names)
+            if raw in (None, ""):
+                return default
+            try:
+                return float(str(raw))
+            except ValueError:
+                self.logger.warning("Invalid float value for %s: %s", names[0], raw)
+                return default
+
         config = {
             "email": {
                 "smtp_server": os.getenv("SMTP_SERVER", "smtp.gmail.com"),
@@ -107,84 +117,250 @@ class ActionExecutor:
                 "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN", "")
             },
             "telegram": {
-                "bot_token": os.getenv("TELEGRAM_BOT_TOKEN", "")
+                "enabled": _to_bool_env("MIA_TELEGRAM_ENABLED", "TELEGRAM_ENABLED"),
+                "api_id": _to_int_env("MIA_TELEGRAM_API_ID", "TELEGRAM_API_ID"),
+                "api_hash": _env("MIA_TELEGRAM_API_HASH", "TELEGRAM_API_HASH", default=""),
+                "bot_token": _env("MIA_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN", default=""),
+                "phone_number": _env("MIA_TELEGRAM_PHONE", "TELEGRAM_PHONE"),
+                "session_dir": _env("MIA_TELEGRAM_SESSION_DIR", "TELEGRAM_SESSION_DIR", default="sessions"),
+                "session_name": _env("MIA_TELEGRAM_SESSION_NAME", "TELEGRAM_SESSION_NAME", default="mia_telegram"),
+                "default_peer": _env("MIA_TELEGRAM_DEFAULT_PEER", "TELEGRAM_DEFAULT_PEER", default=""),
+                "parse_mode": _env("MIA_TELEGRAM_PARSE_MODE", "TELEGRAM_PARSE_MODE", default="markdown"),
+                "request_timeout": _to_int_env("MIA_TELEGRAM_REQUEST_TIMEOUT", "TELEGRAM_REQUEST_TIMEOUT", default=30),
             },
             "whatsapp": {
                 "phone_number": os.getenv("WHATSAPP_PHONE", "")
-            }
+            },
+            "sandbox": {
+                "work_dir": os.getenv("MIA_SANDBOX_WORKDIR", "sandbox_runs"),
+                "log_dir": os.getenv("MIA_SANDBOX_LOGDIR", "logs/sandbox"),
+                "memory_mb": _to_int("MIA_SANDBOX_MEMORY_MB", 256),
+                "timeout_ms": _to_int("MIA_SANDBOX_TIMEOUT_MS", 10_000),
+                "fuel": os.getenv("MIA_SANDBOX_FUEL"),
+            },
+            "documents": {
+                "template_dir": os.getenv("MIA_DOC_TEMPLATE_DIR", "templates/documents"),
+                "output_dir": os.getenv("MIA_DOC_OUTPUT_DIR", "output/documents"),
+                "default_template": os.getenv("MIA_DOC_DEFAULT_TEMPLATE", "proposal"),
+            },
+            "memory": {
+                "persist_dir": _env("MIA_MEMORY_PATH", default="memory"),
+                "vector_enabled": _to_bool_env("MIA_MEMORY_VECTOR_ENABLED", default=True),
+                "graph_enabled": _to_bool_env("MIA_MEMORY_GRAPH_ENABLED", default=True),
+                "long_term_enabled": _to_bool_env("MIA_MEMORY_LONG_TERM_ENABLED", default=True),
+                "max_entries": _to_int_env("MIA_MEMORY_MAX_ENTRIES", default=10_000) or 10_000,
+                "max_results": _to_int_env("MIA_MEMORY_MAX_RESULTS", default=5) or 5,
+                "similarity_threshold": _to_float_env("MIA_MEMORY_SIMILARITY", default=0.7) or 0.7,
+            },
         }
         return config
 
-    def execute(self, action, params):
+    def _load_provider_factory(self, domain: str, name: Optional[str] = None):
+        try:
+            return provider_registry.get_factory(domain, name)
+        except ProviderLookupError:
+            self.logger.debug("Provider not registered: %s", domain)
+            return None
+        except Exception as exc:  # pragma: no cover
+            self.logger.warning("Failed to load provider %s: %s", domain, exc)
+            return None
+
+    def _get_document_generator(self):
+        if self._document_generator_instance is False:
+            return None
+        if self._document_generator_instance is not None:
+            return self._document_generator_instance
+        if not self._document_factory:
+            self._document_generator_instance = False
+            return None
+        try:
+            self._document_generator_instance = self._document_factory(
+                template_dir=self.config["documents"]["template_dir"],
+                output_dir=self.config["documents"]["output_dir"],
+                logger_instance=self.logger,
+            )
+        except Exception as exc:  # pragma: no cover
+            self.logger.warning("Failed to instantiate document generator: %s", exc)
+            self._document_generator_instance = False
+        return self._document_generator_instance or None
+
+    def _get_sandbox(self):
+        if self._sandbox_instance is False:
+            return None
+        if self._sandbox_instance is not None:
+            return self._sandbox_instance
+        if not self._sandbox_factory:
+            self._sandbox_instance = False
+            return None
+        try:
+            from ..sandbox.wasi_runner import SandboxLimits  # type: ignore
+
+            fuel_value = self.config["sandbox"].get("fuel")
+            try:
+                fuel_int = int(fuel_value) if fuel_value not in (None, "") else None
+            except ValueError:
+                self.logger.warning("Invalid sandbox fuel value: %s", fuel_value)
+                fuel_int = None
+            limits = SandboxLimits(
+                max_memory_mb=self.config["sandbox"].get("memory_mb", 256),
+                timeout_ms=self.config["sandbox"].get("timeout_ms", 10_000),
+                fuel=fuel_int,
+            )
+            self._sandbox_instance = self._sandbox_factory(
+                limits=limits,
+                work_dir=self.config["sandbox"].get("work_dir"),
+                log_dir=self.config["sandbox"].get("log_dir"),
+            )
+        except Exception as exc:  # pragma: no cover
+            self.logger.warning("Failed to instantiate sandbox: %s", exc)
+            self._sandbox_instance = False
+        return self._sandbox_instance or None
+
+    def _get_memory_manager(self):
+        if self._memory_instance is False:
+            return None
+        if self._memory_instance is not None:
+            return self._memory_instance
+        if not self._memory_factory:
+            self._memory_instance = False
+            return None
+        try:
+            memory_cfg = self.config.get("memory", {})
+            self._memory_instance = self._memory_factory(
+                persist_directory=memory_cfg.get("persist_dir", "memory"),
+                vector_enabled=memory_cfg.get("vector_enabled", True),
+                graph_enabled=memory_cfg.get("graph_enabled", True),
+                long_term_enabled=memory_cfg.get("long_term_enabled", True),
+                max_long_term_entries=memory_cfg.get("max_entries", 10_000),
+                max_results=memory_cfg.get("max_results", 5),
+                similarity_threshold=memory_cfg.get("similarity_threshold", 0.7),
+                logger_instance=self.logger,
+            )
+        except Exception as exc:  # pragma: no cover
+            self.logger.warning("Failed to instantiate memory manager: %s", exc)
+            self._memory_instance = False
+        return self._memory_instance or None
+
+    def _get_telegram_client(self):
+        if self._telegram_client is False:
+            return None
+        if self._telegram_client is not None:
+            return self._telegram_client
+        if not self._telegram_factory:
+            self._telegram_client = False
+            return None
+        try:
+            telegram_cfg = self.config.get("telegram", {})
+            self._telegram_client = self._telegram_factory(
+                api_id=telegram_cfg.get("api_id"),
+                api_hash=telegram_cfg.get("api_hash"),
+                bot_token=telegram_cfg.get("bot_token"),
+                phone_number=telegram_cfg.get("phone_number"),
+                session_dir=telegram_cfg.get("session_dir"),
+                session_name=telegram_cfg.get("session_name"),
+                default_peer=telegram_cfg.get("default_peer"),
+                parse_mode=telegram_cfg.get("parse_mode"),
+                request_timeout=telegram_cfg.get("request_timeout", 30),
+                enabled=telegram_cfg.get("enabled", False),
+                logger_instance=self.logger,
+            )
+        except Exception as exc:  # pragma: no cover
+            self.logger.warning("Failed to instantiate Telegram messenger: %s", exc)
+            self._telegram_client = False
+        return self._telegram_client or None
+
+    def execute(self, action: str, params: Optional[Dict[str, Any]]):
         """Execute an action with given parameters."""
         if not action:
             return "No action provided."
         
+        params = params or {}
         self.logger.info(f"Executing action: {action}")
         
+        consent_prompted = False
+
         # Check permissions (allow all actions by default unless specifically restricted)
         if self.permissions and action in self.permissions and not self.permissions[action]:
-            if not self.consent_callback(action):
+            consent_prompted = True
+            if not self.consent_callback(action, params):
                 self.logger.warning(f"Permission denied for action: {action}")
                 return f"Permission denied for action: {action}"
+
+        if action in self.sensitive_actions and not consent_prompted:
+            if not self.consent_callback(action, params):
+                self.logger.info("Action cancelled after consent prompt: %s", action)
+                return f"Action '{action}' cancelled by user consent."
         
         try:
             # Use dispatch pattern for better maintainability
             action_dispatch = {
                 # File operations
-                "open_file": lambda: self.open_file(params.get("path")),
-                "create_file": lambda: self.create_file(params.get("path"), params.get("content", "")),
-                "read_file": lambda: self.read_file(params.get("path")),
-                "write_file": lambda: self.write_file(params.get("path"), params.get("content")),
+                "open_file": lambda: self.open_file(params.get("path") or ""),
+                "create_file": lambda: self.create_file(params.get("path") or "", params.get("content", "")),
+                "read_file": lambda: self.read_file(params.get("path") or ""),
+                "write_file": lambda: self.write_file(params.get("path") or "", params.get("content", "")),
                 "move_file": lambda: self.move_file(params.get("src"), params.get("dst")),
-                "delete_file": lambda: self.delete_file(params.get("path")),
-                "search_file": lambda: self.search_file(params.get("name"), params.get("directory", ".")),
-                "open_directory": lambda: self.open_directory(params.get("path")),
-                "create_directory": lambda: self.create_directory(params.get("path")),
+                "delete_file": lambda: self.delete_file(params.get("path") or ""),
+                "search_file": lambda: self.search_file(params.get("name") or "", params.get("directory", ".")),
+                "open_directory": lambda: self.open_directory(params.get("path") or ""),
+                "create_directory": lambda: self.create_directory(params.get("path") or ""),
                 
                 # Code generation
-                "create_code": lambda: self.create_code(params.get("language"), params.get("description"), params.get("filename")),
-                "analyze_code": lambda: self.analyze_code(params.get("path")),
+                "create_code": lambda: self.create_code(params.get("language") or "", params.get("description") or "", params.get("filename")),
+                "analyze_code": lambda: self.analyze_code(params.get("path") or ""),
                 
                 # Notes and documentation
-                "make_note": lambda: self.make_note(params.get("content"), params.get("title")),
+                "make_note": lambda: self.make_note(params.get("content") or "", params.get("title")),
                 "read_notes": lambda: self.read_notes(),
-                "search_notes": lambda: self.search_notes(params.get("query")),
+                "search_notes": lambda: self.search_notes(params.get("query") or ""),
+                "create_docx": lambda: self.generate_docx(params),
+                "create_pdf": lambda: self.generate_pdf(params),
+                "store_memory": lambda: self.store_memory(params),
+                "search_memory": lambda: self.search_memory(params),
+                "link_memory_nodes": lambda: self.link_memory_nodes(params),
                 
                 # Spreadsheet operations
-                "create_sheet": lambda: self.create_sheet(params.get("filename"), params.get("data")),
-                "read_sheet": lambda: self.read_sheet(params.get("filename")),
-                "write_sheet": lambda: self.write_sheet(params.get("filename"), params.get("data")),
+                "create_sheet": lambda: self.create_sheet(params.get("filename") or "", params.get("data")),
+                "read_sheet": lambda: self.read_sheet(params.get("filename") or ""),
+                "write_sheet": lambda: self.write_sheet(params.get("filename") or "", params.get("data") or []),
+                "open_sheet": lambda: self.open_file(params.get("filename") or ""),
+
+                # Presentation (PowerPoint)
+                "create_presentation": lambda: self.create_presentation(params.get("filename") or "", params.get("title"), params.get("content")),
+                "add_presentation_slide": lambda: self.add_presentation_slide(params.get("filename") or "", params.get("title"), params.get("bullets") or []),
+                "open_presentation": lambda: self.open_file(params.get("filename") or ""),
                 
                 # Research and web operations
-                "web_search": lambda: self.web_search(params.get("query")),
-                "web_scrape": lambda: self.web_scrape(params.get("url")),
-                "research_topic": lambda: self.research_topic(params.get("topic")),
-                "wikipedia_search": lambda: self.wikipedia_search(params.get("query")),
+                "web_search": lambda: self.web_search(params.get("query") or ""),
+                "web_scrape": lambda: self.web_scrape(params.get("url") or ""),
+                "research_topic": lambda: self.research_topic(params.get("topic") or ""),
+                "wikipedia_search": lambda: self.wikipedia_search(params.get("query") or ""),
                 
                 # Smart home integration
                 "control_device": lambda: self._handle_control_device(params),
                 
                 # System integration
-                "clipboard_copy": lambda: self.clipboard_copy(params.get("text")),
+                "clipboard_copy": lambda: self.clipboard_copy(params.get("text") or ""),
                 "clipboard_paste": lambda: self.clipboard_paste(),
-                "show_notification": lambda: self.show_notification(params.get("title"), params.get("message")),
-                "open_application": lambda: self.open_application(params.get("app_name")),
+                "show_notification": lambda: self.show_notification(params.get("title") or "", params.get("message") or ""),
+                "open_application": lambda: self.open_application(params.get("app_name") or ""),
                 "get_system_info": lambda: self.get_system_info(),
                 
                 # Application control
-                "launch_app": lambda: self.launch_app(params.get("app")),
-                "close_app": lambda: self.close_app(params.get("app")),
+                "launch_app": lambda: self.launch_app(params.get("app") or ""),
+                "close_app": lambda: self.close_app(params.get("app") or ""),
                 "clipboard": lambda: self.clipboard_action(params),
                 "notify": lambda: self.notify(params.get("message")),
                 "system_setting": lambda: self.system_setting(params),
                 "run_command": lambda: self.run_command(params.get("command")),
+                "run_sandboxed": lambda: self.run_sandboxed(params),
                 "web_automation": lambda: self.web_automation(params),
                 
                 # Communication
                 "send_email": lambda: self.send_email(params),
                 "send_whatsapp": lambda: self.send_whatsapp(params),
                 "send_message": lambda: self.send_message(params),
+                "send_telegram": lambda: self._send_telegram(params.get("to", ""), params.get("message", "")),
                 
                 # Calendar and scheduling
                 "calendar_event": lambda: self.calendar_event(params),
@@ -297,6 +473,168 @@ class ActionExecutor:
             return f"Created directory: {path}"
         except Exception as e:
             return f"Error creating directory: {e}"
+
+    # Document generation
+    def generate_docx(self, params: Dict[str, Any]) -> str:
+        generator = self._get_document_generator()
+        if not generator:
+            return "Document generator not available. Install python-docx and enable the provider."
+
+        context_input = params.get("context")
+        context = dict(context_input) if isinstance(context_input, dict) else {}
+        summary = params.get("summary") or params.get("content") or params.get("body")
+        title = params.get("title") or params.get("name")
+        if summary:
+            context.setdefault("summary", summary)
+        if title:
+            context.setdefault("title", title)
+
+        template = params.get("template") or self.config["documents"].get("default_template", "proposal")
+        output_path = params.get("output_path")
+        return generator.create_docx(template, context, output_path)
+
+    def generate_pdf(self, params: Dict[str, Any]) -> str:
+        generator = self._get_document_generator()
+        if not generator:
+            return "Document generator not available. Install reportlab and enable the provider."
+
+        context_input = params.get("context")
+        context = dict(context_input) if isinstance(context_input, dict) else {}
+        summary = params.get("summary") or params.get("content") or params.get("body")
+        title = params.get("title") or params.get("name")
+        if summary:
+            context.setdefault("summary", summary)
+        if title:
+            context.setdefault("title", title)
+
+        template = params.get("template") or self.config["documents"].get("default_template", "proposal")
+        output_path = params.get("output_path")
+        return generator.create_pdf(template, context, output_path)
+
+    # Memory operations ----------------------------------------------------
+
+    def store_memory(self, params: Dict[str, Any]) -> str:
+        manager = self._get_memory_manager()
+        if not manager:
+            return "Memory manager not available. Enable memory support and install optional dependencies."
+
+        text = params.get("text") or params.get("content") or params.get("summary")
+        if not text:
+            return "No memory content provided."
+
+        embedding = params.get("embedding")
+        if isinstance(embedding, str):
+            try:
+                cleaned = embedding.replace("[", "").replace("]", "")
+                embedding = [float(item.strip()) for item in cleaned.split(",") if item.strip()]
+            except ValueError:
+                self.logger.warning("Invalid embedding string provided; ignoring embedding")
+                embedding = None
+        metadata = params.get("metadata") if isinstance(params.get("metadata"), dict) else {}
+        relations_input = params.get("relations")
+        relation_entries = None
+        if relations_input is not None:
+            relation_entries = []
+            items = relations_input if isinstance(relations_input, (list, tuple)) else [relations_input]
+            for item in items:
+                if isinstance(item, dict):
+                    source = item.get("source")
+                    target = item.get("target")
+                    if not source or not target:
+                        continue
+                    relation_entries.append(
+                        (
+                            source,
+                            item.get("relation") or item.get("predicate") or "related_to",
+                            target,
+                            item.get("metadata"),
+                        )
+                    )
+                elif isinstance(item, (list, tuple)):
+                    if len(item) >= 3:
+                        relation_entries.append(tuple(item))
+            if not relation_entries:
+                relation_entries = None
+
+        try:
+            record = manager.store_memory(
+                text,
+                embedding=embedding,
+                metadata=metadata,
+                relations=relation_entries,
+            )
+            reference = record.get("vector_id") or record.get("long_term_id")
+            return f"Memory stored successfully (ref={reference or 'n/a'})."
+        except Exception as exc:
+            self.logger.error("Failed to store memory: %s", exc)
+            return f"Error storing memory: {exc}"
+
+    def search_memory(self, params: Dict[str, Any]) -> str:
+        manager = self._get_memory_manager()
+        if not manager:
+            return "Memory manager not available."
+
+        query = params.get("query") or params.get("text") or params.get("keyword")
+        embedding = params.get("embedding")
+        if isinstance(embedding, str):
+            cleaned = embedding.replace("[", "").replace("]", "")
+            try:
+                embedding = [float(item.strip()) for item in cleaned.split(",") if item.strip()]
+            except ValueError:
+                self.logger.warning("Invalid embedding string provided for search; ignoring embedding")
+                embedding = None
+        top_k_raw = params.get("top_k") or params.get("limit")
+        top_k = None
+        if top_k_raw is not None:
+            try:
+                top_k = int(top_k_raw)
+            except (TypeError, ValueError):
+                self.logger.warning("Invalid top_k value provided: %s", top_k_raw)
+        try:
+            results = manager.search_memory(
+                embedding=embedding,
+                query=query,
+                top_k=top_k,
+            )
+        except Exception as exc:
+            self.logger.error("Failed to search memory: %s", exc)
+            return f"Error searching memory: {exc}"
+
+        if not results:
+            return "No memory results found."
+
+        lines: List[str] = []
+        for idx, item in enumerate(results, start=1):
+            preview = str(item.get("text", ""))
+            if len(preview) > 160:
+                preview = preview[:157] + "..."
+            source = item.get("source", "unknown")
+            score = item.get("score")
+            segment = f"{idx}. [{source}] {preview}"
+            if isinstance(score, (int, float)):
+                segment += f" (score={score:.3f})"
+            lines.append(segment)
+        return "Memory results:\n" + "\n".join(lines)
+
+    def link_memory_nodes(self, params: Dict[str, Any]) -> str:
+        manager = self._get_memory_manager()
+        if not manager:
+            return "Memory manager not available."
+
+        source = params.get("source") or params.get("from")
+        target = params.get("target") or params.get("to")
+        relation = params.get("relation") or params.get("predicate") or "related_to"
+        metadata = params.get("metadata") if isinstance(params.get("metadata"), dict) else None
+
+        if not source or not target:
+            return "Source and target are required to link memory nodes."
+
+        try:
+            manager.add_relation(str(source), str(relation), str(target), metadata=metadata)
+            return f"Linked memory nodes: {source} -> {target} ({relation})."
+        except Exception as exc:
+            self.logger.error("Failed to link memory nodes: %s", exc)
+            return f"Error linking memory nodes: {exc}"
 
     # Code Generation and Analysis
     def create_code(self, language: str, description: str, filename: Optional[str] = None) -> str:
@@ -508,9 +846,11 @@ body {{
 
     def _create_excel_sheet(self, filename: str, data: Optional[List[List[str]]] = None) -> str:
         """Create Excel spreadsheet."""
-        if not HAS_OPENPYXL:
+        try:
+            from openpyxl import Workbook  # type: ignore
+        except ImportError:
             return "openpyxl not installed. Run: pip install openpyxl"
-        
+
         wb = Workbook()  # type: ignore
         ws = wb.active  # type: ignore
         if ws is None:
@@ -556,10 +896,12 @@ body {{
 
     def _read_excel_sheet(self, filename: str) -> str:
         """Read Excel spreadsheet."""
-        if not HAS_OPENPYXL:
+        try:
+            from openpyxl import load_workbook  # type: ignore
+        except ImportError:
             return "openpyxl not installed. Run: pip install openpyxl"
-        
-        wb = openpyxl.load_workbook(filename)  # type: ignore
+
+        wb = load_workbook(filename)  # type: ignore
         ws = wb.active  # type: ignore
         if ws is None:
             return "Failed to load worksheet"
@@ -597,9 +939,11 @@ body {{
 
     def _write_excel_sheet(self, filename: str, data: List[List[str]]) -> str:
         """Write to Excel spreadsheet."""
-        if not HAS_OPENPYXL:
+        try:
+            from openpyxl import Workbook  # type: ignore
+        except ImportError:
             return "openpyxl not installed. Run: pip install openpyxl"
-        
+
         wb = Workbook()  # type: ignore
         ws = wb.active
         if ws is None:
@@ -618,6 +962,68 @@ body {{
             writer.writerows(data)
         
         return f"Data written to CSV sheet: {filename}"
+
+    # Presentations (PowerPoint)
+    def create_presentation(self, filename: str, title: Optional[str] = None, content: Optional[str] = None) -> str:
+        """Create a new PowerPoint presentation with an optional title slide."""
+        if not filename:
+            return "No filename provided."
+        if not filename.lower().endswith('.pptx'):
+            filename += '.pptx'
+        try:
+            from pptx import Presentation  # type: ignore
+        except ImportError:
+            return "python-pptx not installed. Run: pip install python-pptx"
+
+        try:
+            pres = Presentation()  # type: ignore
+            # Title slide layout (0) if available
+            layout = pres.slide_layouts[0]  # type: ignore
+            slide = pres.slides.add_slide(layout)  # type: ignore
+            if title:
+                slide.shapes.title.text = title  # type: ignore
+            if content:
+                subtitle = slide.placeholders[1] if len(slide.placeholders) > 1 else None  # type: ignore
+                if subtitle is not None:
+                    subtitle.text = content  # type: ignore
+            pres.save(filename)  # type: ignore
+            return f"Presentation created: {filename}"
+        except Exception as e:
+            return f"Error creating presentation: {e}"
+
+    def add_presentation_slide(self, filename: str, title: Optional[str] = None, bullets: Optional[List[str]] = None) -> str:
+        """Add a slide with title and bullet points to an existing presentation."""
+        if not filename:
+            return "No filename provided."
+        if not os.path.exists(filename):
+            return f"Presentation not found: {filename}"
+        try:
+            from pptx import Presentation  # type: ignore
+        except ImportError:
+            return "python-pptx not installed. Run: pip install python-pptx"
+
+        try:
+            pres = Presentation(filename)  # type: ignore
+            layout = pres.slide_layouts[1]  # Title and Content
+            slide = pres.slides.add_slide(layout)  # type: ignore
+            if title:
+                slide.shapes.title.text = title  # type: ignore
+            if bullets:
+                body = slide.shapes.placeholders[1].text_frame  # type: ignore
+                body.clear()  # type: ignore
+                first = True
+                for b in bullets:
+                    if first:
+                        body.text = str(b)
+                        first = False
+                    else:
+                        p = body.add_paragraph()
+                        p.text = str(b)
+                        p.level = 0
+            pres.save(filename)  # type: ignore
+            return f"Slide added to {filename}"
+        except Exception as e:
+            return f"Error adding slide: {e}"
 
     # Application Control
     def launch_app(self, app):
@@ -742,17 +1148,86 @@ body {{
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         return result.stdout or result.stderr
 
+    def run_sandboxed(self, params: Dict[str, Any]) -> str:
+        sandbox = self._get_sandbox()
+        if not sandbox:
+            return "Sandbox provider not available. Install wasmtime/wasmer and enable the provider."
+
+        module_path = params.get("module_path")
+        wasm_bytes = params.get("wasm_bytes")
+        wat_source = params.get("wat") or params.get("code")
+
+        if wat_source and not wasm_bytes:
+            try:
+                from wasmtime import wat2wasm  # type: ignore
+            except Exception:
+                return "wat2wasm requires wasmtime. Install with 'pip install wasmtime'."
+            try:
+                wasm_bytes = wat2wasm(wat_source)
+            except Exception as exc:  # pragma: no cover
+                return f"Failed to compile WAT: {exc}"
+
+        if not module_path and wasm_bytes is None:
+            return "Provide 'module_path', 'wasm_bytes', or 'wat' to execute in the sandbox."
+
+        stdin_data = params.get("stdin")
+        if isinstance(stdin_data, bytes):
+            stdin_bytes = stdin_data
+        elif isinstance(stdin_data, str):
+            stdin_bytes = stdin_data.encode("utf-8")
+        else:
+            stdin_bytes = None
+
+        args_value = params.get("args") or []
+        if isinstance(args_value, (str, bytes)):
+            args_list = [str(args_value)]
+        else:
+            args_list = [str(arg) for arg in args_value]
+
+        env_value = params.get("env") or {}
+        if isinstance(env_value, dict):
+            env_map = {str(k): str(v) for k, v in env_value.items()}
+        else:
+            env_map = {}
+
+        try:
+            result = sandbox.run(
+                module_path=module_path,
+                wasi_bytes=wasm_bytes,
+                stdin=stdin_bytes,
+                args=args_list,
+                env=env_map,
+            )
+        except Exception as exc:  # pragma: no cover
+            self.logger.error("Sandbox execution failed: %s", exc)
+            return f"Sandbox execution failed: {exc}"
+
+        return (
+            f"Sandbox run {result.get('id')} exit_code={result.get('exit_code')} "
+            f"engine={result.get('engine')} duration={result.get('duration_ms')}ms. "
+            f"Logs: {result.get('log_file')}"
+        )
+
     # Web Automation (Selenium)
     def web_automation(self, params):
-        if webdriver is None:
+        try:
+            from selenium import webdriver  # type: ignore
+        except ImportError:
             return "Selenium not installed. Run: pip install selenium."
+
         url = params.get("url")
         if not url:
             return "No URL provided."
-        driver = webdriver.Chrome()
-        driver.get(url)
-        # Add more automation as needed
-        driver.quit()
+        try:
+            driver = None
+            driver = webdriver.Chrome()
+            driver.get(url)
+        finally:
+            try:
+                if driver:
+                    driver.quit()
+            except Exception:
+                pass
         return f"Web automation on {url} complete."
 
     # Email (SMTP)
@@ -818,22 +1293,15 @@ body {{
             return f"Error sending message: {e}"
 
     def _send_telegram(self, to, message):
-        """Send Telegram message."""
-        bot_token = self.config.get("telegram", {}).get("bot_token", "")
-        if not bot_token:
-            return "Telegram bot token not configured."
-        
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        data = {"chat_id": to, "text": message}
-        
+        """Send Telegram message via configured messenger."""
+        client = self._get_telegram_client()
+        if not client:
+            return "Telegram messenger not available. Configure credentials and install Telethon."
         try:
-            response = requests.post(url, json=data)
-            if response.status_code == 200:
-                return f"Telegram message sent to {to}"
-            else:
-                return f"Telegram error: {response.text}"
-        except Exception as e:
-            return f"Error sending Telegram message: {e}"
+            return client.send_message(message, recipient=to)
+        except Exception as exc:
+            self.logger.error("Telegram send failed: %s", exc)
+            return f"Error sending Telegram message: {exc}"
 
     def _send_sms(self, to, message):
         """Send SMS message."""
@@ -964,22 +1432,26 @@ body {{
             return "No text provided to copy."
         
         try:
-            if HAS_PYPERCLIP:
-                pyperclip.copy(text)  # type: ignore
-                return f"Text copied to clipboard: {text[:50]}..."
-            else:
-                return "pyperclip not installed. Run: pip install pyperclip"
+            import pyperclip  # type: ignore
+        except ImportError:
+            return "pyperclip not installed. Run: pip install pyperclip"
+
+        try:
+            pyperclip.copy(text)  # type: ignore
+            return f"Text copied to clipboard: {text[:50]}..."
         except Exception as e:
             return f"Error copying to clipboard: {e}"
 
     def clipboard_paste(self) -> str:
         """Get text from clipboard."""
         try:
-            if HAS_PYPERCLIP:
-                text = pyperclip.paste()  # type: ignore
-                return f"Clipboard content: {text}"
-            else:
-                return "pyperclip not installed. Run: pip install pyperclip"
+            import pyperclip  # type: ignore
+        except ImportError:
+            return "pyperclip not installed. Run: pip install pyperclip"
+
+        try:
+            text = pyperclip.paste()  # type: ignore
+            return f"Clipboard content: {text}"
         except Exception as e:
             return f"Error reading clipboard: {e}"
 
@@ -989,16 +1461,18 @@ body {{
             return "Title and message required for notification."
         
         try:
-            if HAS_PLYER:
-                plyer.notification.notify(  # type: ignore
-                    title=title,
-                    message=message,
-                    app_name="M.I.A",
-                    timeout=10
-                )
-                return f"Notification sent: {title} - {message}"
-            else:
-                return "plyer not installed. Run: pip install plyer"
+            from plyer import notification  # type: ignore
+        except ImportError:
+            return "plyer not installed. Run: pip install plyer"
+
+        try:
+            notification.notify(  # type: ignore
+                title=title,
+                message=message,
+                app_name="M.I.A",
+                timeout=10
+            )
+            return f"Notification sent: {title} - {message}"
         except Exception as e:
             return f"Error showing notification: {e}"
 
@@ -1031,14 +1505,16 @@ body {{
                 "python_version": platform.python_version(),
             }
             
-            if HAS_PSUTIL:
-                info.update({  # type: ignore
+            try:
+                import psutil  # type: ignore
+            except ImportError:
+                info["note"] = "psutil not installed. Run: pip install psutil for detailed system info"
+            else:
+                info.update({
                     "cpu_count": psutil.cpu_count(),  # type: ignore
                     "memory": f"{psutil.virtual_memory().total / (1024**3):.2f} GB",  # type: ignore
                     "disk_usage": f"{psutil.disk_usage('/').percent}%"  # type: ignore
                 })
-            else:
-                info["note"] = "psutil not installed. Run: pip install psutil for detailed system info"
             
             return json.dumps(info, indent=2)
         except Exception as e:
@@ -1105,11 +1581,13 @@ body {{
             return "No search query provided."
         
         try:
-            if HAS_WIKIPEDIA:
-                summary = wikipedia.summary(query, sentences=3)  # type: ignore
-                return f"Wikipedia summary for '{query}': {summary}"
-            else:
-                return "Wikipedia library not installed. Run: pip install wikipedia"
+            import wikipedia  # type: ignore
+        except ImportError:
+            return "Wikipedia library not installed. Run: pip install wikipedia"
+
+        try:
+            summary = wikipedia.summary(query, sentences=3)  # type: ignore
+            return f"Wikipedia summary for '{query}': {summary}"
         except Exception as e:
             return f"Error searching Wikipedia: {e}"
 
@@ -1132,14 +1610,23 @@ body {{
         recipient = params.get("recipient", "")
         if not message:
             return "No message provided."
-        if HAS_PYWHATKIT:
-            try:
-                pywhatkit.sendwhatmsg_instantly(recipient or self.config.get('whatsapp', {}).get('phone_number', ''), message)  # type: ignore
-                return f"Sent WhatsApp message to {recipient}"
-            except Exception as e:
-                return f"Error sending WhatsApp: {e}"
-        else:
+        try:
+            import pywhatkit  # type: ignore
+        except ImportError:
             return "WhatsApp not available. Install pywhatkit."
+
+        try:
+            send_instant = getattr(pywhatkit, "sendwhatmsg_instantly", None)
+            if not callable(send_instant):
+                return "pywhatkit does not provide sendwhatmsg_instantly. Update the library."
+
+            send_instant(
+                recipient or self.config.get('whatsapp', {}).get('phone_number', ''),
+                message
+            )  # type: ignore
+            return f"Sent WhatsApp message to {recipient}"
+        except Exception as e:
+            return f"Error sending WhatsApp: {e}"
 
     def control_lights(self, params) -> str:
         """Control lights."""

@@ -28,6 +28,10 @@ audio:
   llm_model_id: null           # Override LLM model for audio workflows
   llm_api_key: null            # Override LLM API key for audio workflows
   llm_url: null                # Override LLM endpoint for audio workflows
+  vad_enabled: false           # Enable voice activity detection (requires webrtcvad)
+  vad_aggressiveness: 2        # 0 (least aggressive) to 3 (most aggressive)
+  vad_frame_duration_ms: 30    # Frame size in milliseconds (10, 20, 30)
+  vad_silence_duration_ms: 600 # Minimum active speech duration before accepting audio
 
 # Vision Configuration
 vision:
@@ -45,10 +49,14 @@ vision:
 # Memory Configuration
 memory:
   enabled: true                # Enable memory system
+  vector_enabled: true         # Enable vector embeddings via ChromaDB
+  graph_enabled: true          # Enable knowledge-graph relations
+  long_term_enabled: true      # Enable long-term list storage
   vector_db_path: memory/      # Vector database path
   max_memory_size: 10000       # Maximum memory entries
   embedding_dimension: 768     # Embedding dimension
-  similarity_threshold: 0.7    # Similarity threshold for retrieval
+  similarity_threshold: 0.7    # Similarity threshold for retrieval (lower is closer)
+  max_results: 5               # Default maximum results returned per query
 
 # Security Configuration
 security:
@@ -77,3 +85,32 @@ system:
   retry_attempts: 3            # Number of retry attempts
   cache_enabled: true          # Enable caching
   cache_ttl: 3600             # Cache TTL in seconds
+
+# Sandbox Configuration
+sandbox:
+  enabled: true               # Enable WASI sandbox execution
+  work_dir: sandbox_runs      # Working directory for sandbox temp files
+  log_dir: logs/sandbox       # Directory for sandbox logs
+  runtime: auto               # auto | wasmtime | wasmer
+  max_memory_mb: 256          # Memory limit per execution (MB)
+  timeout_ms: 10000           # Timeout per execution (milliseconds)
+  fuel: null                  # Optional fuel limit (instructions)
+
+# Document Generation
+documents:
+  template_dir: templates/documents  # Directory for DOCX/PDF templates
+  output_dir: output/documents       # Directory where generated files are stored
+  default_template: proposal         # Default template key
+
+# Telegram Messaging
+telegram:
+  enabled: false             # Enable Telegram messaging via Telethon
+  api_id: null               # Telegram API ID (required when enabled)
+  api_hash: null             # Telegram API hash (required when enabled)
+  bot_token: null            # Bot token (set for bot mode)
+  phone_number: null         # Phone number (set for user mode; requires existing session)
+  session_dir: sessions      # Directory for Telethon session files
+  session_name: mia_telegram # Session file name
+  default_peer: null         # Default chat/user to message when none is provided
+  parse_mode: markdown       # Message parse mode (markdown, html, or None)
+  request_timeout: 30        # Telethon timeout in seconds

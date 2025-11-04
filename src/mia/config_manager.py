@@ -83,6 +83,10 @@ class AudioConfig:
     llm_model_id: Optional[str] = None
     llm_api_key: Optional[str] = None
     llm_url: Optional[str] = None
+    vad_enabled: bool = False
+    vad_aggressiveness: int = 2
+    vad_frame_duration_ms: int = 30
+    vad_silence_duration_ms: int = 600
     
     def validate(self) -> None:
         """Validate audio configuration."""
@@ -100,6 +104,15 @@ class AudioConfig:
 
         if self.llm_provider and self.llm_provider not in SUPPORTED_LLM_PROVIDERS:
             raise ValidationError(f"Unsupported audio LLM provider: {self.llm_provider}", "UNSUPPORTED_AUDIO_LLM_PROVIDER")
+
+        if not 0 <= self.vad_aggressiveness <= 3:
+            raise ValidationError("VAD aggressiveness must be between 0 and 3", "INVALID_VAD_AGGRESSIVENESS")
+
+        if self.vad_frame_duration_ms not in {10, 20, 30}:
+            raise ValidationError("VAD frame duration must be 10, 20, or 30 ms", "INVALID_VAD_FRAME_DURATION")
+
+        if self.vad_silence_duration_ms <= 0:
+            raise ValidationError("VAD silence duration must be positive", "INVALID_VAD_SILENCE_DURATION")
 
 @dataclass
 class VisionConfig:
@@ -125,10 +138,14 @@ class VisionConfig:
 class MemoryConfig:
     """Configuration for memory systems."""
     enabled: bool = True
+    vector_enabled: bool = True
+    graph_enabled: bool = True
+    long_term_enabled: bool = True
     vector_db_path: str = "memory/"
     max_memory_size: int = 10000
     embedding_dimension: int = 768
     similarity_threshold: float = 0.7
+    max_results: int = 5
     
     def validate(self) -> None:
         """Validate memory configuration."""
@@ -140,6 +157,77 @@ class MemoryConfig:
         
         if not 0.0 <= self.similarity_threshold <= 1.0:
             raise ValidationError("Similarity threshold must be between 0.0 and 1.0", "INVALID_THRESHOLD")
+        
+        if not self.vector_db_path:
+            raise ValidationError("Vector DB path cannot be empty", "INVALID_MEMORY_PATH")
+
+        if self.max_results <= 0:
+            raise ValidationError("Max results must be positive", "INVALID_MAX_RESULTS")
+
+
+@dataclass
+class SandboxConfig:
+    """Configuration for sandbox execution."""
+    enabled: bool = True
+    work_dir: str = "sandbox_runs"
+    log_dir: str = "logs/sandbox"
+    runtime: str = "auto"
+    max_memory_mb: int = 256
+    timeout_ms: int = 10_000
+    fuel: Optional[int] = None
+
+    def validate(self) -> None:
+        if self.max_memory_mb <= 0:
+            raise ValidationError("Sandbox memory must be positive", "INVALID_SANDBOX_MEMORY")
+        if self.timeout_ms <= 0:
+            raise ValidationError("Sandbox timeout must be positive", "INVALID_SANDBOX_TIMEOUT")
+        if self.runtime not in {"auto", "wasmtime", "wasmer"}:
+            raise ValidationError("Sandbox runtime must be auto, wasmtime or wasmer", "INVALID_SANDBOX_RUNTIME")
+
+
+@dataclass
+class DocumentConfig:
+    """Configuration for document generation."""
+    template_dir: str = "templates/documents"
+    output_dir: str = "output/documents"
+    default_template: str = "proposal"
+
+    def validate(self) -> None:
+        if not self.template_dir:
+            raise ValidationError("Template directory cannot be empty", "INVALID_TEMPLATE_DIR")
+        if not self.output_dir:
+            raise ValidationError("Output directory cannot be empty", "INVALID_OUTPUT_DIR")
+
+
+@dataclass
+class TelegramConfig:
+    """Configuration for Telegram messaging."""
+    enabled: bool = False
+    api_id: Optional[int] = None
+    api_hash: Optional[str] = None
+    bot_token: Optional[str] = None
+    phone_number: Optional[str] = None
+    session_dir: str = "sessions"
+    session_name: str = "mia_telegram"
+    default_peer: Optional[str] = None
+    parse_mode: str = "markdown"
+    request_timeout: int = 30
+
+    def validate(self) -> None:
+        if self.request_timeout <= 0:
+            raise ValidationError("Telegram request timeout must be positive", "INVALID_TELEGRAM_TIMEOUT")
+        if not self.enabled:
+            return
+        if not self.api_id or not self.api_hash:
+            raise ValidationError(
+                "Telegram API ID and API hash are required when Telegram is enabled",
+                "MISSING_TELEGRAM_API",
+            )
+        if not (self.bot_token or self.phone_number):
+            raise ValidationError(
+                "Telegram requires either a bot token or a phone number when enabled",
+                "MISSING_TELEGRAM_AUTH",
+            )
 
 @dataclass
 class SecurityConfig:
@@ -194,6 +282,9 @@ class MIAConfig:
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     system: SystemConfig = field(default_factory=SystemConfig)
+    sandbox: SandboxConfig = field(default_factory=SandboxConfig)
+    documents: DocumentConfig = field(default_factory=DocumentConfig)
+    telegram: TelegramConfig = field(default_factory=TelegramConfig)
     
     def validate(self) -> None:
         """Validate all configuration sections."""
@@ -203,6 +294,9 @@ class MIAConfig:
         self.memory.validate()
         self.security.validate()
         self.system.validate()
+        self.sandbox.validate()
+        self.documents.validate()
+        self.telegram.validate()
 
 class ConfigManager:
     """Configuration manager for M.I.A."""
@@ -316,7 +410,10 @@ class ConfigManager:
                 vision=VisionConfig(**config_data.get('vision', {})),
                 memory=MemoryConfig(**config_data.get('memory', {})),
                 security=SecurityConfig(**config_data.get('security', {})),
-                system=SystemConfig(**config_data.get('system', {}))
+                system=SystemConfig(**config_data.get('system', {})),
+                sandbox=SandboxConfig(**config_data.get('sandbox', {})),
+                documents=DocumentConfig(**config_data.get('documents', {})),
+                telegram=TelegramConfig(**config_data.get('telegram', {})),
             )
         except TypeError as e:
             raise ConfigurationError(f"Invalid configuration structure: {str(e)}", "INVALID_STRUCTURE")
@@ -340,11 +437,50 @@ class ConfigManager:
             'MIA_AUDIO_LLM_MODEL_ID': ('audio', 'llm_model_id'),
             'MIA_AUDIO_LLM_API_KEY': ('audio', 'llm_api_key'),
             'MIA_AUDIO_LLM_URL': ('audio', 'llm_url'),
+            'MIA_AUDIO_VAD_ENABLED': ('audio', 'vad_enabled'),
+            'MIA_AUDIO_VAD_AGGRESSIVENESS': ('audio', 'vad_aggressiveness'),
+            'MIA_AUDIO_VAD_FRAME_MS': ('audio', 'vad_frame_duration_ms'),
+            'MIA_AUDIO_VAD_SILENCE_MS': ('audio', 'vad_silence_duration_ms'),
             'MIA_VISION_ENABLED': ('vision', 'enabled'),
             'MIA_MEMORY_ENABLED': ('memory', 'enabled'),
+            'MIA_MEMORY_VECTOR_ENABLED': ('memory', 'vector_enabled'),
+            'MIA_MEMORY_GRAPH_ENABLED': ('memory', 'graph_enabled'),
+            'MIA_MEMORY_LONG_TERM_ENABLED': ('memory', 'long_term_enabled'),
+            'MIA_MEMORY_PATH': ('memory', 'vector_db_path'),
+            'MIA_MEMORY_MAX_RESULTS': ('memory', 'max_results'),
             'MIA_SECURITY_ENABLED': ('security', 'enabled'),
             'MIA_SYSTEM_DEBUG': ('system', 'debug'),
             'MIA_SYSTEM_LOG_LEVEL': ('system', 'log_level'),
+            'MIA_SANDBOX_ENABLED': ('sandbox', 'enabled'),
+            'MIA_SANDBOX_WORKDIR': ('sandbox', 'work_dir'),
+            'MIA_SANDBOX_LOGDIR': ('sandbox', 'log_dir'),
+            'MIA_SANDBOX_RUNTIME': ('sandbox', 'runtime'),
+            'MIA_SANDBOX_MEMORY_MB': ('sandbox', 'max_memory_mb'),
+            'MIA_SANDBOX_TIMEOUT_MS': ('sandbox', 'timeout_ms'),
+            'MIA_SANDBOX_FUEL': ('sandbox', 'fuel'),
+            'MIA_DOC_TEMPLATE_DIR': ('documents', 'template_dir'),
+            'MIA_DOC_OUTPUT_DIR': ('documents', 'output_dir'),
+            'MIA_DOC_DEFAULT_TEMPLATE': ('documents', 'default_template'),
+            'MIA_TELEGRAM_ENABLED': ('telegram', 'enabled'),
+            'TELEGRAM_ENABLED': ('telegram', 'enabled'),
+            'MIA_TELEGRAM_API_ID': ('telegram', 'api_id'),
+            'TELEGRAM_API_ID': ('telegram', 'api_id'),
+            'MIA_TELEGRAM_API_HASH': ('telegram', 'api_hash'),
+            'TELEGRAM_API_HASH': ('telegram', 'api_hash'),
+            'MIA_TELEGRAM_BOT_TOKEN': ('telegram', 'bot_token'),
+            'TELEGRAM_BOT_TOKEN': ('telegram', 'bot_token'),
+            'MIA_TELEGRAM_PHONE': ('telegram', 'phone_number'),
+            'TELEGRAM_PHONE': ('telegram', 'phone_number'),
+            'MIA_TELEGRAM_SESSION_DIR': ('telegram', 'session_dir'),
+            'TELEGRAM_SESSION_DIR': ('telegram', 'session_dir'),
+            'MIA_TELEGRAM_SESSION_NAME': ('telegram', 'session_name'),
+            'TELEGRAM_SESSION_NAME': ('telegram', 'session_name'),
+            'MIA_TELEGRAM_DEFAULT_PEER': ('telegram', 'default_peer'),
+            'TELEGRAM_DEFAULT_PEER': ('telegram', 'default_peer'),
+            'MIA_TELEGRAM_PARSE_MODE': ('telegram', 'parse_mode'),
+            'TELEGRAM_PARSE_MODE': ('telegram', 'parse_mode'),
+            'MIA_TELEGRAM_REQUEST_TIMEOUT': ('telegram', 'request_timeout'),
+            'TELEGRAM_REQUEST_TIMEOUT': ('telegram', 'request_timeout'),
         }
         
         for env_var, (section, key) in env_mappings.items():
@@ -353,12 +489,22 @@ class ConfigManager:
                 section_obj = getattr(self.config, section)
                 
                 # Type conversion
-                if key in ['enabled', 'debug']:
+                if key in ['enabled', 'debug'] or key.endswith('_enabled'):
                     value = value.lower() in ['true', '1', 'yes', 'on']
-                elif key in ['max_tokens', 'timeout', 'sample_rate', 'chunk_size']:
-                    value = int(value)
+                elif key in ['max_tokens', 'timeout', 'sample_rate', 'chunk_size', 'max_memory_mb', 'timeout_ms', 'request_timeout', 'api_id', 'vad_aggressiveness', 'vad_frame_duration_ms', 'vad_silence_duration_ms', 'max_results']:
+                    try:
+                        value = int(value)
+                    except ValueError:
+                        logger.warning("Invalid integer for %s: %s", env_var, value)
+                        continue
                 elif key in ['temperature', 'input_threshold', 'similarity_threshold']:
                     value = float(value)
+                elif key == 'fuel':
+                    try:
+                        value = int(value)
+                    except ValueError:
+                        logger.warning("Invalid value for MIA_SANDBOX_FUEL: %s", value)
+                        value = None
                 
                 setattr(section_obj, key, value)
                 logger.debug(f"Environment override: {env_var} = {value}")
@@ -421,7 +567,11 @@ class ConfigManager:
                 'llm_provider': self.config.audio.llm_provider,
                 'llm_model_id': self.config.audio.llm_model_id,
                 'llm_api_key': self.config.audio.llm_api_key,
-                'llm_url': self.config.audio.llm_url
+                'llm_url': self.config.audio.llm_url,
+                'vad_enabled': self.config.audio.vad_enabled,
+                'vad_aggressiveness': self.config.audio.vad_aggressiveness,
+                'vad_frame_duration_ms': self.config.audio.vad_frame_duration_ms,
+                'vad_silence_duration_ms': self.config.audio.vad_silence_duration_ms,
             },
             'vision': {
                 'enabled': self.config.vision.enabled,
@@ -432,10 +582,14 @@ class ConfigManager:
             },
             'memory': {
                 'enabled': self.config.memory.enabled,
+                'vector_enabled': self.config.memory.vector_enabled,
+                'graph_enabled': self.config.memory.graph_enabled,
+                'long_term_enabled': self.config.memory.long_term_enabled,
                 'vector_db_path': self.config.memory.vector_db_path,
                 'max_memory_size': self.config.memory.max_memory_size,
                 'embedding_dimension': self.config.memory.embedding_dimension,
-                'similarity_threshold': self.config.memory.similarity_threshold
+                'similarity_threshold': self.config.memory.similarity_threshold,
+                'max_results': self.config.memory.max_results,
             },
             'security': {
                 'enabled': self.config.security.enabled,
@@ -453,7 +607,33 @@ class ConfigManager:
                 'retry_attempts': self.config.system.retry_attempts,
                 'cache_enabled': self.config.system.cache_enabled,
                 'cache_ttl': self.config.system.cache_ttl
-            }
+            },
+            'sandbox': {
+                'enabled': self.config.sandbox.enabled,
+                'work_dir': self.config.sandbox.work_dir,
+                'log_dir': self.config.sandbox.log_dir,
+                'runtime': self.config.sandbox.runtime,
+                'max_memory_mb': self.config.sandbox.max_memory_mb,
+                'timeout_ms': self.config.sandbox.timeout_ms,
+                'fuel': self.config.sandbox.fuel,
+            },
+            'documents': {
+                'template_dir': self.config.documents.template_dir,
+                'output_dir': self.config.documents.output_dir,
+                'default_template': self.config.documents.default_template,
+            },
+            'telegram': {
+                'enabled': self.config.telegram.enabled,
+                'api_id': self.config.telegram.api_id,
+                'api_hash': self.config.telegram.api_hash,
+                'bot_token': self.config.telegram.bot_token,
+                'phone_number': self.config.telegram.phone_number,
+                'session_dir': self.config.telegram.session_dir,
+                'session_name': self.config.telegram.session_name,
+                'default_peer': self.config.telegram.default_peer,
+                'parse_mode': self.config.telegram.parse_mode,
+                'request_timeout': self.config.telegram.request_timeout,
+            },
         }
     
     def get_config(self) -> Optional[MIAConfig]:
