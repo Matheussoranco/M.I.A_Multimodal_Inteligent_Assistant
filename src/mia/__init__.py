@@ -10,7 +10,9 @@ from typing import Any
 from .__version__ import __version__
 
 __author__ = "M.I.A Development Team"
-__description__ = "A multimodal intelligent assistant with text and audio capabilities"
+__description__ = (
+    "A multimodal intelligent assistant with text and audio capabilities"
+)
 
 
 # Public API (only symbols we can reliably provide)
@@ -55,7 +57,12 @@ def get_error_handler():
         with_error_handling,
     )
 
-    return ErrorHandler, global_error_handler, with_error_handling, safe_execute
+    return (
+        ErrorHandler,
+        global_error_handler,
+        with_error_handling,
+        safe_execute,
+    )
 
 
 def __getattr__(name: str) -> Any:  # PEP 562 lazy attribute access

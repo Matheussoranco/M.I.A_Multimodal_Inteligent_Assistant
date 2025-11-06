@@ -7,7 +7,11 @@ from ..audio.speech_processor import SpeechProcessor
 from ..error_handler import global_error_handler, with_error_handling
 
 # Import custom exceptions and error handling
-from ..exceptions import InitializationError, ValidationError, VisionProcessingError
+from ..exceptions import (
+    InitializationError,
+    ValidationError,
+    VisionProcessingError,
+)
 
 # Suppress transformers warnings
 with warnings.catch_warnings():
@@ -52,13 +56,17 @@ class MIACognitiveCore:
 
     def _init_vision_components(self) -> None:
         if not HAS_CLIP:
-            logger.warning("CLIP components not available - vision processing disabled")
+            logger.warning(
+                "CLIP components not available - vision processing disabled"
+            )
             return
 
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore")
-                warnings.filterwarnings("ignore", message=".*slow.*processor.*")
+                warnings.filterwarnings(
+                    "ignore", message=".*slow.*processor.*"
+                )
                 warnings.filterwarnings("ignore", message=".*use_fast.*")
 
                 if CLIPProcessor is None or CLIPModel is None:
@@ -82,14 +90,19 @@ class MIACognitiveCore:
                     )
                 except Exception as e:
                     raise InitializationError(
-                        f"Failed to load CLIP model: {str(e)}", "MODEL_LOAD_FAILED"
+                        f"Failed to load CLIP model: {str(e)}",
+                        "MODEL_LOAD_FAILED",
                     )
 
                 # Move model to device if available
-                if self.vision_model is not None and hasattr(self.vision_model, "to"):
+                if self.vision_model is not None and hasattr(
+                    self.vision_model, "to"
+                ):
                     try:
                         self.vision_model = self.vision_model.to(self.device)
-                        logger.info(f"Vision model moved to device: {self.device}")
+                        logger.info(
+                            f"Vision model moved to device: {self.device}"
+                        )
                     except Exception as e:
                         logger.warning(
                             f"Failed to move vision model to device {self.device}: {e}"
@@ -119,7 +132,9 @@ class MIACognitiveCore:
     @with_error_handling(
         global_error_handler, fallback_value={"error": "Processing failed"}
     )
-    def process_multimodal_input(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def process_multimodal_input(
+        self, inputs: Dict[str, Any]
+    ) -> Dict[str, Any]:
         if not inputs:
             return {"text": "No input provided", "embedding": []}
 
@@ -134,7 +149,8 @@ class MIACognitiveCore:
             if "image" in inputs and inputs["image"] is not None:
                 if self.vision_processor is None or self.vision_model is None:
                     raise VisionProcessingError(
-                        "Vision components not initialized", "VISION_NOT_AVAILABLE"
+                        "Vision components not initialized",
+                        "VISION_NOT_AVAILABLE",
                     )
 
                 # For testing purposes, we'll mock the image processing
@@ -144,7 +160,8 @@ class MIACognitiveCore:
             if "audio" in inputs and inputs["audio"] is not None:
                 if self.speech_processor is None:
                     raise VisionProcessingError(
-                        "Speech processor not available", "SPEECH_NOT_AVAILABLE"
+                        "Speech processor not available",
+                        "SPEECH_NOT_AVAILABLE",
                     )
 
                 # For testing purposes, we'll mock the audio processing
@@ -163,14 +180,20 @@ class MIACognitiveCore:
                 prompt = self._build_multimodal_prompt(processed)
                 if hasattr(self.llm, "query") and self.llm.query:
                     response = self.llm.query(prompt)
-                    processed["text"] = response  # Update text with LLM response
+                    processed["text"] = (
+                        response  # Update text with LLM response
+                    )
                     processed["response"] = response
                 elif hasattr(self.llm, "query_model") and self.llm.query_model:
                     response = self.llm.query_model(prompt)
-                    processed["text"] = response  # Update text with LLM response
+                    processed["text"] = (
+                        response  # Update text with LLM response
+                    )
                     processed["response"] = response
                 else:
-                    processed["response"] = "LLM not available for response generation"
+                    processed["response"] = (
+                        "LLM not available for response generation"
+                    )
 
         except (ValidationError, VisionProcessingError):
             raise

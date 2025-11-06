@@ -94,7 +94,9 @@ class ActionExecutor:
         self,
         permissions: Optional[Dict[str, bool]] = None,
         logger: Optional[logging.Logger] = None,
-        consent_callback: Optional[Callable[[str, Dict[str, Any]], bool]] = None,
+        consent_callback: Optional[
+            Callable[[str, Dict[str, Any]], bool]
+        ] = None,
         sensitive_actions: Optional[List[str]] = None,
         *,
         security_manager: Optional[Any] = None,
@@ -105,8 +107,12 @@ class ActionExecutor:
     ) -> None:
         self.permissions = permissions or {}
         self.logger = logger or logging.getLogger(__name__)
-        self.consent_callback = consent_callback or (lambda action, params: True)
-        self.sensitive_actions = set(sensitive_actions or DEFAULT_SENSITIVE_ACTIONS)
+        self.consent_callback = consent_callback or (
+            lambda action, params: True
+        )
+        self.sensitive_actions = set(
+            sensitive_actions or DEFAULT_SENSITIVE_ACTIONS
+        )
         self.notes_file = "mia_notes.md"
         self.security_manager = security_manager
         self.rag_pipeline = rag_pipeline
@@ -114,7 +120,9 @@ class ActionExecutor:
         self.allowed_scopes = set(allowed_scopes or [])
 
         self.config = self._load_config()
-        if self._config_manager and getattr(self._config_manager, "config", None):
+        if self._config_manager and getattr(
+            self._config_manager, "config", None
+        ):
             try:
                 cfg = self._config_manager.config
                 if getattr(cfg, "documents", None):
@@ -134,7 +142,9 @@ class ActionExecutor:
                             "default_template": getattr(
                                 cfg.documents,
                                 "default_template",
-                                self.config["documents"].get("default_template"),
+                                self.config["documents"].get(
+                                    "default_template"
+                                ),
                             ),
                         }
                     )
@@ -150,22 +160,30 @@ class ActionExecutor:
                             "vector_enabled": getattr(
                                 cfg.memory,
                                 "vector_enabled",
-                                self.config["memory"].get("vector_enabled", True),
+                                self.config["memory"].get(
+                                    "vector_enabled", True
+                                ),
                             ),
                             "graph_enabled": getattr(
                                 cfg.memory,
                                 "graph_enabled",
-                                self.config["memory"].get("graph_enabled", True),
+                                self.config["memory"].get(
+                                    "graph_enabled", True
+                                ),
                             ),
                             "long_term_enabled": getattr(
                                 cfg.memory,
                                 "long_term_enabled",
-                                self.config["memory"].get("long_term_enabled", True),
+                                self.config["memory"].get(
+                                    "long_term_enabled", True
+                                ),
                             ),
                             "max_entries": getattr(
                                 cfg.memory,
                                 "max_memory_size",
-                                self.config["memory"].get("max_entries", 10_000),
+                                self.config["memory"].get(
+                                    "max_entries", 10_000
+                                ),
                             ),
                             "max_results": getattr(
                                 cfg.memory,
@@ -175,7 +193,9 @@ class ActionExecutor:
                             "similarity_threshold": getattr(
                                 cfg.memory,
                                 "similarity_threshold",
-                                self.config["memory"].get("similarity_threshold", 0.7),
+                                self.config["memory"].get(
+                                    "similarity_threshold", 0.7
+                                ),
                             ),
                         }
                     )
@@ -187,10 +207,14 @@ class ActionExecutor:
 
         self._document_factory = self._load_provider_factory("documents")
         self._sandbox_factory = self._load_provider_factory("sandbox")
-        self._telegram_factory = self._load_provider_factory("messaging", "telegram")
+        self._telegram_factory = self._load_provider_factory(
+            "messaging", "telegram"
+        )
         self._memory_factory = self._load_provider_factory("memory", "manager")
         self._web_agent_factory = (
-            self._load_provider_factory("web", "agent") if web_agent is None else None
+            self._load_provider_factory("web", "agent")
+            if web_agent is None
+            else None
         )
         self._document_generator_instance: Optional[Any] = None
         self._sandbox_instance: Optional[Any] = None
@@ -208,7 +232,9 @@ class ActionExecutor:
             try:
                 return int(value)
             except ValueError:
-                self.logger.warning("Invalid integer for %s: %s", env_var, value)
+                self.logger.warning(
+                    "Invalid integer for %s: %s", env_var, value
+                )
                 return default
 
         def _env(*names: str, default: Optional[str] = None) -> Optional[str]:
@@ -218,14 +244,18 @@ class ActionExecutor:
                     return value
             return default
 
-        def _to_int_env(*names: str, default: Optional[int] = None) -> Optional[int]:
+        def _to_int_env(
+            *names: str, default: Optional[int] = None
+        ) -> Optional[int]:
             raw = _env(*names)
             if raw in (None, ""):
                 return default
             try:
                 return int(str(raw))
             except ValueError:
-                self.logger.warning("Invalid integer value for %s: %s", names[0], raw)
+                self.logger.warning(
+                    "Invalid integer value for %s: %s", names[0], raw
+                )
                 return default
 
         def _to_bool_env(*names: str, default: bool = False) -> bool:
@@ -243,7 +273,9 @@ class ActionExecutor:
             try:
                 return float(str(raw))
             except ValueError:
-                self.logger.warning("Invalid float value for %s: %s", names[0], raw)
+                self.logger.warning(
+                    "Invalid float value for %s: %s", names[0], raw
+                )
                 return default
 
         config = {
@@ -263,8 +295,12 @@ class ActionExecutor:
                 "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN", ""),
             },
             "telegram": {
-                "enabled": _to_bool_env("MIA_TELEGRAM_ENABLED", "TELEGRAM_ENABLED"),
-                "api_id": _to_int_env("MIA_TELEGRAM_API_ID", "TELEGRAM_API_ID"),
+                "enabled": _to_bool_env(
+                    "MIA_TELEGRAM_ENABLED", "TELEGRAM_ENABLED"
+                ),
+                "api_id": _to_int_env(
+                    "MIA_TELEGRAM_API_ID", "TELEGRAM_API_ID"
+                ),
                 "api_hash": _env(
                     "MIA_TELEGRAM_API_HASH", "TELEGRAM_API_HASH", default=""
                 ),
@@ -283,10 +319,14 @@ class ActionExecutor:
                     default="mia_telegram",
                 ),
                 "default_peer": _env(
-                    "MIA_TELEGRAM_DEFAULT_PEER", "TELEGRAM_DEFAULT_PEER", default=""
+                    "MIA_TELEGRAM_DEFAULT_PEER",
+                    "TELEGRAM_DEFAULT_PEER",
+                    default="",
                 ),
                 "parse_mode": _env(
-                    "MIA_TELEGRAM_PARSE_MODE", "TELEGRAM_PARSE_MODE", default="markdown"
+                    "MIA_TELEGRAM_PARSE_MODE",
+                    "TELEGRAM_PARSE_MODE",
+                    default="markdown",
                 ),
                 "request_timeout": _to_int_env(
                     "MIA_TELEGRAM_REQUEST_TIMEOUT",
@@ -306,21 +346,30 @@ class ActionExecutor:
                 "template_dir": os.getenv(
                     "MIA_DOC_TEMPLATE_DIR", "templates/documents"
                 ),
-                "output_dir": os.getenv("MIA_DOC_OUTPUT_DIR", "output/documents"),
-                "default_template": os.getenv("MIA_DOC_DEFAULT_TEMPLATE", "proposal"),
+                "output_dir": os.getenv(
+                    "MIA_DOC_OUTPUT_DIR", "output/documents"
+                ),
+                "default_template": os.getenv(
+                    "MIA_DOC_DEFAULT_TEMPLATE", "proposal"
+                ),
             },
             "memory": {
                 "persist_dir": _env("MIA_MEMORY_PATH", default="memory"),
                 "vector_enabled": _to_bool_env(
                     "MIA_MEMORY_VECTOR_ENABLED", default=True
                 ),
-                "graph_enabled": _to_bool_env("MIA_MEMORY_GRAPH_ENABLED", default=True),
+                "graph_enabled": _to_bool_env(
+                    "MIA_MEMORY_GRAPH_ENABLED", default=True
+                ),
                 "long_term_enabled": _to_bool_env(
                     "MIA_MEMORY_LONG_TERM_ENABLED", default=True
                 ),
-                "max_entries": _to_int_env("MIA_MEMORY_MAX_ENTRIES", default=10_000)
+                "max_entries": _to_int_env(
+                    "MIA_MEMORY_MAX_ENTRIES", default=10_000
+                )
                 or 10_000,
-                "max_results": _to_int_env("MIA_MEMORY_MAX_RESULTS", default=5) or 5,
+                "max_results": _to_int_env("MIA_MEMORY_MAX_RESULTS", default=5)
+                or 5,
                 "similarity_threshold": _to_float_env(
                     "MIA_MEMORY_SIMILARITY", default=0.7
                 )
@@ -354,7 +403,9 @@ class ActionExecutor:
                 logger_instance=self.logger,
             )
         except Exception as exc:  # pragma: no cover
-            self.logger.warning("Failed to instantiate document generator: %s", exc)
+            self.logger.warning(
+                "Failed to instantiate document generator: %s", exc
+            )
             self._document_generator_instance = False
         return self._document_generator_instance or None
 
@@ -371,9 +422,13 @@ class ActionExecutor:
 
             fuel_value = self.config["sandbox"].get("fuel")
             try:
-                fuel_int = int(fuel_value) if fuel_value not in (None, "") else None
+                fuel_int = (
+                    int(fuel_value) if fuel_value not in (None, "") else None
+                )
             except ValueError:
-                self.logger.warning("Invalid sandbox fuel value: %s", fuel_value)
+                self.logger.warning(
+                    "Invalid sandbox fuel value: %s", fuel_value
+                )
                 fuel_int = None
             limits = SandboxLimits(
                 max_memory_mb=self.config["sandbox"].get("memory_mb", 256),
@@ -407,11 +462,15 @@ class ActionExecutor:
                 long_term_enabled=memory_cfg.get("long_term_enabled", True),
                 max_long_term_entries=memory_cfg.get("max_entries", 10_000),
                 max_results=memory_cfg.get("max_results", 5),
-                similarity_threshold=memory_cfg.get("similarity_threshold", 0.7),
+                similarity_threshold=memory_cfg.get(
+                    "similarity_threshold", 0.7
+                ),
                 logger_instance=self.logger,
             )
         except Exception as exc:  # pragma: no cover
-            self.logger.warning("Failed to instantiate memory manager: %s", exc)
+            self.logger.warning(
+                "Failed to instantiate memory manager: %s", exc
+            )
             self._memory_instance = False
         return self._memory_instance or None
 
@@ -483,7 +542,9 @@ class ActionExecutor:
                 logger_instance=self.logger,
             )
         except Exception as exc:  # pragma: no cover
-            self.logger.warning("Failed to instantiate Telegram messenger: %s", exc)
+            self.logger.warning(
+                "Failed to instantiate Telegram messenger: %s", exc
+            )
             self._telegram_client = False
         return self._telegram_client or None
 
@@ -498,7 +559,9 @@ class ActionExecutor:
         consent_prompted = False
 
         if not self._is_scope_allowed(action):
-            self.logger.warning("Action %s blocked due to missing scopes", action)
+            self.logger.warning(
+                "Action %s blocked due to missing scopes", action
+            )
             return f"Action '{action}' is not permitted in the current security scope."
 
         if self.security_manager:
@@ -525,7 +588,9 @@ class ActionExecutor:
 
         if action in self.sensitive_actions and not consent_prompted:
             if not self.consent_callback(action, params):
-                self.logger.info("Action cancelled after consent prompt: %s", action)
+                self.logger.info(
+                    "Action cancelled after consent prompt: %s", action
+                )
                 return f"Action '{action}' cancelled by user consent."
 
         try:
@@ -543,11 +608,15 @@ class ActionExecutor:
                 "move_file": lambda: self.move_file(
                     params.get("src"), params.get("dst")
                 ),
-                "delete_file": lambda: self.delete_file(params.get("path") or ""),
+                "delete_file": lambda: self.delete_file(
+                    params.get("path") or ""
+                ),
                 "search_file": lambda: self.search_file(
                     params.get("name") or "", params.get("directory", ".")
                 ),
-                "open_directory": lambda: self.open_directory(params.get("path") or ""),
+                "open_directory": lambda: self.open_directory(
+                    params.get("path") or ""
+                ),
                 "create_directory": lambda: self.create_directory(
                     params.get("path") or ""
                 ),
@@ -557,13 +626,17 @@ class ActionExecutor:
                     params.get("description") or "",
                     params.get("filename"),
                 ),
-                "analyze_code": lambda: self.analyze_code(params.get("path") or ""),
+                "analyze_code": lambda: self.analyze_code(
+                    params.get("path") or ""
+                ),
                 # Notes and documentation
                 "make_note": lambda: self.make_note(
                     params.get("content") or "", params.get("title")
                 ),
                 "read_notes": lambda: self.read_notes(),
-                "search_notes": lambda: self.search_notes(params.get("query") or ""),
+                "search_notes": lambda: self.search_notes(
+                    params.get("query") or ""
+                ),
                 "create_docx": lambda: self.generate_docx(params),
                 "create_pdf": lambda: self.generate_pdf(params),
                 "store_memory": lambda: self.store_memory(params),
@@ -573,11 +646,15 @@ class ActionExecutor:
                 "create_sheet": lambda: self.create_sheet(
                     params.get("filename") or "", params.get("data")
                 ),
-                "read_sheet": lambda: self.read_sheet(params.get("filename") or ""),
+                "read_sheet": lambda: self.read_sheet(
+                    params.get("filename") or ""
+                ),
                 "write_sheet": lambda: self.write_sheet(
                     params.get("filename") or "", params.get("data") or []
                 ),
-                "open_sheet": lambda: self.open_file(params.get("filename") or ""),
+                "open_sheet": lambda: self.open_file(
+                    params.get("filename") or ""
+                ),
                 # Presentation (PowerPoint)
                 "create_presentation": lambda: self.create_presentation(
                     params.get("filename") or "",
@@ -593,7 +670,9 @@ class ActionExecutor:
                     params.get("filename") or ""
                 ),
                 # Research and web operations
-                "web_search": lambda: self.web_search(params.get("query") or ""),
+                "web_search": lambda: self.web_search(
+                    params.get("query") or ""
+                ),
                 "web_scrape": lambda: self.web_scrape(params.get("url") or ""),
                 "research_topic": lambda: self.research_topic(
                     params.get("topic") or ""
@@ -604,7 +683,9 @@ class ActionExecutor:
                 # Smart home integration
                 "control_device": lambda: self._handle_control_device(params),
                 # System integration
-                "clipboard_copy": lambda: self.clipboard_copy(params.get("text") or ""),
+                "clipboard_copy": lambda: self.clipboard_copy(
+                    params.get("text") or ""
+                ),
                 "clipboard_paste": lambda: self.clipboard_paste(),
                 "show_notification": lambda: self.show_notification(
                     params.get("title") or "", params.get("message") or ""
@@ -634,7 +715,9 @@ class ActionExecutor:
                 # Smart home
                 "smart_home": lambda: self.smart_home(params),
                 "control_lights": lambda: self.control_lights(params),
-                "control_temperature": lambda: self.control_temperature(params),
+                "control_temperature": lambda: self.control_temperature(
+                    params
+                ),
             }
 
             # Execute the action if it exists
@@ -654,9 +737,13 @@ class ActionExecutor:
         device_action = params.get("action")
         # Remove these from params to avoid duplicate keyword arguments
         filtered_params = {
-            k: v for k, v in params.items() if k not in ["device_type", "action"]
+            k: v
+            for k, v in params.items()
+            if k not in ["device_type", "action"]
         }
-        return self.control_device(device_type, device_action, **filtered_params)
+        return self.control_device(
+            device_type, device_action, **filtered_params
+        )
 
     # Enhanced File Operations
     def create_file(self, path: str, content: str = "") -> str:
@@ -720,7 +807,9 @@ class ActionExecutor:
                 os.startfile(path)
             elif os.name == "posix":  # macOS and Linux
                 subprocess.run(
-                    ["open", path] if sys.platform == "darwin" else ["xdg-open", path]
+                    ["open", path]
+                    if sys.platform == "darwin"
+                    else ["xdg-open", path]
                 )
             return f"Opened directory: {path}"
         except FileNotFoundError:
@@ -751,8 +840,14 @@ class ActionExecutor:
             return "Document generator not available. Install python-docx and enable the provider."
 
         context_input = params.get("context")
-        context = dict(context_input) if isinstance(context_input, dict) else {}
-        summary = params.get("summary") or params.get("content") or params.get("body")
+        context = (
+            dict(context_input) if isinstance(context_input, dict) else {}
+        )
+        summary = (
+            params.get("summary")
+            or params.get("content")
+            or params.get("body")
+        )
         title = params.get("title") or params.get("name")
         if summary:
             context.setdefault("summary", summary)
@@ -771,8 +866,14 @@ class ActionExecutor:
             return "Document generator not available. Install reportlab and enable the provider."
 
         context_input = params.get("context")
-        context = dict(context_input) if isinstance(context_input, dict) else {}
-        summary = params.get("summary") or params.get("content") or params.get("body")
+        context = (
+            dict(context_input) if isinstance(context_input, dict) else {}
+        )
+        summary = (
+            params.get("summary")
+            or params.get("content")
+            or params.get("body")
+        )
         title = params.get("title") or params.get("name")
         if summary:
             context.setdefault("summary", summary)
@@ -792,7 +893,11 @@ class ActionExecutor:
         if not manager:
             return "Memory manager not available. Enable memory support and install optional dependencies."
 
-        text = params.get("text") or params.get("content") or params.get("summary")
+        text = (
+            params.get("text")
+            or params.get("content")
+            or params.get("summary")
+        )
         if not text:
             return "No memory content provided."
 
@@ -801,7 +906,9 @@ class ActionExecutor:
             try:
                 cleaned = embedding.replace("[", "").replace("]", "")
                 embedding = [
-                    float(item.strip()) for item in cleaned.split(",") if item.strip()
+                    float(item.strip())
+                    for item in cleaned.split(",")
+                    if item.strip()
                 ]
             except ValueError:
                 self.logger.warning(
@@ -809,7 +916,9 @@ class ActionExecutor:
                 )
                 embedding = None
         metadata = (
-            params.get("metadata") if isinstance(params.get("metadata"), dict) else {}
+            params.get("metadata")
+            if isinstance(params.get("metadata"), dict)
+            else {}
         )
         relations_input = params.get("relations")
         relation_entries = None
@@ -848,11 +957,15 @@ class ActionExecutor:
             try:
                 enriched_metadata = dict(metadata) if metadata else {}
                 enriched_metadata.setdefault("source", "action_executor")
-                enriched_metadata.setdefault("timestamp", datetime.now().isoformat())
+                enriched_metadata.setdefault(
+                    "timestamp", datetime.now().isoformat()
+                )
                 rag_result = self.rag_pipeline.remember(
                     text, metadata=enriched_metadata
                 )
-                self.logger.debug("Stored memory in RAG pipeline: %s", rag_result)
+                self.logger.debug(
+                    "Stored memory in RAG pipeline: %s", rag_result
+                )
             except Exception as exc:
                 self.logger.debug("Failed to store in RAG pipeline: %s", exc)
 
@@ -864,11 +977,11 @@ class ActionExecutor:
                 relations=relation_entries,
             )
             reference = record.get("vector_id") or record.get("long_term_id")
-            result_msg = f"Memory stored successfully (ref={reference or 'n/a'})."
+            result_msg = (
+                f"Memory stored successfully (ref={reference or 'n/a'})."
+            )
             if rag_result:
-                result_msg += (
-                    f" Also stored in RAG pipeline (id={rag_result.get('id', 'n/a')})."
-                )
+                result_msg += f" Also stored in RAG pipeline (id={rag_result.get('id', 'n/a')})."
             return result_msg
         except Exception as exc:
             self.logger.error("Failed to store memory: %s", exc)
@@ -877,7 +990,11 @@ class ActionExecutor:
     def search_memory(self, params: Dict[str, Any]) -> str:
         # Try RAG pipeline first if available
         if self.rag_pipeline and hasattr(self.rag_pipeline, "query"):
-            query = params.get("query") or params.get("text") or params.get("keyword")
+            query = (
+                params.get("query")
+                or params.get("text")
+                or params.get("keyword")
+            )
             if query:
                 try:
                     top_k_raw = params.get("top_k") or params.get("limit", 4)
@@ -912,7 +1029,10 @@ class ActionExecutor:
                             if metadata_info:
                                 segment += f" [{', '.join(metadata_info)}]"
                             lines.append(segment)
-                        return f"RAG Memory results for '{query}':\n" + "\n".join(lines)
+                        return (
+                            f"RAG Memory results for '{query}':\n"
+                            + "\n".join(lines)
+                        )
                 except Exception as exc:
                     self.logger.debug(
                         "RAG pipeline search failed, falling back to memory manager: %s",
@@ -924,13 +1044,17 @@ class ActionExecutor:
         if not manager:
             return "Memory manager not available."
 
-        query = params.get("query") or params.get("text") or params.get("keyword")
+        query = (
+            params.get("query") or params.get("text") or params.get("keyword")
+        )
         embedding = params.get("embedding")
         if isinstance(embedding, str):
             cleaned = embedding.replace("[", "").replace("]", "")
             try:
                 embedding = [
-                    float(item.strip()) for item in cleaned.split(",") if item.strip()
+                    float(item.strip())
+                    for item in cleaned.split(",")
+                    if item.strip()
                 ]
             except ValueError:
                 self.logger.warning(
@@ -943,7 +1067,9 @@ class ActionExecutor:
             try:
                 top_k = int(top_k_raw)
             except (TypeError, ValueError):
-                self.logger.warning("Invalid top_k value provided: %s", top_k_raw)
+                self.logger.warning(
+                    "Invalid top_k value provided: %s", top_k_raw
+                )
         try:
             results = manager.search_memory(
                 embedding=embedding,
@@ -977,9 +1103,13 @@ class ActionExecutor:
 
         source = params.get("source") or params.get("from")
         target = params.get("target") or params.get("to")
-        relation = params.get("relation") or params.get("predicate") or "related_to"
+        relation = (
+            params.get("relation") or params.get("predicate") or "related_to"
+        )
         metadata = (
-            params.get("metadata") if isinstance(params.get("metadata"), dict) else None
+            params.get("metadata")
+            if isinstance(params.get("metadata"), dict)
+            else None
         )
 
         if not source or not target:
@@ -1085,19 +1215,24 @@ body {{
             lines = code.split("\n")
             analysis = {
                 "total_lines": len(lines),
-                "non_empty_lines": len([line for line in lines if line.strip()]),
+                "non_empty_lines": len(
+                    [line for line in lines if line.strip()]
+                ),
                 "comment_lines": len(
                     [
                         line
                         for line in lines
-                        if line.strip().startswith("#") or line.strip().startswith("//")
+                        if line.strip().startswith("#")
+                        or line.strip().startswith("//")
                     ]
                 ),
                 "file_size": os.path.getsize(path),
                 "language": self._detect_language(path),
             }
 
-            return f"Code analysis for {path}:\n{json.dumps(analysis, indent=2)}"
+            return (
+                f"Code analysis for {path}:\n{json.dumps(analysis, indent=2)}"
+            )
         except Exception as e:
             return f"Error analyzing code: {e}"
 
@@ -1146,7 +1281,9 @@ body {{
 
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            note_entry = f"\n## {title or 'Note'} - {timestamp}\n\n{content}\n\n---\n"
+            note_entry = (
+                f"\n## {title or 'Note'} - {timestamp}\n\n{content}\n\n---\n"
+            )
 
             with open(self.notes_file, "a", encoding="utf-8") as f:
                 f.write(note_entry)
@@ -1338,7 +1475,10 @@ body {{
 
     # Presentations (PowerPoint)
     def create_presentation(
-        self, filename: str, title: Optional[str] = None, content: Optional[str] = None
+        self,
+        filename: str,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
     ) -> str:
         """Create a new PowerPoint presentation with an optional title slide."""
         if not filename:
@@ -1426,7 +1566,9 @@ body {{
                 )
                 return f"Attempting to close {app}"
             else:  # Unix-like systems
-                subprocess.run(["pkill", "-f", app], capture_output=True, text=True)
+                subprocess.run(
+                    ["pkill", "-f", app], capture_output=True, text=True
+                )
                 return f"Attempting to close {app}"
         except Exception as e:
             return f"Error closing app: {e}"
@@ -1485,7 +1627,8 @@ body {{
             else:
                 # Linux volume control
                 subprocess.run(
-                    ["amixer", "set", "Master", f"{value}%"], capture_output=True
+                    ["amixer", "set", "Master", f"{value}%"],
+                    capture_output=True,
                 )
                 return f"Volume set to {value}%"
         except:
@@ -1497,11 +1640,15 @@ body {{
             if os.name == "nt":
                 # Windows brightness control (requires powershell)
                 cmd = f"(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{value})"
-                subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+                subprocess.run(
+                    ["powershell", "-Command", cmd], capture_output=True
+                )
                 return f"Brightness set to {value}%"
             else:
                 # Linux brightness control
-                subprocess.run(["xbacklight", "-set", str(value)], capture_output=True)
+                subprocess.run(
+                    ["xbacklight", "-set", str(value)], capture_output=True
+                )
                 return f"Brightness set to {value}%"
         except:
             return "Brightness control not available on this system."
@@ -1512,13 +1659,27 @@ body {{
             if os.name == "nt":
                 if action == "on":
                     subprocess.run(
-                        ["netsh", "interface", "set", "interface", "Wi-Fi", "enabled"],
+                        [
+                            "netsh",
+                            "interface",
+                            "set",
+                            "interface",
+                            "Wi-Fi",
+                            "enabled",
+                        ],
                         capture_output=True,
                     )
                     return "WiFi enabled"
                 elif action == "off":
                     subprocess.run(
-                        ["netsh", "interface", "set", "interface", "Wi-Fi", "disabled"],
+                        [
+                            "netsh",
+                            "interface",
+                            "set",
+                            "interface",
+                            "Wi-Fi",
+                            "disabled",
+                        ],
                         capture_output=True,
                     )
                     return "WiFi disabled"
@@ -1539,7 +1700,9 @@ body {{
     def run_command(self, command):
         if not command:
             return "No command provided."
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True
+        )
         return result.stdout or result.stderr
 
     def run_sandboxed(self, params: Dict[str, Any]) -> str:
@@ -1555,9 +1718,7 @@ body {{
             try:
                 from wasmtime import wat2wasm  # type: ignore
             except Exception:
-                return (
-                    "wat2wasm requires wasmtime. Install with 'pip install wasmtime'."
-                )
+                return "wat2wasm requires wasmtime. Install with 'pip install wasmtime'."
             try:
                 wasm_bytes = wat2wasm(wat_source)
             except Exception as exc:  # pragma: no cover
@@ -1616,7 +1777,9 @@ body {{
                 try:
                     viewport_tuple = (int(viewport[0]), int(viewport[1]))
                 except (TypeError, ValueError):
-                    self.logger.debug("Invalid viewport provided: %s", viewport)
+                    self.logger.debug(
+                        "Invalid viewport provided: %s", viewport
+                    )
 
             try:
                 results = agent.run_plan(
@@ -1629,7 +1792,9 @@ body {{
                 return f"Web automation failed: {exc}"
 
             success_count = sum(1 for step in results if step.success)
-            failure_messages = [step.message for step in results if not step.success]
+            failure_messages = [
+                step.message for step in results if not step.success
+            ]
             payload_requested = params.get("return_payloads")
             if payload_requested:
                 payloads = [step.payload for step in results if step.payload]
@@ -1682,7 +1847,9 @@ body {{
         smtp_server = params.get("smtp_server") or email_cfg.get(
             "smtp_server", "smtp.gmail.com"
         )
-        smtp_port = int(params.get("smtp_port") or email_cfg.get("smtp_port", 587))
+        smtp_port = int(
+            params.get("smtp_port") or email_cfg.get("smtp_port", 587)
+        )
         from_addr = params.get("from") or email_cfg.get("username") or ""
         password = params.get("password") or email_cfg.get("password") or ""
 
@@ -1775,8 +1942,12 @@ body {{
         if not device or not action:
             return "Device and action required."
 
-        ha_url = self.config.get("smart_home", {}).get("home_assistant_url", "")
-        ha_token = self.config.get("smart_home", {}).get("home_assistant_token", "")
+        ha_url = self.config.get("smart_home", {}).get(
+            "home_assistant_url", ""
+        )
+        ha_token = self.config.get("smart_home", {}).get(
+            "home_assistant_token", ""
+        )
 
         if not ha_url or not ha_token:
             return "Home Assistant URL and token not configured."
@@ -1813,7 +1984,9 @@ body {{
             elif device_type == "security":
                 return self._control_security(action, **kwargs)
             else:
-                return self._generic_device_control(device_type, action, **kwargs)
+                return self._generic_device_control(
+                    device_type, action, **kwargs
+                )
         except Exception as e:
             return f"Error controlling device: {e}"
 
@@ -1879,7 +2052,9 @@ body {{
         else:
             return f"Unknown security action: {action}"
 
-    def _generic_device_control(self, device_type: str, action: str, **kwargs) -> str:
+    def _generic_device_control(
+        self, device_type: str, action: str, **kwargs
+    ) -> str:
         """Handle generic device control."""
         return f"Controlling {device_type}: {action} with parameters {kwargs}"
 
@@ -1994,13 +2169,15 @@ body {{
 
         try:
             # Use DuckDuckGo as default search engine
-            search_url = f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
-            response = requests.get(search_url, headers={"User-Agent": "Mozilla/5.0"})
+            search_url = (
+                f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
+            )
+            response = requests.get(
+                search_url, headers={"User-Agent": "Mozilla/5.0"}
+            )
 
             if response.status_code == 200:
-                return (
-                    f"Web search completed for: {query}. Found results at {search_url}"
-                )
+                return f"Web search completed for: {query}. Found results at {search_url}"
             else:
                 return f"Web search failed with status code: {response.status_code}"
         except Exception as e:
@@ -2048,7 +2225,9 @@ body {{
         try:
             import wikipedia  # type: ignore
         except ImportError:
-            return "Wikipedia library not installed. Run: pip install wikipedia"
+            return (
+                "Wikipedia library not installed. Run: pip install wikipedia"
+            )
 
         try:
             summary = wikipedia.summary(query, sentences=3)  # type: ignore
@@ -2086,7 +2265,8 @@ body {{
                 return "pywhatkit does not provide sendwhatmsg_instantly. Update the library."
 
             send_instant(
-                recipient or self.config.get("whatsapp", {}).get("phone_number", ""),
+                recipient
+                or self.config.get("whatsapp", {}).get("phone_number", ""),
                 message,
             )  # type: ignore
             return f"Sent WhatsApp message to {recipient}"

@@ -39,7 +39,12 @@ class LRUCache:
         self.cache: Dict[str, CacheEntry] = {}
         self.access_order: List[str] = []
         self.lock = RLock()
-        self.stats = {"hits": 0, "misses": 0, "evictions": 0, "total_size_bytes": 0}
+        self.stats = {
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "total_size_bytes": 0,
+        }
 
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache."""
@@ -131,7 +136,11 @@ class LRUCache:
         """Get cache statistics."""
         with self.lock:
             total_requests = self.stats["hits"] + self.stats["misses"]
-            hit_rate = self.stats["hits"] / total_requests if total_requests > 0 else 0
+            hit_rate = (
+                self.stats["hits"] / total_requests
+                if total_requests > 0
+                else 0
+            )
 
             return {
                 "hits": self.stats["hits"],
@@ -286,8 +295,12 @@ class PersistentCache:
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         with self.lock:
-            total_size = sum(entry["size_bytes"] for entry in self.index.values())
-            total_hits = sum(entry["hit_count"] for entry in self.index.values())
+            total_size = sum(
+                entry["size_bytes"] for entry in self.index.values()
+            )
+            total_hits = sum(
+                entry["hit_count"] for entry in self.index.values()
+            )
 
             return {
                 "entries": len(self.index),
@@ -304,7 +317,9 @@ class CacheManager:
     def __init__(self, config_manager: Optional[ConfigManager] = None):
         self.config_manager = config_manager or ConfigManager()
         self.memory_cache = LRUCache(max_size=1000, default_ttl=3600)
-        self.persistent_cache = PersistentCache(cache_dir="cache", max_size_mb=100)
+        self.persistent_cache = PersistentCache(
+            cache_dir="cache", max_size_mb=100
+        )
 
     def get(self, key: str, use_persistent: bool = True) -> Optional[Any]:
         """Get value from cache (memory first, then persistent)."""
@@ -324,7 +339,11 @@ class CacheManager:
         return None
 
     def put(
-        self, key: str, value: Any, ttl: float = 3600, use_persistent: bool = True
+        self,
+        key: str,
+        value: Any,
+        ttl: float = 3600,
+        use_persistent: bool = True,
     ) -> None:
         """Put value in cache."""
         # Always store in memory cache
@@ -335,14 +354,19 @@ class CacheManager:
             self.persistent_cache.put(key, value, ttl)
 
     def cached(
-        self, key: Optional[str] = None, ttl: float = 3600, use_persistent: bool = True
+        self,
+        key: Optional[str] = None,
+        ttl: float = 3600,
+        use_persistent: bool = True,
     ):
         """Decorator for caching function results."""
 
         def decorator(func: Callable) -> Callable:
             def wrapper(*args, **kwargs) -> Any:
                 # Generate cache key
-                cache_key = key or f"{func.__name__}:{hash(str(args) + str(kwargs))}"
+                cache_key = (
+                    key or f"{func.__name__}:{hash(str(args) + str(kwargs))}"
+                )
 
                 # Try to get from cache
                 result = self.get(cache_key, use_persistent)

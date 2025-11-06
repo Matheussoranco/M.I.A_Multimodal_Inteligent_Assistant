@@ -41,7 +41,11 @@ except ImportError:
     sf = None
 
 # Import resource manager
-from ..resource_manager import ResourceState, WhisperModelResource, resource_manager
+from ..resource_manager import (
+    ResourceState,
+    WhisperModelResource,
+    resource_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,14 +112,18 @@ class SpeechProcessor:
             # Check if model is already loaded
             resource_id = f"whisper_{self.model_name}"
             if resource_id in self.resource_manager.resources:
-                self.whisper_model = self.resource_manager.resources[resource_id]
+                self.whisper_model = self.resource_manager.resources[
+                    resource_id
+                ]
                 logger.info(f"Using existing Whisper model: {self.model_name}")
             else:
                 # Create new model resource
                 model_resource = WhisperModelResource(self.model_name)
                 self.resource_manager.resources[resource_id] = model_resource
                 self.whisper_model = model_resource
-                logger.info(f"Whisper model resource created: {self.model_name}")
+                logger.info(
+                    f"Whisper model resource created: {self.model_name}"
+                )
 
         except Exception as e:
             logger.error(f"Failed to initialize Whisper model resource: {e}")
@@ -142,7 +150,9 @@ class SpeechProcessor:
         :return: Transcribed text or None if failed
         """
         # Try Whisper first
-        if self.whisper_model and isinstance(self.whisper_model, WhisperModelResource):
+        if self.whisper_model and isinstance(
+            self.whisper_model, WhisperModelResource
+        ):
             try:
                 # Ensure model is loaded
                 if self.whisper_model.state == ResourceState.CREATED:
@@ -248,7 +258,9 @@ class SpeechProcessor:
                 audio = sr.AudioData(audio_data, sample_rate, 2)  # type: ignore # Assuming 16-bit
                 text = getattr(self.recognizer, "recognize_google")(audio)  # type: ignore
                 if text:
-                    logger.info(f"Speech recognition transcription: {text[:100]}...")
+                    logger.info(
+                        f"Speech recognition transcription: {text[:100]}..."
+                    )
                     return text
             except Exception as e:
                 logger.error(f"Speech recognition from data failed: {e}")
@@ -267,7 +279,9 @@ class SpeechProcessor:
         :return: Transcribed text or None if failed
         """
         if not self.recognizer or not self.microphone:
-            logger.error("Speech recognition not available for microphone input")
+            logger.error(
+                "Speech recognition not available for microphone input"
+            )
             return None
 
         try:
@@ -279,7 +293,9 @@ class SpeechProcessor:
             # Listen for audio
             with self.microphone as source:
                 audio = self.recognizer.listen(
-                    source, timeout=timeout, phrase_time_limit=phrase_time_limit
+                    source,
+                    timeout=timeout,
+                    phrase_time_limit=phrase_time_limit,
                 )
 
             sample_rate = getattr(audio, "sample_rate", 16000)  # type: ignore
@@ -288,7 +304,9 @@ class SpeechProcessor:
                 try:
                     raw_pcm = audio.get_raw_data(convert_rate=sample_rate, convert_width=2)  # type: ignore
                     if not self._vad_detector.has_speech(raw_pcm, sample_rate):
-                        logger.info("No speech detected by VAD; skipping transcription")
+                        logger.info(
+                            "No speech detected by VAD; skipping transcription"
+                        )
                         return None
                 except Exception as exc:
                     logger.debug("VAD check failed: %s", exc)
@@ -300,7 +318,9 @@ class SpeechProcessor:
                     audio_data = getattr(audio, "get_wav_data")()  # type: ignore
                     return self.transcribe_audio_data(audio_data, sample_rate)
                 except Exception as e:
-                    logger.error(f"Whisper microphone transcription failed: {e}")
+                    logger.error(
+                        f"Whisper microphone transcription failed: {e}"
+                    )
 
             # Fallback to Google Speech Recognition
             try:
@@ -368,7 +388,9 @@ class SpeechProcessor:
                 "numpy": NUMPY_AVAILABLE,
                 "soundfile": SOUNDFILE_AVAILABLE,
                 "webrtcvad": (
-                    self._vad_detector.is_available() if self._vad_detector else False
+                    self._vad_detector.is_available()
+                    if self._vad_detector
+                    else False
                 ),
             },
         }

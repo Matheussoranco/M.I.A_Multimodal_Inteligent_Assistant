@@ -116,7 +116,9 @@ class PerformanceMetrics:
 
         if response_times:
             self.response_time_avg = statistics.mean(response_times)
-            self.response_time_p95 = statistics.quantiles(response_times, n=20)[
+            self.response_time_p95 = statistics.quantiles(
+                response_times, n=20
+            )[
                 18
             ]  # 95th percentile
 
@@ -185,7 +187,8 @@ class FeedbackLoop:
             self.start_real_time_analysis()
 
         logger.info(
-            "Feedback Loop initialized with %d channels", len(self.feedback_channels)
+            "Feedback Loop initialized with %d channels",
+            len(self.feedback_channels),
         )
 
     def _initialize_default_channels(self):
@@ -250,7 +253,9 @@ class FeedbackLoop:
                 logger.error("Analysis loop error: %s", exc)
                 await asyncio.sleep(5)
 
-    async def _analyze_feedback_batch(self, feedback_batch: List[FeedbackEvent]):
+    async def _analyze_feedback_batch(
+        self, feedback_batch: List[FeedbackEvent]
+    ):
         """Analyze a batch of feedback events."""
         try:
             # Update performance metrics
@@ -267,7 +272,9 @@ class FeedbackLoop:
             # Update user behavior models
             self._update_user_behavior_models(feedback_batch)
 
-            logger.debug("Analyzed batch of %d feedback events", len(feedback_batch))
+            logger.debug(
+                "Analyzed batch of %d feedback events", len(feedback_batch)
+            )
 
         except Exception as exc:
             logger.error("Feedback batch analysis error: %s", exc)
@@ -307,9 +314,13 @@ class FeedbackLoop:
             self.feedback_events.append(feedback_event)
 
             # Keep only recent feedback
-            cutoff_date = datetime.now() - timedelta(days=self.feedback_retention_days)
+            cutoff_date = datetime.now() - timedelta(
+                days=self.feedback_retention_days
+            )
             self.feedback_events = [
-                event for event in self.feedback_events if event.timestamp > cutoff_date
+                event
+                for event in self.feedback_events
+                if event.timestamp > cutoff_date
             ]
 
         # Queue for analysis
@@ -325,7 +336,9 @@ class FeedbackLoop:
             try:
                 channel_func(feedback_event)
             except Exception as exc:
-                logger.debug("Channel processing error for %s: %s", event_type, exc)
+                logger.debug(
+                    "Channel processing error for %s: %s", event_type, exc
+                )
 
         logger.debug("Captured feedback event: %s (%s)", event_id, event_type)
         return event_id
@@ -384,7 +397,9 @@ class FeedbackLoop:
                 ratings = [e.rating for e in events if e.rating is not None]
                 avg_rating = statistics.mean(ratings) if ratings else 0.0
 
-                feedback_texts = [e.feedback_text for e in events if e.feedback_text]
+                feedback_texts = [
+                    e.feedback_text for e in events if e.feedback_text
+                ]
                 common_feedback = feedback_texts[-5:] if feedback_texts else []
 
                 # Generate pattern ID
@@ -407,7 +422,9 @@ class FeedbackLoop:
 
         return patterns
 
-    def _generate_suggested_actions(self, events: List[FeedbackEvent]) -> List[str]:
+    def _generate_suggested_actions(
+        self, events: List[FeedbackEvent]
+    ) -> List[str]:
         """Generate suggested actions based on feedback patterns."""
         actions = []
 
@@ -420,14 +437,18 @@ class FeedbackLoop:
             if "timeout" in error_type.lower():
                 actions.append("Increase response timeout limits")
             elif "accuracy" in error_type.lower():
-                actions.append("Improve response accuracy with additional training")
+                actions.append(
+                    "Improve response accuracy with additional training"
+                )
             elif "relevance" in error_type.lower():
                 actions.append("Enhance context relevance filtering")
 
         # Check ratings
         low_ratings = [e for e in events if e.rating and e.rating < 3.0]
         if len(low_ratings) > len(events) * 0.3:
-            actions.append("Review and improve response quality for this pattern")
+            actions.append(
+                "Review and improve response quality for this pattern"
+            )
 
         # Check feedback text for common themes
         feedback_texts = [e.feedback_text for e in events if e.feedback_text]
@@ -438,7 +459,9 @@ class FeedbackLoop:
                 common_words.update(words)
 
             top_words = [
-                word for word, count in common_words.most_common(5) if count > 1
+                word
+                for word, count in common_words.most_common(5)
+                if count > 1
             ]
             if "slow" in top_words:
                 actions.append("Optimize response generation speed")
@@ -447,7 +470,9 @@ class FeedbackLoop:
 
         return actions[:3]  # Limit to top 3 actions
 
-    async def _trigger_learning_actions(self, feedback_events: List[FeedbackEvent]):
+    async def _trigger_learning_actions(
+        self, feedback_events: List[FeedbackEvent]
+    ):
         """Trigger learning actions based on feedback."""
         if not self.learning_enabled:
             return
@@ -468,13 +493,17 @@ class FeedbackLoop:
                     await trigger_func(pattern)
                 except Exception as exc:
                     logger.error(
-                        "Learning trigger error for %s: %s", pattern.pattern_id, exc
+                        "Learning trigger error for %s: %s",
+                        pattern.pattern_id,
+                        exc,
                     )
 
     async def _periodic_pattern_analysis(self):
         """Periodic analysis of feedback patterns."""
         # Clean up old patterns
-        cutoff_date = datetime.now() - timedelta(days=self.feedback_retention_days)
+        cutoff_date = datetime.now() - timedelta(
+            days=self.feedback_retention_days
+        )
         expired_patterns = [
             pid
             for pid, pattern in self.feedback_patterns.items()
@@ -493,7 +522,9 @@ class FeedbackLoop:
             )  # 1% penalty per day after 30 days
             pattern.confidence = max(0, pattern.confidence - age_penalty)
 
-    def _update_user_behavior_models(self, feedback_events: List[FeedbackEvent]):
+    def _update_user_behavior_models(
+        self, feedback_events: List[FeedbackEvent]
+    ):
         """Update user behavior models based on feedback."""
         user_events = defaultdict(list)
 
@@ -540,7 +571,9 @@ class FeedbackLoop:
             if total_events == 0:
                 return {"total_events": 0}
 
-            ratings = [e.rating for e in self.feedback_events if e.rating is not None]
+            ratings = [
+                e.rating for e in self.feedback_events if e.rating is not None
+            ]
             avg_rating = statistics.mean(ratings) if ratings else 0.0
 
             event_types = Counter(e.event_type for e in self.feedback_events)
@@ -600,7 +633,8 @@ class FeedbackLoop:
                     e.to_dict() for e in self.feedback_events[-1000:]
                 ],  # Last 1000 events
                 "feedback_patterns": [
-                    self._pattern_to_dict(p) for p in self.feedback_patterns.values()
+                    self._pattern_to_dict(p)
+                    for p in self.feedback_patterns.values()
                 ],
                 "performance_metrics": self.get_performance_metrics(),
                 "user_behavior_models": dict(self.user_behavior_models),
@@ -610,7 +644,9 @@ class FeedbackLoop:
     def add_learning_trigger(self, feedback_type: str, trigger_func: Callable):
         """Add a learning trigger for a feedback type."""
         self.learning_triggers[feedback_type] = trigger_func
-        logger.info("Added learning trigger for feedback type: %s", feedback_type)
+        logger.info(
+            "Added learning trigger for feedback type: %s", feedback_type
+        )
 
     def configure_channel(self, channel_name: str, config: Dict[str, Any]):
         """Configure a feedback channel."""

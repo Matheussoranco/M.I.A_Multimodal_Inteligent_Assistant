@@ -88,9 +88,7 @@ class AutomationUtil:
         :return: Confirmation of autofill success.
         """
         if not HAS_SELENIUM:
-            return (
-                "Selenium not available. Install selenium for web automation features."
-            )
+            return "Selenium not available. Install selenium for web automation features."
 
         try:
             driver = (

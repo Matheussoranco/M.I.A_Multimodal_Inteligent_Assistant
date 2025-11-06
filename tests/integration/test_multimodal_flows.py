@@ -70,9 +70,13 @@ class TestMultimodalInteractionFlows(unittest.TestCase):
         )
 
         # Mock transcription
-        mock_speech_processor.transcribe_audio_data.return_value = "Hello world"
+        mock_speech_processor.transcribe_audio_data.return_value = (
+            "Hello world"
+        )
 
-        user_input, inputs = process_audio_input(self.mock_args, self.mock_components)
+        user_input, inputs = process_audio_input(
+            self.mock_args, self.mock_components
+        )
 
         self.assertEqual(user_input, "Hello world")
         self.assertEqual(inputs["audio"], "Hello world")
@@ -85,10 +89,14 @@ class TestMultimodalInteractionFlows(unittest.TestCase):
         self.mock_args.mode = "audio"  # Set mode to audio for processing
         mock_audio_utils = self.mock_components["audio_utils"]
         mock_speech_processor = self.mock_components["speech_processor"]
-        mock_audio_utils.capture_with_vad.return_value = np.array([], dtype=np.float32)
+        mock_audio_utils.capture_with_vad.return_value = np.array(
+            [], dtype=np.float32
+        )
         mock_speech_processor.transcribe_audio_data.return_value = ""
 
-        user_input, inputs = process_audio_input(self.mock_args, self.mock_components)
+        user_input, inputs = process_audio_input(
+            self.mock_args, self.mock_components
+        )
 
         self.assertIsNone(user_input)
         self.assertEqual(inputs, {})
@@ -102,11 +110,15 @@ class TestMultimodalInteractionFlows(unittest.TestCase):
         mock_audio_utils = self.mock_components["audio_utils"]
         mock_audio_utils.capture_with_vad.side_effect = KeyboardInterrupt()
 
-        user_input, inputs = process_audio_input(self.mock_args, self.mock_components)
+        user_input, inputs = process_audio_input(
+            self.mock_args, self.mock_components
+        )
 
         self.assertIsNone(user_input)
         self.assertEqual(inputs, {})
-        self.assertEqual(self.mock_args.mode, "text")  # Should switch to text mode
+        self.assertEqual(
+            self.mock_args.mode, "text"
+        )  # Should switch to text mode
 
     def test_process_image_input_success(self):
         """Test successful image input processing."""
@@ -127,19 +139,25 @@ class TestMultimodalInteractionFlows(unittest.TestCase):
         """Test image input processing with processing error."""
         self.mock_args.image_input = "/path/to/test.jpg"
         mock_vision_processor = self.mock_components["vision_processor"]
-        mock_vision_processor.process_image.side_effect = Exception("Processing failed")
+        mock_vision_processor.process_image.side_effect = Exception(
+            "Processing failed"
+        )
 
         result = process_image_input(self.mock_args, self.mock_components)
 
         self.assertEqual(result, {})  # Should return empty dict on error
-        self.assertIsNone(self.mock_args.image_input)  # Should still be cleared
+        self.assertIsNone(
+            self.mock_args.image_input
+        )  # Should still be cleared
 
     @patch("mia.main.detect_and_execute_agent_commands")
     def test_process_with_llm_agent_command_execution(self, mock_detect):
         """Test LLM processing that triggers agent command."""
         mock_detect.return_value = (True, "File created successfully")
 
-        result = process_with_llm("create file test.py", {}, self.mock_components)
+        result = process_with_llm(
+            "create file test.py", {}, self.mock_components
+        )
 
         self.assertEqual(result["response"], "File created successfully")
         self.assertFalse(result["streamed"])
@@ -162,7 +180,9 @@ class TestMultimodalInteractionFlows(unittest.TestCase):
         """Test LLM processing with LLM error."""
         self.mock_components["llm"].query.side_effect = Exception("LLM error")
         self.mock_components["llm"].stream_enabled = False
-        self.mock_components["llm"].supports_streaming = MagicMock(return_value=False)
+        self.mock_components["llm"].supports_streaming = MagicMock(
+            return_value=False
+        )
 
         result = process_with_llm("test query", {}, self.mock_components)
 
@@ -360,7 +380,9 @@ class TestIntegrationScenarios(unittest.TestCase):
             )
             if should_continue and cmd_response is None:
                 inputs["text"] = user_input
-                response = mock_process_llm(user_input, inputs, mock_components)
+                response = mock_process_llm(
+                    user_input, inputs, mock_components
+                )
 
         self.assertEqual(user_input, "hello")
         self.assertEqual(response["response"], "Hello! How can I help you?")
@@ -403,7 +425,9 @@ class TestIntegrationScenarios(unittest.TestCase):
 
         # Simulate the flow
         image_inputs = mock_process_image(mock_args, mock_components)
-        user_input, audio_inputs = mock_process_audio(mock_args, mock_components)
+        user_input, audio_inputs = mock_process_audio(
+            mock_args, mock_components
+        )
 
         inputs = {}
         inputs.update(image_inputs)

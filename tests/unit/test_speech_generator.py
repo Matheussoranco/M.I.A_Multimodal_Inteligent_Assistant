@@ -30,7 +30,9 @@ class TestSpeechGenerator(unittest.TestCase):
         from mia.audio.speech_generator import SpeechGenerator  # type: ignore
 
         generator = SpeechGenerator(default_tts_provider="nanochat")
-        generator.tts_providers.setdefault("nanochat", {})["api_key"] = "test-token"
+        generator.tts_providers.setdefault("nanochat", {})[
+            "api_key"
+        ] = "test-token"
 
         audio_bytes = b"unit-test-audio"
         mock_response = MagicMock()

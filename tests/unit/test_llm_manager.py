@@ -66,7 +66,9 @@ class TestLLMManager(unittest.TestCase):
         """Test initialization with custom parameters."""
         mock_config_class.return_value = self.mock_config
 
-        manager = LLMManager(provider="openai", model_id="gpt-4", api_key="custom-key")
+        manager = LLMManager(
+            provider="openai", model_id="gpt-4", api_key="custom-key"
+        )
         self.assertEqual(manager.provider, "openai")
         self.assertEqual(manager.model_id, "gpt-4")
         self.assertEqual(manager.api_key, "custom-key")
@@ -74,7 +76,9 @@ class TestLLMManager(unittest.TestCase):
     @patch("mia.llm.llm_manager.ConfigManager")
     @patch("mia.llm.llm_manager.HAS_OPENAI", True)
     @patch("mia.llm.llm_manager.OpenAI")
-    def test_initialize_openai_success(self, mock_openai_class, mock_config_class):
+    def test_initialize_openai_success(
+        self, mock_openai_class, mock_config_class
+    ):
         """Test successful OpenAI initialization."""
         mock_config_class.return_value = self.mock_config
         mock_client = MagicMock()
@@ -108,7 +112,9 @@ class TestLLMManager(unittest.TestCase):
     @patch("mia.llm.llm_manager.ConfigManager")
     @patch("mia.llm.llm_manager.HAS_TRANSFORMERS", True)
     @patch("mia.llm.llm_manager.pipeline")
-    def test_initialize_huggingface_success(self, mock_pipeline, mock_config_class):
+    def test_initialize_huggingface_success(
+        self, mock_pipeline, mock_config_class
+    ):
         """Test successful HuggingFace initialization."""
         mock_config_class.return_value = self.mock_config
         mock_client = MagicMock()
@@ -125,7 +131,9 @@ class TestLLMManager(unittest.TestCase):
 
         with self.assertRaises(InitializationError) as context:
             LLMManager(provider="huggingface")
-        self.assertIn("Transformers package not installed", str(context.exception))
+        self.assertIn(
+            "Transformers package not installed", str(context.exception)
+        )
 
     @patch("mia.llm.llm_manager.ConfigManager")
     def test_initialize_huggingface_no_model_id(self, mock_config_class):
@@ -179,7 +187,8 @@ class TestLLMManager(unittest.TestCase):
                     loop.close()
 
         with patch(
-            "mia.llm.llm_manager.asyncio.get_event_loop", return_value=_TestLoop()
+            "mia.llm.llm_manager.asyncio.get_event_loop",
+            return_value=_TestLoop(),
         ):
             with patch.object(
                 manager, "query_async", new_callable=AsyncMock
@@ -235,7 +244,9 @@ class TestLLMManager(unittest.TestCase):
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "choices": [{"messages": [{"sender_type": "BOT", "text": "Minimax reply"}]}]
+            "choices": [
+                {"messages": [{"sender_type": "BOT", "text": "Minimax reply"}]}
+            ]
         }
         mock_post.return_value = mock_response
 
@@ -295,7 +306,9 @@ class TestLLMManager(unittest.TestCase):
 
         # Test with failed initialization
         with patch.object(
-            manager, "_initialize_provider", side_effect=Exception("Init failed")
+            manager,
+            "_initialize_provider",
+            side_effect=Exception("Init failed"),
         ):
             manager._available = False
             self.assertFalse(manager._available)

@@ -212,7 +212,11 @@ class DialogManager:
                     "do",
                     "make",
                 },
-                examples=["Open the browser", "Create a new file", "Send an email"],
+                examples=[
+                    "Open the browser",
+                    "Create a new file",
+                    "Send an email",
+                ],
             ),
             IntentType.CLARIFICATION: IntentPattern(
                 intent=IntentType.CLARIFICATION,
@@ -253,7 +257,11 @@ class DialogManager:
                     "deny",
                     "that's",
                 },
-                examples=["Yes, that's correct", "No, that's wrong", "Sure, go ahead"],
+                examples=[
+                    "Yes, that's correct",
+                    "No, that's wrong",
+                    "Sure, go ahead",
+                ],
             ),
             IntentType.GREETING: IntentPattern(
                 intent=IntentType.GREETING,
@@ -306,7 +314,11 @@ class DialogManager:
                 actions=[
                     {"type": "set_state", "state": DialogState.LISTENING},
                     {"type": "respond", "template": "greeting_response"},
-                    {"type": "update_context", "key": "greeted", "value": True},
+                    {
+                        "type": "update_context",
+                        "key": "greeted",
+                        "value": True,
+                    },
                 ],
                 priority=10,
             ),
@@ -400,11 +412,15 @@ class DialogManager:
                     1 for keyword in pattern.keywords if keyword in text_lower
                 )
                 if keyword_matches > 0:
-                    confidence += min(keyword_matches / len(pattern.keywords), 0.5)
+                    confidence += min(
+                        keyword_matches / len(pattern.keywords), 0.5
+                    )
 
                 # Check patterns (simplified regex matching)
                 for pattern_str in pattern.patterns:
-                    if pattern_str.startswith("(?i)") and pattern_str.endswith(")"):
+                    if pattern_str.startswith("(?i)") and pattern_str.endswith(
+                        ")"
+                    ):
                         # Simple pattern matching for common cases
                         inner_pattern = pattern_str[4:-1]  # Remove (?i) and )
                         if inner_pattern in text_lower:
@@ -446,14 +462,18 @@ class DialogManager:
                 context.user_profile = getattr(
                     self.config_manager, "get_user_profile", lambda uid: {}
                 )(user_id)
-                context.preferences = context.user_profile.get("preferences", {})
+                context.preferences = context.user_profile.get(
+                    "preferences", {}
+                )
             except Exception as exc:
                 logger.debug("Failed to load user profile: %s", exc)
 
         with self.session_lock:
             self.active_sessions[session_id] = context
 
-        logger.info("Started conversation session %s for user %s", session_id, user_id)
+        logger.info(
+            "Started conversation session %s for user %s", session_id, user_id
+        )
         return session_id
 
     def process_input(
@@ -486,7 +506,9 @@ class DialogManager:
                 "turn": context.turn_count,
                 "timestamp": context.last_activity.isoformat(),
                 "user_input": user_input,
-                "modality": modality.value if modality else context.modality.value,
+                "modality": (
+                    modality.value if modality else context.modality.value
+                ),
             }
         )
 
@@ -512,16 +534,24 @@ class DialogManager:
 
         # Update conversation history with response
         if response:
-            context.conversation_history[-1]["response"] = response.get("text", "")
-            context.conversation_history[-1]["actions"] = response.get("actions", [])
+            context.conversation_history[-1]["response"] = response.get(
+                "text", ""
+            )
+            context.conversation_history[-1]["actions"] = response.get(
+                "actions", []
+            )
 
         # Learning: record intent classification
         if self.learning_enabled:
-            self._record_intent_classification(user_input, intent, confidence, context)
+            self._record_intent_classification(
+                user_input, intent, confidence, context
+            )
 
         return response
 
-    def _extract_entities(self, text: str, intent: IntentType) -> Dict[str, Any]:
+    def _extract_entities(
+        self, text: str, intent: IntentType
+    ) -> Dict[str, Any]:
         """Extract entities from user input (simplified implementation)."""
         entities = {}
 
@@ -648,13 +678,17 @@ class DialogManager:
 
         elif action_type == "respond":
             template = action.get("template", "")
-            response["text"] = self._generate_response(template, context, user_input)
+            response["text"] = self._generate_response(
+                template, context, user_input
+            )
 
         elif action_type == "route_to_llm":
             use_rag = action.get("use_rag", False)
             llm_response = self._route_to_llm(user_input, context, use_rag)
             response["text"] = llm_response
-            response["actions"].append({"type": "llm_query", "use_rag": use_rag})
+            response["actions"].append(
+                {"type": "llm_query", "use_rag": use_rag}
+            )
 
         elif action_type == "route_to_action_executor":
             action_result = self._route_to_action_executor(user_input, context)
@@ -713,12 +747,17 @@ class DialogManager:
         return "I'm processing your request..."
 
     def _route_to_llm(
-        self, user_input: str, context: ConversationContext, use_rag: bool = False
+        self,
+        user_input: str,
+        context: ConversationContext,
+        use_rag: bool = False,
     ) -> str:
         """Route request to LLM with optional RAG augmentation."""
         try:
             # Build enhanced prompt with context
-            enhanced_prompt = self._build_enhanced_prompt(user_input, context, use_rag)
+            enhanced_prompt = self._build_enhanced_prompt(
+                user_input, context, use_rag
+            )
 
             # Get LLM response
             llm_manager = provider_registry.create("llm")
@@ -741,10 +780,17 @@ class DialogManager:
             result = action_executor.execute(
                 command["action"], command.get("params", {})
             )
-            return {"success": True, "message": str(result), "command": command}
+            return {
+                "success": True,
+                "message": str(result),
+                "command": command,
+            }
         except Exception as exc:
             logger.error("Action execution failed: %s", exc)
-            return {"success": False, "message": f"Failed to execute action: {exc}"}
+            return {
+                "success": False,
+                "message": f"Failed to execute action: {exc}",
+            }
 
     def _parse_command(
         self, user_input: str, context: ConversationContext
@@ -754,9 +800,15 @@ class DialogManager:
         text_lower = user_input.lower()
 
         if "open" in text_lower and "browser" in text_lower:
-            return {"action": "web_search", "params": {"query": "open browser"}}
+            return {
+                "action": "web_search",
+                "params": {"query": "open browser"},
+            }
         elif "create" in text_lower and "file" in text_lower:
-            return {"action": "create_file", "params": {"filename": "new_file.txt"}}
+            return {
+                "action": "create_file",
+                "params": {"filename": "new_file.txt"},
+            }
         elif "send" in text_lower and "email" in text_lower:
             return {
                 "action": "send_email",
@@ -766,7 +818,10 @@ class DialogManager:
         return {"action": "unknown", "params": {}}
 
     def _build_enhanced_prompt(
-        self, user_input: str, context: ConversationContext, use_rag: bool = False
+        self,
+        user_input: str,
+        context: ConversationContext,
+        use_rag: bool = False,
     ) -> str:
         """Build enhanced prompt with context and RAG if available."""
         prompt_parts = []
@@ -830,10 +885,22 @@ If you need clarification, ask specific questions. Be concise but informative.""
             "confirm",
             "yes please",
         }
-        negative_words = {"no", "nope", "cancel", "stop", "wrong", "incorrect", "deny"}
+        negative_words = {
+            "no",
+            "nope",
+            "cancel",
+            "stop",
+            "wrong",
+            "incorrect",
+            "deny",
+        }
 
-        positive_count = sum(1 for word in positive_words if word in text_lower)
-        negative_count = sum(1 for word in negative_words if word in text_lower)
+        positive_count = sum(
+            1 for word in positive_words if word in text_lower
+        )
+        negative_count = sum(
+            1 for word in negative_words if word in text_lower
+        )
 
         if positive_count > negative_count:
             return True
@@ -890,7 +957,8 @@ If you need clarification, ask specific questions. Be concise but informative.""
 
         # Update average confidence
         perf["avg_confidence"] = (
-            (perf["avg_confidence"] * (perf["total_uses"] - 1)) + context.confidence
+            (perf["avg_confidence"] * (perf["total_uses"] - 1))
+            + context.confidence
         ) / perf["total_uses"]
 
     def end_conversation(self, session_id: str):
@@ -908,7 +976,9 @@ If you need clarification, ask specific questions. Be concise but informative.""
                 del self.active_sessions[session_id]
                 logger.debug("Cleaned up session %s", session_id)
 
-    def get_session_context(self, session_id: str) -> Optional[ConversationContext]:
+    def get_session_context(
+        self, session_id: str
+    ) -> Optional[ConversationContext]:
         """Get conversation context for a session."""
         with self.session_lock:
             return self.active_sessions.get(session_id)
@@ -935,7 +1005,9 @@ If you need clarification, ask specific questions. Be concise but informative.""
                 )
                 self.dialog_rules.append(rule)
 
-            logger.info("Loaded %d rules from %s", len(self.dialog_rules), file_path)
+            logger.info(
+                "Loaded %d rules from %s", len(self.dialog_rules), file_path
+            )
 
         except Exception as exc:
             logger.error("Failed to load rules from %s: %s", file_path, exc)
@@ -960,7 +1032,9 @@ If you need clarification, ask specific questions. Be concise but informative.""
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(rules_data, f, indent=2, ensure_ascii=False)
 
-            logger.info("Saved %d rules to %s", len(self.dialog_rules), file_path)
+            logger.info(
+                "Saved %d rules to %s", len(self.dialog_rules), file_path
+            )
 
         except Exception as exc:
             logger.error("Failed to save rules to %s: %s", file_path, exc)

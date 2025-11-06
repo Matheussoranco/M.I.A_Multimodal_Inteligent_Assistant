@@ -37,13 +37,17 @@ class SecurityManager:
         }
 
     @with_error_handling(global_error_handler, fallback_value=False)
-    def check_permission(self, action: str, context: Optional[Dict] = None) -> bool:
+    def check_permission(
+        self, action: str, context: Optional[Dict] = None
+    ) -> bool:
         """Check if action is permitted with comprehensive validation."""
         if not action:
             raise ValidationError("Empty action provided", "EMPTY_ACTION")
 
         if not isinstance(action, str):
-            raise ValidationError("Action must be a string", "INVALID_ACTION_TYPE")
+            raise ValidationError(
+                "Action must be a string", "INVALID_ACTION_TYPE"
+            )
 
         # Log the permission check
         self._log_action_attempt(action, context)
@@ -52,7 +56,9 @@ class SecurityManager:
             # Basic action permission
             if action not in self.data_policies:
                 logger.warning(f"Unknown action attempted: {action}")
-                raise SecurityError(f"Unknown action: {action}", "UNKNOWN_ACTION")
+                raise SecurityError(
+                    f"Unknown action: {action}", "UNKNOWN_ACTION"
+                )
 
             if not self.data_policies[action]:
                 logger.info(f"Action denied by policy: {action}")
@@ -102,7 +108,9 @@ class SecurityManager:
             # Block access to sensitive system files
             for blocked_path in self.blocked_paths:
                 if blocked_path.lower() in file_path.lower():
-                    logger.warning(f"Blocked access to sensitive path: {file_path}")
+                    logger.warning(
+                        f"Blocked access to sensitive path: {file_path}"
+                    )
                     return False
 
             # Check for path traversal attempts
@@ -153,7 +161,9 @@ class SecurityManager:
             # Check for command injection attempts
             injection_patterns = [";", "&&", "||", "|", "&", "`", "$"]
             if any(pattern in command for pattern in injection_patterns):
-                logger.warning(f"Command injection attempt detected: {command}")
+                logger.warning(
+                    f"Command injection attempt detected: {command}"
+                )
                 return False
 
             return True
@@ -166,7 +176,12 @@ class SecurityManager:
         """Validate web search query for security."""
         try:
             # Check for malicious patterns
-            malicious_patterns = ["<script>", "javascript:", "data:", "file://"]
+            malicious_patterns = [
+                "<script>",
+                "javascript:",
+                "data:",
+                "file://",
+            ]
             if any(pattern in query.lower() for pattern in malicious_patterns):
                 logger.warning(f"Malicious web query detected: {query}")
                 return False
@@ -227,25 +242,23 @@ class SecurityManager:
                 return "No action specified"
 
             allowed = self.data_policies.get(action, False)
-            explanation = f"Action '{action}' is {'ALLOWED' if allowed else 'DENIED'}."
+            explanation = (
+                f"Action '{action}' is {'ALLOWED' if allowed else 'DENIED'}."
+            )
 
             if not allowed:
                 if action in ["read_file", "write_file"]:
-                    explanation += (
-                        " File operations require explicit permission for security."
-                    )
+                    explanation += " File operations require explicit permission for security."
                 elif action == "execute_command":
-                    explanation += (
-                        " Command execution is restricted to prevent system damage."
-                    )
+                    explanation += " Command execution is restricted to prevent system damage."
                 elif action == "system_control":
-                    explanation += " System control requires administrator privileges."
+                    explanation += (
+                        " System control requires administrator privileges."
+                    )
                 elif action == "web_search":
                     explanation += " Web search is generally allowed but may be restricted in some contexts."
                 else:
-                    explanation += (
-                        " This action is not permitted by current security policy."
-                    )
+                    explanation += " This action is not permitted by current security policy."
 
             return explanation
 

@@ -23,7 +23,10 @@ class MultimodalProcessor:
             try:
                 # Try Sphinx (offline) as fallback
                 text = getattr(self.recognizer, "recognize_sphinx")(audio_data)  # type: ignore
-                return {"text": text, "emotion": self._analyze_emotion(audio_data)}
+                return {
+                    "text": text,
+                    "emotion": self._analyze_emotion(audio_data),
+                }
             except (sr.UnknownValueError, sr.RequestError, AttributeError):
                 return {"error": "Could not process audio"}
 
@@ -54,15 +57,21 @@ class MultimodalProcessor:
             energy = np.sum(audio_np**2) / len(audio_np)
 
             # Zero crossing rate (measure of noisiness)
-            zero_crossings = np.sum(np.abs(np.diff(np.sign(audio_np)))) / len(audio_np)
+            zero_crossings = np.sum(np.abs(np.diff(np.sign(audio_np)))) / len(
+                audio_np
+            )
 
             # Simple pitch estimation using autocorrelation
             if len(audio_np) > 100:
-                corr = np.correlate(audio_np[:1000], audio_np[:1000], mode="full")
+                corr = np.correlate(
+                    audio_np[:1000], audio_np[:1000], mode="full"
+                )
                 corr = corr[len(corr) // 2 :]
                 if len(corr) > 10:
                     peak_index = np.argmax(corr[10:100]) + 10
-                    pitch_estimate = 16000 / peak_index if peak_index > 0 else 0
+                    pitch_estimate = (
+                        16000 / peak_index if peak_index > 0 else 0
+                    )
                 else:
                     pitch_estimate = 0
             else:
@@ -127,7 +136,11 @@ class MultimodalProcessor:
 
         except Exception as e:
             print(f"Dominant color extraction failed: {e}")
-            return {"hex": "#808080", "rgb": (128, 128, 128), "name": "unknown"}
+            return {
+                "hex": "#808080",
+                "rgb": (128, 128, 128),
+                "name": "unknown",
+            }
 
     def _color_name(self, rgb):
         """Get approximate color name from RGB values"""
@@ -193,7 +206,9 @@ class MultimodalProcessor:
 
             # Calculate basic statistics
             mean_brightness = sum(pixels) / len(pixels)
-            contrast = sum(abs(p - mean_brightness) for p in pixels) / len(pixels)
+            contrast = sum(abs(p - mean_brightness) for p in pixels) / len(
+                pixels
+            )
 
             if contrast > 30:  # High contrast might indicate text
                 return "[Text detected - OCR not available. Install pytesseract for full OCR functionality]"

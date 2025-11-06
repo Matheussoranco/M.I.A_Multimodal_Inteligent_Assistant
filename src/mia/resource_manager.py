@@ -120,7 +120,9 @@ class AudioResource(ManagedResource[Any]):
             # Audio device initialization would go here
             logger.info(f"Audio resource {self.resource_id} initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize audio resource {self.resource_id}: {e}")
+            logger.error(
+                f"Failed to initialize audio resource {self.resource_id}: {e}"
+            )
             raise
 
     def cleanup(self) -> None:
@@ -139,7 +141,9 @@ class AudioResource(ManagedResource[Any]):
 
             logger.info(f"Audio resource {self.resource_id} cleaned up")
         except Exception as e:
-            logger.error(f"Failed to cleanup audio resource {self.resource_id}: {e}")
+            logger.error(
+                f"Failed to cleanup audio resource {self.resource_id}: {e}"
+            )
 
     def get_memory_usage(self) -> int:
         """Get memory usage estimate."""
@@ -164,7 +168,9 @@ class ModelResource(ManagedResource[Any]):
                 f"Model resource {self.resource_id} ({self.model_type}) initialized"
             )
         except Exception as e:
-            logger.error(f"Failed to initialize model resource {self.resource_id}: {e}")
+            logger.error(
+                f"Failed to initialize model resource {self.resource_id}: {e}"
+            )
             raise
 
     def cleanup(self) -> None:
@@ -183,11 +189,15 @@ class ModelResource(ManagedResource[Any]):
 
             logger.info(f"Model resource {self.resource_id} cleaned up")
         except Exception as e:
-            logger.error(f"Failed to cleanup model resource {self.resource_id}: {e}")
+            logger.error(
+                f"Failed to cleanup model resource {self.resource_id}: {e}"
+            )
 
     def get_memory_usage(self) -> int:
         """Get memory usage estimate."""
-        return self._estimated_size or 100 * 1024 * 1024  # 100MB default estimate
+        return (
+            self._estimated_size or 100 * 1024 * 1024
+        )  # 100MB default estimate
 
 
 class DatabaseResource(ManagedResource[Any]):
@@ -225,7 +235,9 @@ class DatabaseResource(ManagedResource[Any]):
 
             logger.info(f"Database resource {self.resource_id} cleaned up")
         except Exception as e:
-            logger.error(f"Failed to cleanup database resource {self.resource_id}: {e}")
+            logger.error(
+                f"Failed to cleanup database resource {self.resource_id}: {e}"
+            )
 
     def get_memory_usage(self) -> int:
         """Get memory usage estimate."""
@@ -264,9 +276,13 @@ class WhisperModelResource(ManagedResource[Any]):
 
                 logger.info(f"Loading Whisper model: {self.model_name}")
                 self.model = whisper.load_model(self.model_name)
-                logger.info(f"Whisper model {self.model_name} loaded successfully")
+                logger.info(
+                    f"Whisper model {self.model_name} loaded successfully"
+                )
             except ImportError:
-                raise MemoryError("Whisper package not available", "MISSING_WHISPER")
+                raise MemoryError(
+                    "Whisper package not available", "MISSING_WHISPER"
+                )
             except Exception as e:
                 raise MemoryError(
                     f"Failed to load Whisper model {self.model_name}: {str(e)}",
@@ -298,7 +314,9 @@ class WhisperModelResource(ManagedResource[Any]):
                 except Exception as e:
                     logger.error(f"Cleanup callback failed: {e}")
 
-            logger.info(f"Whisper model resource {self.resource_id} cleaned up")
+            logger.info(
+                f"Whisper model resource {self.resource_id} cleaned up"
+            )
         except Exception as e:
             logger.error(
                 f"Failed to cleanup Whisper model resource {self.resource_id}: {e}"
@@ -363,7 +381,9 @@ class ResourceManager:
                 try:
                     self.release_resource(resource_id)
                 except Exception as e:
-                    logger.error(f"Error releasing resource {resource_id}: {e}")
+                    logger.error(
+                        f"Error releasing resource {resource_id}: {e}"
+                    )
 
             if self._cleanup_thread:
                 self._cleanup_thread.join(timeout=5)
@@ -521,10 +541,15 @@ class ResourceManager:
 
             # Release oldest resources until memory is under limit
             for resource_id, resource in sorted_resources:
-                if self.get_total_memory_usage() <= self.max_memory_bytes * 0.8:
+                if (
+                    self.get_total_memory_usage()
+                    <= self.max_memory_bytes * 0.8
+                ):
                     break
 
-                logger.info(f"Freeing memory by releasing resource: {resource_id}")
+                logger.info(
+                    f"Freeing memory by releasing resource: {resource_id}"
+                )
                 self.release_resource(resource_id)
 
     def get_total_memory_usage(self) -> int:
@@ -554,7 +579,9 @@ class ResourceManager:
                         last_used=resource.last_used,
                         memory_usage=resource.get_memory_usage(),
                         reference_count=(
-                            1 if resource.resource_id in self.resource_refs else 0
+                            1
+                            if resource.resource_id in self.resource_refs
+                            else 0
                         ),
                         metadata={},
                     )

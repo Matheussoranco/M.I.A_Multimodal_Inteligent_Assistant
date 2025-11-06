@@ -18,7 +18,9 @@ except ImportError:  # pragma: no cover - optional dependency
 
 try:
     from difflib import SequenceMatcher
-except ImportError:  # pragma: no cover - python standard library should always exist
+except (
+    ImportError
+):  # pragma: no cover - python standard library should always exist
     SequenceMatcher = None  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,10 @@ class HotwordDetector:
     """Simple hotword detector leveraging fuzzy text matching and signal energy."""
 
     def __init__(
-        self, hotword: str = "mia", sensitivity: float = 0.5, energy_floor: float = 0.01
+        self,
+        hotword: str = "mia",
+        sensitivity: float = 0.5,
+        energy_floor: float = 0.01,
     ) -> None:
         self.hotword = (hotword or "mia").strip().lower()
         self.sensitivity = max(0.1, min(sensitivity, 0.95))

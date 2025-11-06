@@ -13,7 +13,10 @@ from .hybrid_llm_orchestration import (
     HybridLLMOrchestrator,
     create_hybrid_llm_orchestrator,
 )
-from .knowledge_memory_graph import KnowledgeMemoryGraph, create_knowledge_memory_graph
+from .knowledge_memory_graph import (
+    KnowledgeMemoryGraph,
+    create_knowledge_memory_graph,
+)
 from .modality_manager import ModalityManager, create_modality_manager
 from .multi_device_synchronization import (
     MultiDeviceSynchronizationSystem,
@@ -77,4 +80,6 @@ __all__ = [
 
 __version__ = "2.0.0"
 __author__ = "M.I.A. Development Team"
-__description__ = "Advanced AI Foundations for Multimodal Intelligent Assistant"
+__description__ = (
+    "Advanced AI Foundations for Multimodal Intelligent Assistant"
+)

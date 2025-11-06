@@ -164,7 +164,10 @@ class DeviceManager:
             return device_id
 
     def update_device_status(
-        self, device_id: str, is_online: bool, metadata: Optional[Dict[str, Any]] = None
+        self,
+        device_id: str,
+        is_online: bool,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Update device status."""
         with self._lock:
@@ -190,7 +193,9 @@ class DeviceManager:
         with self._lock:
             return self.devices.get(device_id)
 
-    def get_user_devices(self, user_id: str, online_only: bool = False) -> List[Device]:
+    def get_user_devices(
+        self, user_id: str, online_only: bool = False
+    ) -> List[Device]:
         """Get all devices for a user."""
         with self._lock:
             device_ids = self.user_devices.get(user_id, set())
@@ -230,7 +235,8 @@ class DeviceManager:
             for device_id, device in self.devices.items():
                 if (
                     device.is_online
-                    and current_time - device.last_seen > self.heartbeat_timeout
+                    and current_time - device.last_seen
+                    > self.heartbeat_timeout
                 ):
                     device.is_online = False
                     self.online_devices.discard(device_id)
@@ -256,7 +262,9 @@ class DeviceManager:
                 device_types[device.device_type.value] = (
                     device_types.get(device.device_type.value, 0) + 1
                 )
-                platforms[device.platform] = platforms.get(device.platform, 0) + 1
+                platforms[device.platform] = (
+                    platforms.get(device.platform, 0) + 1
+                )
 
             return {
                 "total_devices": total_devices,
@@ -323,7 +331,9 @@ class SyncDataStore:
             # Update checksum cache
             self.data_checksums[data_id] = data.checksum
 
-            logger.debug(f"Stored sync data: {data_id} for user {data.user_id}")
+            logger.debug(
+                f"Stored sync data: {data_id} for user {data.user_id}"
+            )
             return data_id
 
     def get_data(self, user_id: str, data_id: str) -> Optional[SyncData]:
@@ -387,7 +397,10 @@ class SyncDataStore:
             del self.data_store[user_id][data_id]
 
             # Also remove from versions
-            if user_id in self.data_versions and data_id in self.data_versions[user_id]:
+            if (
+                user_id in self.data_versions
+                and data_id in self.data_versions[user_id]
+            ):
                 del self.data_versions[user_id][data_id]
 
             # Remove checksum
@@ -429,7 +442,10 @@ class SyncDataStore:
             return None
 
     def resolve_conflict(
-        self, conflict: SyncConflict, resolution_strategy: str, resolved_content: Any
+        self,
+        conflict: SyncConflict,
+        resolution_strategy: str,
+        resolved_content: Any,
     ) -> SyncData:
         """Resolve a synchronization conflict."""
         with self._lock:
@@ -439,7 +455,8 @@ class SyncDataStore:
                 user_id=conflict.user_id,
                 data_type=conflict.conflicting_versions[0].data_type,
                 content=resolved_content,
-                version=max(v.version for v in conflict.conflicting_versions) + 1,
+                version=max(v.version for v in conflict.conflicting_versions)
+                + 1,
                 tags=conflict.conflicting_versions[0].tags.copy(),
             )
 
@@ -487,7 +504,9 @@ class SyncDataStore:
                 self.delete_data(user_id, data_id)
 
             if expired_data:
-                logger.info(f"Cleaned up {len(expired_data)} expired data items")
+                logger.info(
+                    f"Cleaned up {len(expired_data)} expired data items"
+                )
 
     def get_storage_stats(self) -> Dict[str, Any]:
         """Get storage statistics."""
@@ -505,14 +524,17 @@ class SyncDataStore:
             data_types = {}
             for user_data in self.data_store.values():
                 for data in user_data.values():
-                    data_types[data.data_type] = data_types.get(data.data_type, 0) + 1
+                    data_types[data.data_type] = (
+                        data_types.get(data.data_type, 0) + 1
+                    )
 
             return {
                 "total_users": total_users,
                 "total_data_items": total_data_items,
                 "total_versions": total_versions,
                 "data_types": data_types,
-                "avg_versions_per_item": total_versions / max(total_data_items, 1),
+                "avg_versions_per_item": total_versions
+                / max(total_data_items, 1),
             }
 
 
@@ -523,7 +545,9 @@ class SyncCoordinator:
     Manages sync queues, conflict resolution, and progress tracking.
     """
 
-    def __init__(self, device_manager: DeviceManager, data_store: SyncDataStore):
+    def __init__(
+        self, device_manager: DeviceManager, data_store: SyncDataStore
+    ):
         self.device_manager = device_manager
         self.data_store = data_store
 
@@ -564,7 +588,10 @@ class SyncCoordinator:
                 operation = await self.pending_operations.get()
 
                 # Check concurrency limit
-                if len(self.active_operations) >= self.max_concurrent_operations:
+                if (
+                    len(self.active_operations)
+                    >= self.max_concurrent_operations
+                ):
                     # Put back in queue and wait
                     await self.pending_operations.put(operation)
                     await asyncio.sleep(1)
@@ -663,15 +690,21 @@ class SyncCoordinator:
 
         # For now, use automatic resolution strategy (latest wins)
         # In a real implementation, this might involve user interaction
-        latest_version = max(conflict.conflicting_versions, key=lambda v: v.modified_at)
+        latest_version = max(
+            conflict.conflicting_versions, key=lambda v: v.modified_at
+        )
 
         resolved_data = self.data_store.resolve_conflict(
             conflict, "latest_wins", latest_version.content
         )
 
-        logger.info(f"Auto-resolved conflict {conflict.id} using latest version")
+        logger.info(
+            f"Auto-resolved conflict {conflict.id} using latest version"
+        )
 
-    def get_operation_status(self, operation_id: str) -> Optional[SyncOperation]:
+    def get_operation_status(
+        self, operation_id: str
+    ) -> Optional[SyncOperation]:
         """Get the status of a sync operation."""
         with self._lock:
             return self.sync_operations.get(operation_id)
@@ -744,7 +777,9 @@ class SyncConnectors:
 
     def __init__(self):
         self.connectors: Dict[str, Callable] = {}
-        self.device_connectors: Dict[str, Any] = {}  # device_id -> connector instance
+        self.device_connectors: Dict[str, Any] = (
+            {}
+        )  # device_id -> connector instance
 
     def register_connector(self, platform: str, connector_class: Callable):
         """Register a connector for a specific platform."""
@@ -820,7 +855,9 @@ class SyncDashboard:
         self.coordinator = coordinator
         self.data_store = data_store
 
-    def get_dashboard_data(self, user_id: Optional[str] = None) -> Dict[str, Any]:
+    def get_dashboard_data(
+        self, user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Get dashboard data for synchronization status."""
         device_stats = self.device_manager.get_device_stats()
         sync_stats = self.coordinator.get_sync_stats()
@@ -866,7 +903,9 @@ class SyncDashboard:
             and datetime.now() - op.completed_at < timedelta(hours=24)
         ]
 
-        recent_ops.sort(key=lambda op: op.completed_at or datetime.min, reverse=True)
+        recent_ops.sort(
+            key=lambda op: op.completed_at or datetime.min, reverse=True
+        )
 
         return [
             {
@@ -923,7 +962,9 @@ class MultiDeviceSynchronizationSystem:
         # Core components
         self.device_manager = DeviceManager()
         self.data_store = SyncDataStore()
-        self.coordinator = SyncCoordinator(self.device_manager, self.data_store)
+        self.coordinator = SyncCoordinator(
+            self.device_manager, self.data_store
+        )
         self.connectors = SyncConnectors()
         self.dashboard = SyncDashboard(
             self.device_manager, self.coordinator, self.data_store
@@ -942,7 +983,9 @@ class MultiDeviceSynchronizationSystem:
         self.sync_processing_task = asyncio.create_task(
             self.coordinator.process_sync_operations()
         )
-        self.device_cleanup_task = asyncio.create_task(self._device_cleanup_loop())
+        self.device_cleanup_task = asyncio.create_task(
+            self._device_cleanup_loop()
+        )
         self.data_cleanup_task = asyncio.create_task(self._data_cleanup_loop())
 
         logger.info("Multi-Device Synchronization System started")
@@ -990,7 +1033,9 @@ class MultiDeviceSynchronizationSystem:
             except Exception as exc:
                 logger.error(f"Data cleanup error: {exc}")
 
-    def register_device(self, user_id: str, device_info: Dict[str, Any]) -> str:
+    def register_device(
+        self, user_id: str, device_info: Dict[str, Any]
+    ) -> str:
         """Register a new device for synchronization."""
         device = Device(
             id="",
@@ -1024,7 +1069,9 @@ class MultiDeviceSynchronizationSystem:
         )
 
         # Get user's devices
-        user_devices = self.device_manager.get_user_devices(user_id, online_only=True)
+        user_devices = self.device_manager.get_user_devices(
+            user_id, online_only=True
+        )
         target_device_ids = [d.id for d in user_devices]
 
         # Create sync operation
@@ -1051,10 +1098,14 @@ class MultiDeviceSynchronizationSystem:
             "status": operation.status.value,
             "progress": operation.progress,
             "started_at": (
-                operation.started_at.isoformat() if operation.started_at else None
+                operation.started_at.isoformat()
+                if operation.started_at
+                else None
             ),
             "completed_at": (
-                operation.completed_at.isoformat() if operation.completed_at else None
+                operation.completed_at.isoformat()
+                if operation.completed_at
+                else None
             ),
             "error_message": operation.error_message,
         }
@@ -1095,10 +1146,14 @@ class MultiDeviceSynchronizationSystem:
             for d in data_items
         ]
 
-    def resolve_conflict(self, conflict_id: str, resolution: Dict[str, Any]) -> bool:
+    def resolve_conflict(
+        self, conflict_id: str, resolution: Dict[str, Any]
+    ) -> bool:
         """Resolve a synchronization conflict."""
         return self.coordinator.resolve_conflict_manual(
-            conflict_id, resolution.get("strategy", "manual"), resolution.get("content")
+            conflict_id,
+            resolution.get("strategy", "manual"),
+            resolution.get("content"),
         )
 
     def get_dashboard(self, user_id: Optional[str] = None) -> Dict[str, Any]:

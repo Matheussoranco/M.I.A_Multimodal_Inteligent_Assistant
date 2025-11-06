@@ -137,7 +137,11 @@ def mock_llm_response():
 @pytest.fixture
 def mock_image_data():
     """Mock image data for testing."""
-    return {"path": "/fake/path/test_image.jpg", "size": (800, 600), "format": "JPEG"}
+    return {
+        "path": "/fake/path/test_image.jpg",
+        "size": (800, 600),
+        "format": "JPEG",
+    }
 
 
 @pytest.fixture
@@ -164,7 +168,10 @@ def test_conversation_history():
         {"role": "user", "content": "Hello"},
         {"role": "assistant", "content": "Hi there! How can I help you?"},
         {"role": "user", "content": "What is AI?"},
-        {"role": "assistant", "content": "AI stands for Artificial Intelligence..."},
+        {
+            "role": "assistant",
+            "content": "AI stands for Artificial Intelligence...",
+        },
     ]
 
 
@@ -180,8 +187,12 @@ def mock_external_api():
                     "usage": {"total_tokens": 100},
                 }
             },
-            "huggingface": {"inference": {"generated_text": "Mock generated text"}},
-            "google_vision": {"annotate": {"responses": [{"textAnnotations": []}]}},
+            "huggingface": {
+                "inference": {"generated_text": "Mock generated text"}
+            },
+            "google_vision": {
+                "annotate": {"responses": [{"textAnnotations": []}]}
+            },
         }
         return responses.get(service_name, {}).get(endpoint, {})
 

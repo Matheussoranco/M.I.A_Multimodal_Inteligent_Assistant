@@ -26,7 +26,11 @@ from .providers import ProviderLookupError, provider_registry
 try:
     from .cache_manager import CacheManager
     from .config_manager import ConfigManager
-    from .error_handler import global_error_handler, safe_execute, with_error_handling
+    from .error_handler import (
+        global_error_handler,
+        safe_execute,
+        with_error_handling,
+    )
     from .exceptions import *
     from .performance_monitor import PerformanceMonitor
     from .resource_manager import ResourceManager
@@ -108,7 +112,9 @@ def _extract_filepath(
     return candidates[-1].strip("\"'") if candidates else None
 
 
-def prompt_user_consent(action: str, params: Optional[Dict[str, Any]] = None) -> bool:
+def prompt_user_consent(
+    action: str, params: Optional[Dict[str, Any]] = None
+) -> bool:
     """Ask the user to confirm sensitive actions before execution."""
     auto_consent = os.getenv("MIA_AUTO_CONSENT", "").strip().lower()
     if auto_consent in {"1", "true", "yes", "y", "sim", "s"}:
@@ -151,7 +157,9 @@ def _suppress_warnings_env() -> None:
     warnings.filterwarnings(
         "ignore", message=".*slow.*processor.*", category=UserWarning
     )
-    warnings.filterwarnings("ignore", message=".*use_fast.*", category=UserWarning)
+    warnings.filterwarnings(
+        "ignore", message=".*use_fast.*", category=UserWarning
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -306,7 +314,8 @@ def detect_and_execute_agent_commands(
 
             template = (
                 "report"
-                if "relatorio" in user_input_lower or "report" in user_input_lower
+                if "relatorio" in user_input_lower
+                or "report" in user_input_lower
                 else "proposal"
             )
 
@@ -323,7 +332,9 @@ def detect_and_execute_agent_commands(
             return True, _("agent_analysis_error", error=e)
 
     # Sandbox command
-    elif any(keyword in user_input_lower for keyword in ["sandbox", "wasm", "wasi"]):
+    elif any(
+        keyword in user_input_lower for keyword in ["sandbox", "wasm", "wasi"]
+    ):
         try:
             result = action_executor.execute(
                 "run_sandboxed",
@@ -363,7 +374,9 @@ def detect_and_execute_agent_commands(
             if not filepath:
                 return True, _("agent_specify_file")
 
-            result = action_executor.execute("analyze_code", {"path": filepath})
+            result = action_executor.execute(
+                "analyze_code", {"path": filepath}
+            )
             return True, _("agent_code_analysis", result=result)
         except Exception as e:
             return True, _("agent_analysis_error", error=e)
@@ -411,7 +424,9 @@ def detect_and_execute_agent_commands(
             import re
 
             # Extract chat id or username (numeric id recommended)
-            chat_match = re.search(r"(?:para|to)\s+(@?[\w\d_\-]+)", user_input_lower)
+            chat_match = re.search(
+                r"(?:para|to)\s+(@?[\w\d_\-]+)", user_input_lower
+            )
             to_id = chat_match.group(1) if chat_match else ""
 
             msg_match = re.search(r'["\']([^"\']+)["\']', user_input)
@@ -433,7 +448,9 @@ def detect_and_execute_agent_commands(
         try:
             import re
 
-            to_match = re.search(r"(?:para|to)\s+([\w\.-]+@[\w\.-]+)", user_input_lower)
+            to_match = re.search(
+                r"(?:para|to)\s+([\w\.-]+@[\w\.-]+)", user_input_lower
+            )
             to_addr = to_match.group(1) if to_match else ""
 
             subj_match = re.search(
@@ -453,7 +470,8 @@ def detect_and_execute_agent_commands(
             )
 
             body_match = re.search(
-                r"(?:corpo|body)\s*[\:\-]?\s*[\"\']([^\"\']+)[\"\']", user_input
+                r"(?:corpo|body)\s*[\:\-]?\s*[\"\']([^\"\']+)[\"\']",
+                user_input,
             )
             body = body_match.group(1) if body_match else user_input
 
@@ -494,9 +512,13 @@ def detect_and_execute_agent_commands(
             import re
 
             # look for filename with .xlsx or .csv
-            file_match = re.search(r"\b(\S+\.(?:xlsx|csv))\b", user_input_lower)
+            file_match = re.search(
+                r"\b(\S+\.(?:xlsx|csv))\b", user_input_lower
+            )
             filename = file_match.group(1) if file_match else "planilha.xlsx"
-            result = action_executor.execute("create_sheet", {"filename": filename})
+            result = action_executor.execute(
+                "create_sheet", {"filename": filename}
+            )
             return True, result
         except Exception as e:
             return True, _("agent_analysis_error", error=e)
@@ -516,7 +538,9 @@ def detect_and_execute_agent_commands(
             import re
 
             file_match = re.search(r"\b(\S+\.pptx)\b", user_input_lower)
-            filename = file_match.group(1) if file_match else "apresentacao.pptx"
+            filename = (
+                file_match.group(1) if file_match else "apresentacao.pptx"
+            )
             # Optional title in quotes
             title_match = re.search(r'["\']([^"\']+)["\']', user_input)
             title = title_match.group(1) if title_match else ""
@@ -541,8 +565,12 @@ def parse_arguments():
         default="mixed",
         help="Interaction mode: text|audio|mixed|auto",
     )
-    parser.add_argument("--text-only", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--audio-mode", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--text-only", action="store_true", help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--audio-mode", action="store_true", help=argparse.SUPPRESS
+    )
     parser.add_argument(
         "--language",
         choices=["en", "pt"],
@@ -560,7 +588,9 @@ def parse_arguments():
         type=str,
         help="Nome do perfil de LLM configurado em config.yaml",
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable debug logging"
+    )
     parser.add_argument(
         "--version",
         action="version",
@@ -612,9 +642,14 @@ def initialize_components(args):
                     config_manager.activate_llm_profile(args.profile)
                 except configuration_error_cls as exc:
                     logger.warning(
-                        "Requested profile '%s' unavailable: %s", args.profile, exc
+                        "Requested profile '%s' unavailable: %s",
+                        args.profile,
+                        exc,
                     )
-            elif config_manager.config and config_manager.config.default_llm_profile:
+            elif (
+                config_manager.config
+                and config_manager.config.default_llm_profile
+            ):
                 try:
                     config_manager.activate_llm_profile(
                         config_manager.config.default_llm_profile
@@ -626,7 +661,9 @@ def initialize_components(args):
                         exc,
                     )
         except Exception as exc:  # pragma: no cover - defensive load
-            logger.warning("Configuration manager failed to load config: %s", exc)
+            logger.warning(
+                "Configuration manager failed to load config: %s", exc
+            )
             config_manager = None
     components["config_manager"] = config_manager
 
@@ -656,7 +693,9 @@ def initialize_components(args):
                 "LLM provider returned no instance - text processing disabled"
             )
     except ProviderLookupError:
-        logger.warning("LLM provider not registered - some features will be disabled")
+        logger.warning(
+            "LLM provider not registered - some features will be disabled"
+        )
         components["llm"] = None
     except Exception as e:
         logger.error(f"Failed to initialize LLM Manager: {e}")
@@ -668,7 +707,9 @@ def initialize_components(args):
     components["speech_processor"] = None
     components["speech_generator"] = None
     components["hotword_detector"] = None
-    audio_config = getattr(getattr(config_manager, "config", None), "audio", None)
+    audio_config = getattr(
+        getattr(config_manager, "config", None), "audio", None
+    )
     components["audio_config"] = audio_config
 
     if args.mode in ("audio", "mixed", "auto"):
@@ -685,8 +726,12 @@ def initialize_components(args):
                     audio_config=audio_config,
                 )
             else:
-                speech_processor = provider_registry.create("audio", "processor")
-                speech_generator = provider_registry.create("audio", "generator")
+                speech_processor = provider_registry.create(
+                    "audio", "processor"
+                )
+                speech_generator = provider_registry.create(
+                    "audio", "generator"
+                )
             components["audio_utils"] = audio_utils
             components["speech_processor"] = speech_processor
             components["speech_generator"] = speech_generator
@@ -695,16 +740,23 @@ def initialize_components(args):
                     sample_rate=getattr(audio_config, "sample_rate", None),
                     chunk_size=getattr(audio_config, "chunk_size", None),
                     device_id=getattr(audio_config, "device_id", None),
-                    input_threshold=getattr(audio_config, "input_threshold", None),
+                    input_threshold=getattr(
+                        audio_config, "input_threshold", None
+                    ),
                 )
-            components["audio_available"] = bool(audio_utils and speech_processor)
+            components["audio_available"] = bool(
+                audio_utils and speech_processor
+            )
             if components["audio_available"]:
                 if audio_config and audio_config.hotword:
                     try:
                         components["hotword_detector"] = HotwordDetector(
                             audio_config.hotword,
-                            sensitivity=audio_config.hotword_sensitivity or 0.5,
-                            energy_floor=getattr(audio_config, "input_threshold", 0.01)
+                            sensitivity=audio_config.hotword_sensitivity
+                            or 0.5,
+                            energy_floor=getattr(
+                                audio_config, "input_threshold", 0.01
+                            )
                             or 0.01,
                         )
                     except Exception as exc:
@@ -815,7 +867,9 @@ def display_status(components, args):
     cache_manager = components.get("cache_manager")
     config_manager = components.get("config_manager")
     active_profile = (
-        getattr(config_manager, "active_llm_profile", None) if config_manager else None
+        getattr(config_manager, "active_llm_profile", None)
+        if config_manager
+        else None
     )
 
     status = (
@@ -850,10 +904,14 @@ def display_status(components, args):
     )
     print(f"  {bold('Device:')} {cyan(device)}")
 
-    if performance_monitor and hasattr(performance_monitor, "get_current_metrics"):
+    if performance_monitor and hasattr(
+        performance_monitor, "get_current_metrics"
+    ):
         perf_metrics = performance_monitor.get_current_metrics()
         if perf_metrics:
-            print(f"  {bold('CPU:')} {yellow(f'{perf_metrics.cpu_percent:.1f}%')}")
+            print(
+                f"  {bold('CPU:')} {yellow(f'{perf_metrics.cpu_percent:.1f}%')}"
+            )
             print(
                 f"  {bold('Memory:')} {yellow(f'{perf_metrics.memory_percent:.1f}%')}"
             )
@@ -861,7 +919,9 @@ def display_status(components, args):
     if cache_manager and hasattr(cache_manager, "get_stats"):
         cache_stats = cache_manager.get_stats()
         hit_rate = cache_stats.get("memory_cache", {}).get("hit_rate", 0)
-        print(f"  {bold('Cache Hit Rate:')} {green('{:.1%}'.format(hit_rate))}")
+        print(
+            f"  {bold('Cache Hit Rate:')} {green('{:.1%}'.format(hit_rate))}"
+        )
 
     print(bold("─" * 40))
 
@@ -922,14 +982,25 @@ def process_audio_input(args, components):
                 return None, {}
 
         if audio_config and audio_config.push_to_talk:
-            prompt = _msg("audio_push_to_talk", "Pressione e segure espaço para falar")
+            prompt = _msg(
+                "audio_push_to_talk", "Pressione e segure espaço para falar"
+            )
             if not audio_utils.wait_for_push_to_talk(prompt=prompt):
                 print(
-                    yellow(_msg("audio_push_to_talk_cancel", "🔕 Captura cancelada."))
+                    yellow(
+                        _msg(
+                            "audio_push_to_talk_cancel",
+                            "🔕 Captura cancelada.",
+                        )
+                    )
                 )
                 return None, {}
 
-        print(bold(_msg("audio_listening", "🎤 Escutando... (Ctrl+C para texto)")))
+        print(
+            bold(
+                _msg("audio_listening", "🎤 Escutando... (Ctrl+C para texto)")
+            )
+        )
         audio_buffer = audio_utils.capture_with_vad(
             speech_processor=speech_processor,
             audio_config=audio_config,
@@ -944,7 +1015,9 @@ def process_audio_input(args, components):
             audio_utils.sample_rate,
         )
 
-        user_input = transcription.strip() if isinstance(transcription, str) else ""
+        user_input = (
+            transcription.strip() if isinstance(transcription, str) else ""
+        )
         if not user_input:
             print(
                 red(
@@ -976,7 +1049,9 @@ def _await_hotword(
     """Listen for the configured hotword within the timeout window."""
     timeout = getattr(audio_config, "hotword_timeout", 15.0) or 15.0
     window_s = max(
-        0.75, getattr(audio_config, "chunk_size", 1024) / float(audio_utils.sample_rate)
+        0.75,
+        getattr(audio_config, "chunk_size", 1024)
+        / float(audio_utils.sample_rate),
     )
     deadline = time.time() + timeout
 
@@ -1011,7 +1086,9 @@ def _await_hotword(
 
 def get_text_input(args):
     """Get text input from user."""
-    prompt = bold("💬 You: ") if args.mode != "audio" else bold("🎤 You (audio): ")
+    prompt = (
+        bold("💬 You: ") if args.mode != "audio" else bold("🎤 You (audio): ")
+    )
     try:
         user_input = input(prompt).strip()
         return user_input
@@ -1042,7 +1119,9 @@ def process_command(cmd, args, components):
         return True, clear_context(components)
     elif cmd == "audio" and components.get("speech_processor"):
         args.mode = "audio"
-        return True, yellow("🎤 Switched to audio input mode. Say something...")
+        return True, yellow(
+            "🎤 Switched to audio input mode. Say something..."
+        )
     elif cmd == "text" and args.mode == "audio":
         args.mode = "text"
         return True, cyan("🔤 Switched to text input mode.")
@@ -1132,10 +1211,12 @@ def display_profiles(components):
         marker = green(" (ativo)") if name == active else ""
         description = getattr(profile, "description", None)
         provider = (
-            getattr(profile, "provider", "") or config_manager.config.llm.provider
+            getattr(profile, "provider", "")
+            or config_manager.config.llm.provider
         )
         model_id = (
-            getattr(profile, "model_id", "") or config_manager.config.llm.model_id
+            getattr(profile, "model_id", "")
+            or config_manager.config.llm.model_id
         )
         print(cyan(f"  • {label}{marker}"))
         print(f"    Provider: {provider} — Model: {model_id}")
@@ -1160,7 +1241,9 @@ def switch_llm_profile(cmd, components):
 
     if profile_name not in profiles:
         available = ", ".join(profiles) if profiles else "nenhum"
-        return red(f"Perfil '{profile_name}' não encontrado. Disponíveis: {available}")
+        return red(
+            f"Perfil '{profile_name}' não encontrado. Disponíveis: {available}"
+        )
 
     try:
         # Apply profile to config manager
@@ -1176,10 +1259,12 @@ def switch_llm_profile(cmd, components):
         label = getattr(profile, "label", None) or profile_name
         description = getattr(profile, "description", None)
         provider = (
-            getattr(profile, "provider", "") or config_manager.config.llm.provider
+            getattr(profile, "provider", "")
+            or config_manager.config.llm.provider
         )
         model_id = (
-            getattr(profile, "model_id", "") or config_manager.config.llm.model_id
+            getattr(profile, "model_id", "")
+            or config_manager.config.llm.model_id
         )
 
         result = green(f"🔄 Perfil alterado para: {label}")
@@ -1202,7 +1287,9 @@ def clear_context(components):
     if cache_manager and hasattr(cache_manager, "clear_all"):
         cache_manager.clear_all()
 
-    if performance_monitor and hasattr(performance_monitor, "optimize_performance"):
+    if performance_monitor and hasattr(
+        performance_monitor, "optimize_performance"
+    ):
         performance_monitor.optimize_performance()
 
     return yellow("🧹 Conversation context cleared.")
@@ -1256,7 +1343,9 @@ def process_with_llm(user_input, inputs, components):
     print(cyan(_("thinking")))
 
     try:
-        supports_stream = hasattr(llm, "stream") and callable(getattr(llm, "stream"))
+        supports_stream = hasattr(llm, "stream") and callable(
+            getattr(llm, "stream")
+        )
         can_stream = supports_stream and getattr(llm, "stream_enabled", True)
         supports_stream_fn = getattr(llm, "supports_streaming", None)
         if callable(supports_stream_fn):
@@ -1329,7 +1418,9 @@ def cleanup_resources(components):
         cache_manager = components.get("cache_manager")
         resource_manager = components.get("resource_manager")
 
-        if performance_monitor and hasattr(performance_monitor, "stop_monitoring"):
+        if performance_monitor and hasattr(
+            performance_monitor, "stop_monitoring"
+        ):
             performance_monitor.stop_monitoring()
 
         if performance_monitor and hasattr(performance_monitor, "cleanup"):
@@ -1388,7 +1479,9 @@ def handle_user_command(user_input, args, components):
     Returns:
         tuple: (should_continue, command_response)
     """
-    should_continue, command_response = process_command(user_input, args, components)
+    should_continue, command_response = process_command(
+        user_input, args, components
+    )
     if not should_continue:
         return False, None
     if command_response is not None:
@@ -1503,7 +1596,9 @@ def run_interaction_loop(args, components):
 
 def main():
     """Main function for M.I.A application"""
-    components = {}  # Initialize components to avoid UnboundLocalError in finally block
+    components = (
+        {}
+    )  # Initialize components to avoid UnboundLocalError in finally block
     try:
         # Parse arguments
         args = parse_arguments()

@@ -36,11 +36,16 @@ class ErrorHandler:
 
     def record_failure(self, service_name: str):
         """Record a failure for circuit breaker tracking."""
-        self.error_counts[service_name] = self.error_counts.get(service_name, 0) + 1
+        self.error_counts[service_name] = (
+            self.error_counts.get(service_name, 0) + 1
+        )
 
     def is_circuit_open(self, service_name: str) -> bool:
         """Check if circuit breaker is open for a service."""
-        return self.error_counts.get(service_name, 0) >= self.circuit_breaker_threshold
+        return (
+            self.error_counts.get(service_name, 0)
+            >= self.circuit_breaker_threshold
+        )
 
     def handle_errors(self, max_retries: int = 3):
         """Decorator factory for error handling with retries."""
@@ -76,7 +81,9 @@ class ErrorHandler:
     ) -> Optional[Any]:
         """Handle an error with appropriate logging and recovery."""
         error_type = type(error).__name__
-        self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
+        self.error_counts[error_type] = (
+            self.error_counts.get(error_type, 0) + 1
+        )
 
         # Log the error with context
         context = context or {}
@@ -115,7 +122,9 @@ class ErrorHandler:
 
 
 def with_error_handling(
-    error_handler: ErrorHandler, fallback_value: Any = None, reraise: bool = False
+    error_handler: ErrorHandler,
+    fallback_value: Any = None,
+    reraise: bool = False,
 ):
     """Decorator to add error handling to functions."""
 
@@ -175,9 +184,15 @@ def network_error_recovery(
 ) -> Optional[str]:
     """Default recovery strategy for network errors."""
     logger.info("Attempting network error recovery")
-    return "Network connection issue. Please check your connection and try again."
+    return (
+        "Network connection issue. Please check your connection and try again."
+    )
 
 
 # Register default strategies
-global_error_handler.register_recovery_strategy(LLMProviderError, llm_provider_recovery)
-global_error_handler.register_recovery_strategy(NetworkError, network_error_recovery)
+global_error_handler.register_recovery_strategy(
+    LLMProviderError, llm_provider_recovery
+)
+global_error_handler.register_recovery_strategy(
+    NetworkError, network_error_recovery
+)

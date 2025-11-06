@@ -343,7 +343,9 @@ class TestMainIntegration(unittest.TestCase):
         self.mock_components["llm"] = MagicMock()
         self.mock_components["action_executor"] = MagicMock()
 
-        result = process_with_llm("create file test.py", {}, self.mock_components)
+        result = process_with_llm(
+            "create file test.py", {}, self.mock_components
+        )
 
         self.assertEqual(result["response"], "Agent response")
         self.assertFalse(result["streamed"])
@@ -411,7 +413,9 @@ class TestMainIntegration(unittest.TestCase):
         self.mock_components["action_executor"] = None
         self.mock_components["rag_pipeline"] = rag_pipeline
         self.mock_components["audio_utils"] = None
-        self.mock_components["audio_config"] = SimpleNamespace(tts_enabled=False)
+        self.mock_components["audio_config"] = SimpleNamespace(
+            tts_enabled=False
+        )
         self.mock_components["speech_generator"] = None
 
         with redirect_stdout(io.StringIO()):

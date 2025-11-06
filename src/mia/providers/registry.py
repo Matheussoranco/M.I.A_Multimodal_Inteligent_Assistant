@@ -53,15 +53,21 @@ class ProviderRegistry:
             if callable(target):
                 return target(**kwargs)
             if kwargs:
-                raise TypeError(f"Provider '{domain}:{name}' does not accept arguments")
+                raise TypeError(
+                    f"Provider '{domain}:{name}' does not accept arguments"
+                )
             return target
 
-        self.register(domain, name, factory, default=default, singleton=singleton)
+        self.register(
+            domain, name, factory, default=default, singleton=singleton
+        )
 
     def _get_entry(self, domain: str, name: Optional[str]) -> Dict[str, Any]:
         domain_map = self._providers.get(domain)
         if not domain_map:
-            raise ProviderLookupError(f"No providers registered for domain '{domain}'")
+            raise ProviderLookupError(
+                f"No providers registered for domain '{domain}'"
+            )
         resolved_name = name or self._defaults.get(domain)
         if not resolved_name or resolved_name not in domain_map:
             raise ProviderLookupError(
@@ -69,7 +75,9 @@ class ProviderRegistry:
             )
         return domain_map[resolved_name]
 
-    def create(self, domain: str, name: Optional[str] = None, **kwargs: Any) -> Any:
+    def create(
+        self, domain: str, name: Optional[str] = None, **kwargs: Any
+    ) -> Any:
         entry = self._get_entry(domain, name)
         if entry["singleton"]:
             if entry["instance"] is None:
@@ -98,7 +106,9 @@ class ProviderRegistry:
 
     def set_default(self, domain: str, name: str) -> None:
         if domain not in self._providers:
-            raise ProviderLookupError(f"No providers registered for domain '{domain}'")
+            raise ProviderLookupError(
+                f"No providers registered for domain '{domain}'"
+            )
         if name not in self._providers[domain]:
             raise ProviderLookupError(
                 f"Provider '{name}' not registered in domain '{domain}'"

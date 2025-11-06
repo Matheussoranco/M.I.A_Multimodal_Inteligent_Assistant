@@ -97,9 +97,18 @@ class LLMInference:
 
         # Delegate to provider with best-effort formatting.
         provider = self.manager.provider
-        if provider in {"openai", "anthropic", "gemini", "groq", "grok", "minimax"}:
+        if provider in {
+            "openai",
+            "anthropic",
+            "gemini",
+            "groq",
+            "grok",
+            "minimax",
+        }:
             kwargs.setdefault("messages", messages)
-            return self.manager.query(messages[-1].get("content", ""), **kwargs)
+            return self.manager.query(
+                messages[-1].get("content", ""), **kwargs
+            )
 
         # For local providers, concatenate content for a pragmatic fallback.
         combined_prompt = "\n".join(
@@ -144,9 +153,13 @@ class LLMInference:
     # Legacy helper stubs (email, messaging, automation)
     # ---------------------------------------------------------------------
     def write_email(self, recipient: str, subject: str, body: str) -> str:
-        return f"Email to {recipient} with subject '{subject}' sent successfully."
+        return (
+            f"Email to {recipient} with subject '{subject}' sent successfully."
+        )
 
-    def write_message(self, platform: str, recipient: str, message: str) -> str:
+    def write_message(
+        self, platform: str, recipient: str, message: str
+    ) -> str:
         return f"Message to {recipient} on {platform} sent successfully."
 
     def take_note(self, app: str, content: str) -> str:
@@ -161,11 +174,11 @@ class LLMInference:
 
     def autofill_login(self, url: str, username: str, password: str) -> str:
         if not HAS_SELENIUM:
-            return (
-                "Selenium not available. Install selenium for web automation features."
-            )
+            return "Selenium not available. Install selenium for web automation features."
 
-        driver = webdriver.Chrome()  # pragma: no cover - requires selenium runtime
+        driver = (
+            webdriver.Chrome()
+        )  # pragma: no cover - requires selenium runtime
         driver.get(url)
 
         try:

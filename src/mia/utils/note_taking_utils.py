@@ -4,7 +4,11 @@ import requests
 class NoteUtil:
     @staticmethod
     def create_note(
-        api_url: str, api_key: str, note_title: str, note_content: str, app: str
+        api_url: str,
+        api_key: str,
+        note_title: str,
+        note_content: str,
+        app: str,
     ) -> str:
         """
         Create a note in any note-taking application using its API.

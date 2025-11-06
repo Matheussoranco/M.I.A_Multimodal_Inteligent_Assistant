@@ -56,7 +56,9 @@ class TestMultimodalProcessor:
         mock_recognizer.recognize_google.assert_called_once_with(mock_audio)
 
     @patch("speech_recognition.Recognizer")
-    def test_process_audio_google_unknown_value_error(self, mock_recognizer_class):
+    def test_process_audio_google_unknown_value_error(
+        self, mock_recognizer_class
+    ):
         """Test audio processing when Google recognition fails with UnknownValueError."""
         # Setup mocks
         mock_recognizer = Mock()
@@ -79,7 +81,9 @@ class TestMultimodalProcessor:
         # Setup mocks
         mock_recognizer = Mock()
         mock_recognizer_class.return_value = mock_recognizer
-        mock_recognizer.recognize_google.side_effect = sr.RequestError("Request error")
+        mock_recognizer.recognize_google.side_effect = sr.RequestError(
+            "Request error"
+        )
         mock_recognizer.recognize_sphinx.return_value = "Sphinx result"
 
         processor = MultimodalProcessor()
@@ -101,7 +105,9 @@ class TestMultimodalProcessor:
         # Setup mocks
         mock_recognizer = Mock()
         mock_recognizer_class.return_value = mock_recognizer
-        mock_recognizer.recognize_google.side_effect = sr.RequestError("Request error")
+        mock_recognizer.recognize_google.side_effect = sr.RequestError(
+            "Request error"
+        )
         mock_recognizer.recognize_sphinx.side_effect = sr.UnknownValueError()
 
         processor = MultimodalProcessor()
@@ -293,7 +299,11 @@ class TestMultimodalProcessor:
 
         result = processor._get_dominant_color(mock_img)
 
-        assert result == {"hex": "#808080", "rgb": (128, 128, 128), "name": "unknown"}
+        assert result == {
+            "hex": "#808080",
+            "rgb": (128, 128, 128),
+            "name": "unknown",
+        }
 
     def test_color_name_white(self):
         """Test color name classification for white."""
@@ -393,7 +403,9 @@ class TestMultimodalProcessor:
         mock_img = Mock()
 
         with patch.dict("sys.modules", {"pytesseract": None}):
-            with patch.object(processor, "_basic_ocr", return_value="Basic OCR result"):
+            with patch.object(
+                processor, "_basic_ocr", return_value="Basic OCR result"
+            ):
                 result = processor._extract_text(mock_img)
 
         assert result == "Basic OCR result"
@@ -406,7 +418,8 @@ class TestMultimodalProcessor:
 
         with patch.dict("sys.modules", {"pytesseract": Mock()}):
             with patch(
-                "pytesseract.image_to_string", side_effect=Exception("OCR error")
+                "pytesseract.image_to_string",
+                side_effect=Exception("OCR error"),
             ):
                 result = processor._extract_text(mock_img)
 

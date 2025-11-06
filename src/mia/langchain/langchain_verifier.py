@@ -17,4 +17,6 @@ class LangChainVerifier:
         # This is a placeholder; real LangChain chains can be plugged in here
         if expected:
             return f"Verified: {input_text.strip() == expected.strip()}"
-        return f"LangChain output: {input_text} (verification logic placeholder)"
+        return (
+            f"LangChain output: {input_text} (verification logic placeholder)"
+        )

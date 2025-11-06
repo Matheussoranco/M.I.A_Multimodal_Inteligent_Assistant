@@ -63,7 +63,9 @@ class LLMManager:
     """Unified LLM manager supporting multiple providers."""
 
     @classmethod
-    def detect_available_providers(cls, interactive: bool = True) -> Dict[str, Any]:
+    def detect_available_providers(
+        cls, interactive: bool = True
+    ) -> Dict[str, Any]:
         """
         Detect available LLM providers based on API keys and test connectivity.
 
@@ -124,7 +126,8 @@ class LLMManager:
             "ollama": {
                 "env_vars": [],  # Ollama doesn't need API key
                 "default_model": "deepseek-r1:1.5b",
-                "url": os.getenv("OLLAMA_URL") or "http://localhost:11434/api/generate",
+                "url": os.getenv("OLLAMA_URL")
+                or "http://localhost:11434/api/generate",
             },
         }
 
@@ -189,14 +192,18 @@ class LLMManager:
 
         # Multiple providers available
         if interactive:
-            print(f"\n📋 Found {len(available_providers)} available providers:")
+            print(
+                f"\n📋 Found {len(available_providers)} available providers:"
+            )
             for i, provider in enumerate(available_providers, 1):
                 print(f"  {i}. {provider['name']} ({provider['model']})")
 
             while True:
                 try:
                     choice = input(
-                        "\nSelect provider (1-{}): ".format(len(available_providers))
+                        "\nSelect provider (1-{}): ".format(
+                            len(available_providers)
+                        )
                     ).strip()
                     idx = int(choice) - 1
                     if 0 <= idx < len(available_providers):
@@ -257,7 +264,9 @@ class LLMManager:
                 if api_key and api_key.startswith("sk-") and len(api_key) > 20:
                     # Optional: Try a minimal request to verify
                     try:
-                        client = OpenAI(api_key=api_key, max_retries=1, timeout=5.0)
+                        client = OpenAI(
+                            api_key=api_key, max_retries=1, timeout=5.0
+                        )
                         # Try a minimal request
                         response = client.chat.completions.create(
                             model="gpt-3.5-turbo",
@@ -274,10 +283,18 @@ class LLMManager:
                 # Test Ollama connectivity
                 import requests
 
-                response = requests.get("http://localhost:11434/api/tags", timeout=5)
+                response = requests.get(
+                    "http://localhost:11434/api/tags", timeout=5
+                )
                 return response.status_code == 200
 
-            elif provider_name in ["anthropic", "gemini", "groq", "grok", "minimax"]:
+            elif provider_name in [
+                "anthropic",
+                "gemini",
+                "groq",
+                "grok",
+                "minimax",
+            ]:
                 # For other providers, just check if API key is set
                 env_vars = config.get("env_vars", [])
                 return all(os.getenv(var) for var in env_vars)
@@ -295,7 +312,15 @@ class LLMManager:
 
                 try:
                     response = requests.get(url, timeout=5)
-                    return response.status_code in (200, 201, 202, 204, 401, 403, 405)
+                    return response.status_code in (
+                        200,
+                        201,
+                        202,
+                        204,
+                        401,
+                        403,
+                        405,
+                    )
                 except requests.exceptions.RequestException:
                     return False
 
@@ -346,26 +371,34 @@ class LLMManager:
                 url = detected["url"]
                 logger.info(f"Auto-detected provider: {provider}")
             except Exception as e:
-                logger.warning(f"Auto-detection failed: {e}, falling back to config")
+                logger.warning(
+                    f"Auto-detection failed: {e}, falling back to config"
+                )
 
         config = self.config_manager.config
-        base_llm = config.llm if config and hasattr(config, "llm") else LLMConfig()
+        base_llm = (
+            config.llm if config and hasattr(config, "llm") else LLMConfig()
+        )
 
         resolved_llm = base_llm
         profile_config: Optional[LLMProfileConfig] = None
         if config and hasattr(self.config_manager, "resolve_llm_config"):
             try:
-                resolved_llm, profile_config = self.config_manager.resolve_llm_config(
-                    profile
+                resolved_llm, profile_config = (
+                    self.config_manager.resolve_llm_config(profile)
                 )
             except ConfigurationError:
                 resolved_llm = base_llm
 
         self.provider = provider or resolved_llm.provider
         self.model_id = model_id or resolved_llm.model_id
-        self.api_key = api_key or resolved_llm.api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = (
+            api_key or resolved_llm.api_key or os.getenv("OPENAI_API_KEY")
+        )
         self.url = (
-            url or resolved_llm.url or self._fallback_url_for_provider(self.provider)
+            url
+            or resolved_llm.url
+            or self._fallback_url_for_provider(self.provider)
         )
         self.max_tokens = resolved_llm.max_tokens
         self.temperature = resolved_llm.temperature
@@ -393,7 +426,9 @@ class LLMManager:
         try:
             self._initialize_provider()
         except Exception as e:
-            logger.warning(f"Failed to initialize LLM provider {self.provider}: {e}")
+            logger.warning(
+                f"Failed to initialize LLM provider {self.provider}: {e}"
+            )
             # Try fallback provider if ollama fails
             if self.provider == "ollama":
                 logger.info("Trying fallback to OpenAI provider...")
@@ -404,7 +439,9 @@ class LLMManager:
                     self._initialize_provider()
                     logger.info("Successfully fell back to OpenAI provider")
                 except Exception as fallback_e:
-                    logger.warning(f"Fallback to OpenAI also failed: {fallback_e}")
+                    logger.warning(
+                        f"Fallback to OpenAI also failed: {fallback_e}"
+                    )
                     self._available = False
             else:
                 self._available = False
@@ -414,10 +451,13 @@ class LLMManager:
             if "pytest" in sys.modules or os.getenv("TESTING") == "true":
                 raise e
 
-    def _fallback_url_for_provider(self, provider: Optional[str]) -> Optional[str]:
+    def _fallback_url_for_provider(
+        self, provider: Optional[str]
+    ) -> Optional[str]:
         mapping = {
             "openai": "https://api.openai.com/v1",
-            "ollama": os.getenv("OLLAMA_URL") or "http://localhost:11434/api/generate",
+            "ollama": os.getenv("OLLAMA_URL")
+            or "http://localhost:11434/api/generate",
             "nanochat": os.getenv("NANOCHAT_URL")
             or "http://localhost:8081/api/generate",
             "minimax": os.getenv("MINIMAX_URL")
@@ -441,7 +481,9 @@ class LLMManager:
         messages.append({"role": "user", "content": prompt})
         return messages
 
-    def _apply_system_prompt_to_text(self, prompt: str, kwargs: Dict[str, Any]) -> str:
+    def _apply_system_prompt_to_text(
+        self, prompt: str, kwargs: Dict[str, Any]
+    ) -> str:
         if kwargs.get("messages"):
             return prompt
         system_prompt = kwargs.get("system_prompt") or self.system_prompt
@@ -502,7 +544,8 @@ class LLMManager:
     def _stream_openai(self, prompt: str, **kwargs: Any) -> Iterable[str]:
         if not HAS_OPENAI or self.client is None:
             raise LLMProviderError(
-                "OpenAI streaming requires openai package", "CLIENT_NOT_AVAILABLE"
+                "OpenAI streaming requires openai package",
+                "CLIENT_NOT_AVAILABLE",
             )
 
         chat_attr = getattr(self.client, "chat", None)
@@ -514,7 +557,8 @@ class LLMManager:
         completions_attr = getattr(chat_attr, "completions", None)
         if completions_attr is None:
             raise LLMProviderError(
-                "OpenAI client missing completions attribute", "CLIENT_MALFORMED"
+                "OpenAI client missing completions attribute",
+                "CLIENT_MALFORMED",
             )
 
         messages = self._build_messages(prompt, kwargs)
@@ -540,7 +584,9 @@ class LLMManager:
     def _stream_ollama(self, prompt: str, **kwargs: Any) -> Iterable[str]:
         target_url = self.url or self._fallback_url_for_provider("ollama")
         if not target_url:
-            raise LLMProviderError("Ollama URL not configured", "OLLAMA_NO_URL")
+            raise LLMProviderError(
+                "Ollama URL not configured", "OLLAMA_NO_URL"
+            )
 
         payload = {
             "model": self.model_id,
@@ -551,7 +597,9 @@ class LLMManager:
             payload["options"] = kwargs["options"]
 
         timeout = kwargs.get("timeout", self.timeout or 30)
-        response = requests.post(target_url, json=payload, stream=True, timeout=timeout)
+        response = requests.post(
+            target_url, json=payload, stream=True, timeout=timeout
+        )
         response.raise_for_status()
 
         for line in response.iter_lines():
@@ -621,11 +669,15 @@ class LLMManager:
                 "MISSING_DEPENDENCY",
             )
         if OpenAI is None:
-            raise InitializationError("OpenAI class not available", "IMPORT_ERROR")
+            raise InitializationError(
+                "OpenAI class not available", "IMPORT_ERROR"
+            )
 
         api_key = self.api_key or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ConfigurationError("OpenAI API key not provided", "MISSING_API_KEY")
+            raise ConfigurationError(
+                "OpenAI API key not provided", "MISSING_API_KEY"
+            )
 
         try:
             # For OpenAI, use base URL without path
@@ -636,7 +688,8 @@ class LLMManager:
             self.client = OpenAI(base_url=base_url, api_key=api_key)
         except Exception as e:
             raise InitializationError(
-                f"OpenAI client initialization failed: {str(e)}", "CLIENT_INIT_FAILED"
+                f"OpenAI client initialization failed: {str(e)}",
+                "CLIENT_INIT_FAILED",
             )
 
     def _initialize_huggingface(self) -> None:
@@ -653,7 +706,8 @@ class LLMManager:
 
         if not self.model_id:
             raise ConfigurationError(
-                "Model ID required for HuggingFace provider", "MISSING_MODEL_ID"
+                "Model ID required for HuggingFace provider",
+                "MISSING_MODEL_ID",
             )
 
         try:
@@ -679,7 +733,8 @@ class LLMManager:
         model_path = self.local_model_path or self.model_id
         if model_path is None:
             raise ConfigurationError(
-                "Model path must be specified for local provider", "MISSING_MODEL_PATH"
+                "Model path must be specified for local provider",
+                "MISSING_MODEL_PATH",
             )
 
         try:
@@ -687,7 +742,8 @@ class LLMManager:
             self.model = AutoModelForCausalLM.from_pretrained(model_path)
         except Exception as e:
             raise InitializationError(
-                f"Local model initialization failed: {str(e)}", "MODEL_LOAD_FAILED"
+                f"Local model initialization failed: {str(e)}",
+                "MODEL_LOAD_FAILED",
             )
 
     def _initialize_api_provider(self) -> None:
@@ -701,7 +757,8 @@ class LLMManager:
         elif self.provider == "nanochat":
             if not self.url:
                 self.url = (
-                    os.getenv("NANOCHAT_URL") or "http://localhost:8081/api/generate"
+                    os.getenv("NANOCHAT_URL")
+                    or "http://localhost:8081/api/generate"
                 )
         elif self.provider == "minimax":
             if not self.url:
@@ -748,7 +805,9 @@ class LLMManager:
                     # No event loop, create new one
                     return asyncio.run(self.query_async(prompt, **kwargs))
             except Exception as e:
-                logger.warning(f"Async query failed, falling back to sync: {e}")
+                logger.warning(
+                    f"Async query failed, falling back to sync: {e}"
+                )
                 return self._query_sync_fallback(prompt, **kwargs)
         else:
             return self._query_sync_fallback(prompt, **kwargs)
@@ -780,7 +839,9 @@ class LLMManager:
             elif self.provider == "minimax":
                 return await self._query_minimax_async(prompt, **kwargs)
             elif self.provider == "huggingface":
-                return self._query_huggingface(prompt, **kwargs)  # Sync for now
+                return self._query_huggingface(
+                    prompt, **kwargs
+                )  # Sync for now
             elif self.provider == "local":
                 return self._query_local(prompt, **kwargs)  # Sync for now
             else:
@@ -791,7 +852,9 @@ class LLMManager:
 
         except Exception as e:
             # Re-raise M.I.A exceptions
-            if isinstance(e, (LLMProviderError, NetworkError, ConfigurationError)):
+            if isinstance(
+                e, (LLMProviderError, NetworkError, ConfigurationError)
+            ):
                 raise e
             # Convert other exceptions to LLMProviderError
             raise LLMProviderError(
@@ -833,7 +896,9 @@ class LLMManager:
                     "PROVIDER_NOT_IMPLEMENTED",
                 )
         except Exception as e:
-            if isinstance(e, (LLMProviderError, NetworkError, ConfigurationError)):
+            if isinstance(
+                e, (LLMProviderError, NetworkError, ConfigurationError)
+            ):
                 raise e
             raise LLMProviderError(
                 f"Sync query failed: {str(e)}",
@@ -863,7 +928,8 @@ class LLMManager:
             completions_attr = getattr(chat_attr, "completions", None)
             if completions_attr is None:
                 raise LLMProviderError(
-                    "OpenAI client missing completions attribute", "CLIENT_MALFORMED"
+                    "OpenAI client missing completions attribute",
+                    "CLIENT_MALFORMED",
                 )
 
             formatted_messages = self._build_messages(prompt, kwargs)
@@ -876,11 +942,15 @@ class LLMManager:
             )
 
             if not response.choices:
-                raise LLMProviderError("OpenAI returned no choices", "EMPTY_RESPONSE")
+                raise LLMProviderError(
+                    "OpenAI returned no choices", "EMPTY_RESPONSE"
+                )
 
             content = response.choices[0].message.content
             if content is None:
-                raise LLMProviderError("OpenAI returned null content", "NULL_CONTENT")
+                raise LLMProviderError(
+                    "OpenAI returned null content", "NULL_CONTENT"
+                )
 
             return content
 
@@ -902,11 +972,14 @@ class LLMManager:
                     "HuggingFace pipeline not callable", "CLIENT_NOT_CALLABLE"
                 )
 
-            result = self.client(prompt, max_length=kwargs.get("max_length", 256))
+            result = self.client(
+                prompt, max_length=kwargs.get("max_length", 256)
+            )
 
             if not isinstance(result, list) or len(result) == 0:
                 raise LLMProviderError(
-                    "HuggingFace returned invalid result format", "INVALID_RESPONSE"
+                    "HuggingFace returned invalid result format",
+                    "INVALID_RESPONSE",
                 )
 
             if "generated_text" not in result[0]:
@@ -919,19 +992,29 @@ class LLMManager:
         except Exception as e:
             if isinstance(e, LLMProviderError):
                 raise e
-            raise LLMProviderError(f"HuggingFace error: {str(e)}", "PIPELINE_ERROR")
+            raise LLMProviderError(
+                f"HuggingFace error: {str(e)}", "PIPELINE_ERROR"
+            )
 
     def _query_local(self, prompt: str, **kwargs) -> Optional[str]:
         """Query local model with specific error handling."""
-        if self.model is None or self.tokenizer is None or not HAS_TRANSFORMERS:
-            raise LLMProviderError("Local model not available", "MODEL_NOT_AVAILABLE")
+        if (
+            self.model is None
+            or self.tokenizer is None
+            or not HAS_TRANSFORMERS
+        ):
+            raise LLMProviderError(
+                "Local model not available", "MODEL_NOT_AVAILABLE"
+            )
 
         try:
             inputs = self.tokenizer(prompt, return_tensors="pt")
             outputs = self.model.generate(
                 **inputs, max_length=kwargs.get("max_length", 256)
             )
-            result = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            result = self.tokenizer.decode(
+                outputs[0], skip_special_tokens=True
+            )
 
             if not result:
                 raise LLMProviderError(
@@ -943,7 +1026,9 @@ class LLMManager:
         except Exception as e:
             if isinstance(e, LLMProviderError):
                 raise e
-            raise LLMProviderError(f"Local model error: {str(e)}", "MODEL_ERROR")
+            raise LLMProviderError(
+                f"Local model error: {str(e)}", "MODEL_ERROR"
+            )
 
     def _query_anthropic(self, prompt: str, **kwargs) -> Optional[str]:
         """Query Anthropic Claude API."""
@@ -1027,7 +1112,9 @@ class LLMManager:
             )
 
             try:
-                response = requests.post(url, headers=headers, json=data, timeout=30)
+                response = requests.post(
+                    url, headers=headers, json=data, timeout=30
+                )
                 response.raise_for_status()
             except requests.exceptions.Timeout:
                 raise NetworkError("Ollama request timed out", "TIMEOUT")
@@ -1042,11 +1129,14 @@ class LLMManager:
             try:
                 result = response.json()
             except ValueError:
-                raise LLMProviderError("Ollama returned invalid JSON", "INVALID_JSON")
+                raise LLMProviderError(
+                    "Ollama returned invalid JSON", "INVALID_JSON"
+                )
 
             if "response" not in result:
                 raise LLMProviderError(
-                    "Ollama response missing 'response' field", "MISSING_RESPONSE"
+                    "Ollama response missing 'response' field",
+                    "MISSING_RESPONSE",
                 )
 
             return result["response"]
@@ -1120,7 +1210,8 @@ class LLMManager:
 
             if "response" not in result:
                 raise LLMProviderError(
-                    "Nanochat response missing 'response' field", "MISSING_RESPONSE"
+                    "Nanochat response missing 'response' field",
+                    "MISSING_RESPONSE",
                 )
 
             return result["response"]
@@ -1132,7 +1223,9 @@ class LLMManager:
         """Query Minimax AI API."""
         api_key = self.api_key or os.getenv("MINIMAX_API_KEY")
         if not api_key:
-            raise ConfigurationError("Minimax API key not provided", "MISSING_API_KEY")
+            raise ConfigurationError(
+                "Minimax API key not provided", "MISSING_API_KEY"
+            )
 
         url = (
             self.url
@@ -1178,7 +1271,8 @@ class LLMManager:
             extracted = self._extract_minimax_text(result)
             if extracted is None:
                 raise LLMProviderError(
-                    "Minimax response did not contain textual output", "EMPTY_RESPONSE"
+                    "Minimax response did not contain textual output",
+                    "EMPTY_RESPONSE",
                 )
             return extracted
         except requests.exceptions.Timeout as exc:
@@ -1188,7 +1282,9 @@ class LLMManager:
                 "Unable to reach Minimax API", "CONNECTION_ERROR"
             ) from exc
         except requests.exceptions.HTTPError as exc:
-            raise NetworkError(f"Minimax HTTP error: {exc}", "HTTP_ERROR") from exc
+            raise NetworkError(
+                f"Minimax HTTP error: {exc}", "HTTP_ERROR"
+            ) from exc
         except (ConfigurationError, NetworkError, LLMProviderError):
             raise
         except Exception as exc:
@@ -1196,7 +1292,9 @@ class LLMManager:
             return None
 
     # Async methods for better performance
-    async def _query_openai_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def _query_openai_async(
+        self, prompt: str, **kwargs
+    ) -> Optional[str]:
         """Async query OpenAI."""
         if not HAS_AIOHTTP or aiohttp is None:
             return self._query_openai(prompt, **kwargs)
@@ -1225,7 +1323,9 @@ class LLMManager:
                 }
                 url = self.url or "https://api.openai.com/v1/chat/completions"
 
-                async with session.post(url, headers=headers, json=data) as response:
+                async with session.post(
+                    url, headers=headers, json=data
+                ) as response:
                     response.raise_for_status()
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
@@ -1233,7 +1333,9 @@ class LLMManager:
             logger.error(f"OpenAI async error: {e}")
             return None
 
-    async def _query_anthropic_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def _query_anthropic_async(
+        self, prompt: str, **kwargs
+    ) -> Optional[str]:
         """Async query Anthropic Claude API."""
         if not HAS_AIOHTTP or aiohttp is None:
             return self._query_anthropic(prompt, **kwargs)
@@ -1241,7 +1343,8 @@ class LLMManager:
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {
-                    "x-api-key": self.api_key or os.getenv("ANTHROPIC_API_KEY"),
+                    "x-api-key": self.api_key
+                    or os.getenv("ANTHROPIC_API_KEY"),
                     "anthropic-version": "2023-06-01",
                     "content-type": "application/json",
                 }
@@ -1257,7 +1360,9 @@ class LLMManager:
                 }
                 url = self.url or "https://api.anthropic.com/v1/messages"
 
-                async with session.post(url, headers=headers, json=data) as response:
+                async with session.post(
+                    url, headers=headers, json=data
+                ) as response:
                     response.raise_for_status()
                     result = await response.json()
                     if (
@@ -1271,7 +1376,9 @@ class LLMManager:
             logger.error(f"Anthropic async API error: {e}")
             return None
 
-    async def _query_gemini_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def _query_gemini_async(
+        self, prompt: str, **kwargs
+    ) -> Optional[str]:
         """Async query Google Gemini API."""
         if not HAS_AIOHTTP or aiohttp is None:
             return self._query_gemini(prompt, **kwargs)
@@ -1280,7 +1387,8 @@ class LLMManager:
             async with aiohttp.ClientSession() as session:
                 headers = {
                     "Content-Type": "application/json",
-                    "x-goog-api-key": self.api_key or os.getenv("GEMINI_API_KEY"),
+                    "x-goog-api-key": self.api_key
+                    or os.getenv("GEMINI_API_KEY"),
                 }
                 data = {"contents": [{"parts": [{"text": prompt}]}]}
                 url = (
@@ -1288,7 +1396,9 @@ class LLMManager:
                     or "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
                 )
 
-                async with session.post(url, headers=headers, json=data) as response:
+                async with session.post(
+                    url, headers=headers, json=data
+                ) as response:
                     response.raise_for_status()
                     result = await response.json()
                     candidates = result.get("candidates", [])
@@ -1301,7 +1411,9 @@ class LLMManager:
             logger.error(f"Gemini async API error: {e}")
             return None
 
-    async def _query_ollama_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def _query_ollama_async(
+        self, prompt: str, **kwargs
+    ) -> Optional[str]:
         """Async query Ollama local API."""
         if not HAS_AIOHTTP or aiohttp is None:
             return self._query_ollama(prompt, **kwargs)
@@ -1320,7 +1432,9 @@ class LLMManager:
 
                 url = self.url or "http://localhost:11434/api/generate"
 
-                async with session.post(url, headers=headers, json=data) as response:
+                async with session.post(
+                    url, headers=headers, json=data
+                ) as response:
                     response.raise_for_status()
                     result = await response.json()
 
@@ -1351,9 +1465,14 @@ class LLMManager:
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": kwargs.get("max_tokens", 1024),
                 }
-                url = self.url or "https://api.groq.com/openai/v1/chat/completions"
+                url = (
+                    self.url
+                    or "https://api.groq.com/openai/v1/chat/completions"
+                )
 
-                async with session.post(url, headers=headers, json=data) as response:
+                async with session.post(
+                    url, headers=headers, json=data
+                ) as response:
                     response.raise_for_status()
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
@@ -1379,7 +1498,9 @@ class LLMManager:
                 }
                 url = self.url or "https://api.grok.com/v1/chat/completions"
 
-                async with session.post(url, headers=headers, json=data) as response:
+                async with session.post(
+                    url, headers=headers, json=data
+                ) as response:
                     response.raise_for_status()
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
@@ -1387,7 +1508,9 @@ class LLMManager:
             logger.error(f"Grok async API error: {e}")
             return None
 
-    async def _query_nanochat_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def _query_nanochat_async(
+        self, prompt: str, **kwargs
+    ) -> Optional[str]:
         """Async query Nanochat API."""
         if not HAS_AIOHTTP or aiohttp is None:
             return self._query_nanochat(prompt, **kwargs)
@@ -1410,7 +1533,9 @@ class LLMManager:
                     self.url or "http://localhost:8081/api/generate"
                 )  # Default nanochat port
 
-                async with session.post(url, headers=headers, json=data) as response:
+                async with session.post(
+                    url, headers=headers, json=data
+                ) as response:
                     response.raise_for_status()
                     result = await response.json()
 
@@ -1425,14 +1550,18 @@ class LLMManager:
             logger.error(f"Nanochat async API error: {e}")
             return None
 
-    async def _query_minimax_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def _query_minimax_async(
+        self, prompt: str, **kwargs
+    ) -> Optional[str]:
         """Async query Minimax AI API."""
         if not HAS_AIOHTTP or aiohttp is None:
             return self._query_minimax(prompt, **kwargs)
 
         api_key = self.api_key or os.getenv("MINIMAX_API_KEY")
         if not api_key:
-            raise ConfigurationError("Minimax API key not provided", "MISSING_API_KEY")
+            raise ConfigurationError(
+                "Minimax API key not provided", "MISSING_API_KEY"
+            )
 
         url = (
             self.url
@@ -1470,7 +1599,9 @@ class LLMManager:
 
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(url, headers=headers, json=payload) as response:
+                async with session.post(
+                    url, headers=headers, json=payload
+                ) as response:
                     if response.status >= 400:
                         error_body = await response.text()
                         raise NetworkError(
@@ -1516,7 +1647,9 @@ class LLMManager:
                     for item in messages:
                         if not isinstance(item, dict):
                             continue
-                        sender_type = item.get("sender_type") or item.get("role")
+                        sender_type = item.get("sender_type") or item.get(
+                            "role"
+                        )
                         if sender_type and str(sender_type).lower() in {
                             "bot",
                             "assistant",
@@ -1543,19 +1676,29 @@ class LLMManager:
     def is_available(self) -> bool:
         """Check if the LLM provider is available and working."""
         try:
-            if self.provider == "openai" and self.client is not None and HAS_OPENAI:
+            if (
+                self.provider == "openai"
+                and self.client is not None
+                and HAS_OPENAI
+            ):
                 # Type-safe OpenAI client checking
                 try:
                     chat_attr = getattr(self.client, "chat", None)
                     if chat_attr is not None:
-                        completions_attr = getattr(chat_attr, "completions", None)
+                        completions_attr = getattr(
+                            chat_attr, "completions", None
+                        )
                         if completions_attr is not None:
                             response = completions_attr.create(
                                 model=self.model_id or "gpt-3.5-turbo",
-                                messages=[{"role": "user", "content": "Hello"}],
+                                messages=[
+                                    {"role": "user", "content": "Hello"}
+                                ],
                                 max_tokens=10,
                             )
-                            return response.choices[0].message.content is not None
+                            return (
+                                response.choices[0].message.content is not None
+                            )
                     return False
                 except Exception:
                     return False
@@ -1569,7 +1712,9 @@ class LLMManager:
                     "prompt": "Hello",
                     "stream": False,
                 }
-                response = requests.post(url, headers=headers, json=data, timeout=5)
+                response = requests.post(
+                    url, headers=headers, json=data, timeout=5
+                )
                 return response.status_code == 200
 
             elif (
@@ -1590,7 +1735,9 @@ class LLMManager:
             return False
 
         except Exception as e:
-            logger.error(f"Error checking availability for {self.provider}: {e}")
+            logger.error(
+                f"Error checking availability for {self.provider}: {e}"
+            )
             return False
 
     def get_model_info(self) -> Dict[str, Any]:

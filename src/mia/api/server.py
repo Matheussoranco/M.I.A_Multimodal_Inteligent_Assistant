@@ -47,7 +47,11 @@ def create_app() -> Any:
         from ..main import initialize_components
 
         args = argparse.Namespace(
-            model_id="default", debug=False, language=None, image_input=None, mode="api"
+            model_id="default",
+            debug=False,
+            language=None,
+            image_input=None,
+            mode="api",
         )
         components = initialize_components(args)
     except Exception as exc:
@@ -68,7 +72,9 @@ def create_app() -> Any:
         }
 
     @app.get("/chat/stream")
-    async def chat_stream(prompt: str = Query(..., min_length=1)) -> StreamingResponse:
+    async def chat_stream(
+        prompt: str = Query(..., min_length=1)
+    ) -> StreamingResponse:
         if not prompt:
             raise HTTPException(status_code=400, detail="Prompt is required")
 
@@ -98,7 +104,9 @@ def create_app() -> Any:
                 yield f"event: error\ndata: LLM error: {exc}\n\n"
                 return
 
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+        return StreamingResponse(
+            event_generator(), media_type="text/event-stream"
+        )
 
     @app.post("/chat")
     async def chat(request: Dict[str, Any]) -> Dict[str, Any]:
@@ -110,7 +118,9 @@ def create_app() -> Any:
         try:
             llm = components.get("llm")
             if not llm:
-                raise HTTPException(status_code=503, detail="LLM not available")
+                raise HTTPException(
+                    status_code=503, detail="LLM not available"
+                )
 
             response = await asyncio.to_thread(llm.query, prompt)
             return {"response": response, "status": "success"}
@@ -164,11 +174,16 @@ def create_app() -> Any:
             if query:
                 # Search memory
                 action_executor = components.get("action_executor")
-                if action_executor and hasattr(action_executor, "search_memory"):
+                if action_executor and hasattr(
+                    action_executor, "search_memory"
+                ):
                     result = action_executor.search_memory({"query": query})
                     return {"results": result, "status": "success"}
                 else:
-                    return {"results": "Memory search not available", "status": "error"}
+                    return {
+                        "results": "Memory search not available",
+                        "status": "error",
+                    }
             else:
                 # Get memory status
                 return {"memory_items": [], "status": "success"}
@@ -190,9 +205,14 @@ def create_app() -> Any:
                 )
                 return {"result": result, "status": "success"}
             else:
-                return {"error": "Memory storage not available", "status": "error"}
+                return {
+                    "error": "Memory storage not available",
+                    "status": "error",
+                }
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Memory storage error: {exc}")
+            raise HTTPException(
+                status_code=500, detail=f"Memory storage error: {exc}"
+            )
 
     @app.get("/status")
     async def system_status() -> Dict[str, Any]:
@@ -200,7 +220,8 @@ def create_app() -> Any:
         status = {
             "status": "operational",
             "version": __version__,
-            "llm_available": "llm" in components and components["llm"] is not None,
+            "llm_available": "llm" in components
+            and components["llm"] is not None,
             "memory_enabled": "rag_pipeline" in components
             and components["rag_pipeline"] is not None,
             "actions_available": "action_executor" in components

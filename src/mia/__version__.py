@@ -11,7 +11,9 @@ __description__ = "Multimodal Intelligent Assistant"
 __author__ = "Matheus Pullig Soranço de Carvalho"
 __author_email__ = "matheussoranco@gmail.com"
 __license__ = "AGPLv3"
-__url__ = "https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis"
+__url__ = (
+    "https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis"
+)
 
 # Build information
 __build__ = "alpha"

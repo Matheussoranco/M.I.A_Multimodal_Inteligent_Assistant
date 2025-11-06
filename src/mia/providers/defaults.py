@@ -37,7 +37,11 @@ def register_default_providers() -> None:
     )
 
     provider_registry.register_lazy(
-        "memory", "knowledge", "mia.memory.knowledge_graph", "AgentMemory", default=True
+        "memory",
+        "knowledge",
+        "mia.memory.knowledge_graph",
+        "AgentMemory",
+        default=True,
     )
     provider_registry.register_lazy(
         "memory", "long_term", "mia.memory.long_term_memory", "LongTermMemory"
@@ -46,7 +50,11 @@ def register_default_providers() -> None:
         "memory", "manager", "mia.memory.memory_manager", "UnifiedMemory"
     )
     provider_registry.register_lazy(
-        "rag", "pipeline", "mia.memory.rag_pipeline", "RAGPipeline", default=True
+        "rag",
+        "pipeline",
+        "mia.memory.rag_pipeline",
+        "RAGPipeline",
+        default=True,
     )
 
     provider_registry.register_lazy(
@@ -54,13 +62,19 @@ def register_default_providers() -> None:
     )
 
     provider_registry.register_lazy(
-        "langchain", "verifier", "mia.langchain.langchain_verifier", "LangChainVerifier"
+        "langchain",
+        "verifier",
+        "mia.langchain.langchain_verifier",
+        "LangChainVerifier",
     )
     provider_registry.register_lazy(
         "system", "control", "mia.system.system_control", "SystemControl"
     )
     provider_registry.register_lazy(
-        "security", "default", "mia.security.security_manager", "SecurityManager"
+        "security",
+        "default",
+        "mia.security.security_manager",
+        "SecurityManager",
     )
     provider_registry.register_lazy(
         "plugins", "default", "mia.plugins.plugin_manager", "PluginManager"
@@ -81,7 +95,11 @@ def register_default_providers() -> None:
         default=True,
     )
     provider_registry.register_lazy(
-        "sandbox", "wasi", "mia.sandbox.wasi_runner", "WasiSandbox", default=True
+        "sandbox",
+        "wasi",
+        "mia.sandbox.wasi_runner",
+        "WasiSandbox",
+        default=True,
     )
     provider_registry.register_lazy(
         "messaging",

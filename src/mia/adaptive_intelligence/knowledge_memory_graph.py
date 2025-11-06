@@ -151,7 +151,9 @@ class KnowledgeMemoryGraph:
 
         # Indexes for efficient access
         self.node_type_index: Dict[str, Set[str]] = defaultdict(set)
-        self.relationship_index: Dict[str, Set[Tuple[str, str]]] = defaultdict(set)
+        self.relationship_index: Dict[str, Set[Tuple[str, str]]] = defaultdict(
+            set
+        )
         self.temporal_index: Dict[str, List[str]] = defaultdict(
             list
         )  # date -> node_ids
@@ -170,7 +172,8 @@ class KnowledgeMemoryGraph:
         self.processing_active = False
 
         logger.info(
-            "Knowledge Memory Graph initialized with capacity for %d nodes", max_nodes
+            "Knowledge Memory Graph initialized with capacity for %d nodes",
+            max_nodes,
         )
 
     def _get_default_embedding_provider(self):
@@ -180,7 +183,9 @@ class KnowledgeMemoryGraph:
             # For now, return None and use mock embeddings
             return None
         except Exception:
-            logger.warning("No embedding provider found, using mock embeddings")
+            logger.warning(
+                "No embedding provider found, using mock embeddings"
+            )
             return None
 
     def start_background_processing(self):
@@ -301,7 +306,9 @@ class KnowledgeMemoryGraph:
                 self.node_embeddings[node.id] = node.embedding
 
         except Exception as exc:
-            logger.debug("Failed to generate embedding for node %s: %s", node.id, exc)
+            logger.debug(
+                "Failed to generate embedding for node %s: %s", node.id, exc
+            )
             # Fallback to random embedding
             if np is not None:
                 node.embedding = np.random.rand(384).astype(np.float32)
@@ -332,7 +339,9 @@ class KnowledgeMemoryGraph:
         metadata = relationship.get("metadata", {})
 
         if not target_id or target_id not in self.nodes:
-            logger.debug("Cannot add relationship: target %s not found", target_id)
+            logger.debug(
+                "Cannot add relationship: target %s not found", target_id
+            )
             return
 
         edge_key = (source_id, target_id)
@@ -396,7 +405,9 @@ class KnowledgeMemoryGraph:
             candidate_ids = set()
             if node_types:
                 for node_type in node_types:
-                    candidate_ids.update(self.node_type_index.get(node_type, set()))
+                    candidate_ids.update(
+                        self.node_type_index.get(node_type, set())
+                    )
             else:
                 candidate_ids = set(self.nodes.keys())
 
@@ -462,7 +473,11 @@ class KnowledgeMemoryGraph:
                 )
             else:
                 # Simple dot product fallback
-                if isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+                if (
+                    isinstance(a, list)
+                    and isinstance(b, list)
+                    and len(a) == len(b)
+                ):
                     dot_product = sum(x * y for x, y in zip(a, b))
                     norm_a = sum(x * x for x in a) ** 0.5
                     norm_b = sum(x * x for x in b) ** 0.5
@@ -475,7 +490,9 @@ class KnowledgeMemoryGraph:
         except Exception:
             return 0.0
 
-    def _get_context_path(self, node_id: str, query_embedding: Any) -> List[str]:
+    def _get_context_path(
+        self, node_id: str, query_embedding: Any
+    ) -> List[str]:
         """Get contextual path for a node based on relationships."""
         context_nodes = []
         visited = set([node_id])
@@ -484,9 +501,14 @@ class KnowledgeMemoryGraph:
         for edge_key, edge in self.edges.items():
             if node_id in edge_key:
                 other_id = (
-                    edge.target_id if edge.source_id == node_id else edge.source_id
+                    edge.target_id
+                    if edge.source_id == node_id
+                    else edge.source_id
                 )
-                if other_id not in visited and other_id in self.node_embeddings:
+                if (
+                    other_id not in visited
+                    and other_id in self.node_embeddings
+                ):
                     other_embedding = self.node_embeddings[other_id]
                     similarity = self._cosine_similarity(
                         query_embedding, other_embedding
@@ -529,7 +551,9 @@ class KnowledgeMemoryGraph:
             )  # node_id, path, relationships, depth, total_weight
 
             while queue and len(results) < max_nodes:
-                current_id, path, relationships, depth, total_weight = queue.popleft()
+                current_id, path, relationships, depth, total_weight = (
+                    queue.popleft()
+                )
 
                 if current_id in visited or depth > max_depth:
                     continue
@@ -550,7 +574,9 @@ class KnowledgeMemoryGraph:
 
                 # Explore neighbors
                 if depth < max_depth:
-                    neighbors = self._get_node_neighbors(current_id, relationship_types)
+                    neighbors = self._get_node_neighbors(
+                        current_id, relationship_types
+                    )
                     for neighbor_id, edge in neighbors:
                         if neighbor_id not in visited:
                             new_relationships = relationships + [edge]
@@ -576,7 +602,9 @@ class KnowledgeMemoryGraph:
         for edge_key, edge in self.edges.items():
             if node_id in edge_key:
                 other_id = (
-                    edge.target_id if edge.source_id == node_id else edge.source_id
+                    edge.target_id
+                    if edge.source_id == node_id
+                    else edge.source_id
                 )
 
                 # Filter by relationship type if specified
@@ -617,7 +645,9 @@ class KnowledgeMemoryGraph:
                 continue
 
             if np is not None:
-                embeddings = np.array([emb for _, emb in nodes_with_embeddings])
+                embeddings = np.array(
+                    [emb for _, emb in nodes_with_embeddings]
+                )
                 similarities = np.dot(embeddings, embeddings.T)
             else:
                 # Simple similarity calculation fallback
@@ -676,17 +706,29 @@ class KnowledgeMemoryGraph:
             for key, value in node.metadata.items():
                 if key not in merged_metadata:
                     merged_metadata[key] = value
-                elif isinstance(merged_metadata[key], list) and isinstance(value, list):
+                elif isinstance(merged_metadata[key], list) and isinstance(
+                    value, list
+                ):
                     merged_metadata[key].extend(value)
-                elif isinstance(merged_metadata[key], dict) and isinstance(value, dict):
+                elif isinstance(merged_metadata[key], dict) and isinstance(
+                    value, dict
+                ):
                     merged_metadata[key].update(value)
 
             # Transfer relationships
             for edge_key, edge in list(self.edges.items()):
                 if node_id in edge_key:
                     new_edge_key = (
-                        primary_id if edge.source_id == node_id else edge.source_id,
-                        primary_id if edge.target_id == node_id else edge.target_id,
+                        (
+                            primary_id
+                            if edge.source_id == node_id
+                            else edge.source_id
+                        ),
+                        (
+                            primary_id
+                            if edge.target_id == node_id
+                            else edge.target_id
+                        ),
                     )
 
                     if new_edge_key[0] != new_edge_key[1]:  # Avoid self-loops
@@ -706,14 +748,19 @@ class KnowledgeMemoryGraph:
                                 metadata=edge.metadata,
                             )
                             self.edges[new_edge_key] = new_edge
-                            self.relationship_index[edge.relationship_type].add(
-                                new_edge_key
-                            )
+                            self.relationship_index[
+                                edge.relationship_type
+                            ].add(new_edge_key)
 
                     # Remove old edge
                     del self.edges[edge_key]
-                    if edge_key in self.relationship_index[edge.relationship_type]:
-                        self.relationship_index[edge.relationship_type].remove(edge_key)
+                    if (
+                        edge_key
+                        in self.relationship_index[edge.relationship_type]
+                    ):
+                        self.relationship_index[edge.relationship_type].remove(
+                            edge_key
+                        )
 
             # Remove old node
             del self.nodes[node_id]
@@ -728,7 +775,9 @@ class KnowledgeMemoryGraph:
         primary_node.updated_at = datetime.now()
         primary_node.confidence = min(1.0, primary_node.confidence + 0.2)
 
-        logger.debug("Merged %d knowledge nodes into %s", len(node_ids), primary_id)
+        logger.debug(
+            "Merged %d knowledge nodes into %s", len(node_ids), primary_id
+        )
 
     def _consolidation_worker(self):
         """Background worker for knowledge consolidation."""
@@ -779,7 +828,9 @@ class KnowledgeMemoryGraph:
                 self._remove_node(node_id)
 
             if decayed_nodes:
-                logger.debug("Removed %d decayed knowledge nodes", len(decayed_nodes))
+                logger.debug(
+                    "Removed %d decayed knowledge nodes", len(decayed_nodes)
+                )
 
     def _remove_node(self, node_id: str):
         """Remove a node and its relationships."""
@@ -805,7 +856,9 @@ class KnowledgeMemoryGraph:
             edge = self.edges[edge_key]
             del self.edges[edge_key]
             if edge_key in self.relationship_index[edge.relationship_type]:
-                self.relationship_index[edge.relationship_type].remove(edge_key)
+                self.relationship_index[edge.relationship_type].remove(
+                    edge_key
+                )
 
         # Remove node
         del self.nodes[node_id]
@@ -826,7 +879,9 @@ class KnowledgeMemoryGraph:
             for node_id, _ in nodes_by_access[:nodes_to_remove]:
                 self._remove_node(node_id)
 
-            logger.debug("Enforced capacity limit, removed %d nodes", nodes_to_remove)
+            logger.debug(
+                "Enforced capacity limit, removed %d nodes", nodes_to_remove
+            )
 
     def get_knowledge_stats(self) -> Dict[str, Any]:
         """Get knowledge graph statistics."""
@@ -848,12 +903,14 @@ class KnowledgeMemoryGraph:
                 "nodes_with_embeddings": len(self.node_embeddings),
                 "consolidation_queue_size": len(self.consolidation_queue),
                 "avg_confidence": (
-                    sum(n.confidence for n in self.nodes.values()) / len(self.nodes)
+                    sum(n.confidence for n in self.nodes.values())
+                    / len(self.nodes)
                     if self.nodes
                     else 0
                 ),
                 "avg_access_count": (
-                    sum(n.access_count for n in self.nodes.values()) / len(self.nodes)
+                    sum(n.access_count for n in self.nodes.values())
+                    / len(self.nodes)
                     if self.nodes
                     else 0
                 ),

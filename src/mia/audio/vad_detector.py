@@ -32,14 +32,18 @@ class VoiceActivityDetector:
         self.logger = logger_instance or logger
         self.enabled = enabled and _HAS_WEBRTCVAD
         self.frame_duration_ms = frame_duration_ms
-        self.min_active_duration_ms = max(frame_duration_ms, min_active_duration_ms)
+        self.min_active_duration_ms = max(
+            frame_duration_ms, min_active_duration_ms
+        )
         self._vad = None
         self._min_voiced_frames = max(
             1, self.min_active_duration_ms // self.frame_duration_ms
         )
 
         if not enabled:
-            self.logger.debug("VoiceActivityDetector disabled via configuration")
+            self.logger.debug(
+                "VoiceActivityDetector disabled via configuration"
+            )
             return
 
         if not _HAS_WEBRTCVAD:
@@ -62,7 +66,8 @@ class VoiceActivityDetector:
 
         if sample_rate not in self.SUPPORTED_SAMPLE_RATES:
             self.logger.debug(
-                "Sample rate %s unsupported by VAD; skipping detection", sample_rate
+                "Sample rate %s unsupported by VAD; skipping detection",
+                sample_rate,
             )
             return True
 
@@ -76,7 +81,9 @@ class VoiceActivityDetector:
         voiced_frames = 0
         total_frames = 0
 
-        for start in range(0, len(audio_bytes) - frame_length + 1, frame_length):
+        for start in range(
+            0, len(audio_bytes) - frame_length + 1, frame_length
+        ):
             frame = audio_bytes[start : start + frame_length]
             total_frames += 1
             try:
@@ -85,7 +92,9 @@ class VoiceActivityDetector:
                     if voiced_frames >= self._min_voiced_frames:
                         return True
             except Exception as exc:  # pragma: no cover - library level error
-                self.logger.debug("VAD error on frame %s: %s", total_frames, exc)
+                self.logger.debug(
+                    "VAD error on frame %s: %s", total_frames, exc
+                )
                 continue
 
         self.logger.debug(

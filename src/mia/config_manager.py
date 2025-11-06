@@ -50,19 +50,25 @@ class LLMConfig:
 
         if self.provider not in SUPPORTED_LLM_PROVIDERS:
             raise ValidationError(
-                f"Unsupported provider: {self.provider}", "UNSUPPORTED_PROVIDER"
+                f"Unsupported provider: {self.provider}",
+                "UNSUPPORTED_PROVIDER",
             )
 
         if self.max_tokens <= 0:
-            raise ValidationError("Max tokens must be positive", "INVALID_MAX_TOKENS")
+            raise ValidationError(
+                "Max tokens must be positive", "INVALID_MAX_TOKENS"
+            )
 
         if not 0.0 <= self.temperature <= 2.0:
             raise ValidationError(
-                "Temperature must be between 0.0 and 2.0", "INVALID_TEMPERATURE"
+                "Temperature must be between 0.0 and 2.0",
+                "INVALID_TEMPERATURE",
             )
 
         if self.timeout <= 0:
-            raise ValidationError("Timeout must be positive", "INVALID_TIMEOUT")
+            raise ValidationError(
+                "Timeout must be positive", "INVALID_TIMEOUT"
+            )
 
 
 @dataclass
@@ -86,7 +92,9 @@ class LLMProfileConfig:
 
     def validate(self) -> None:
         if not self.name:
-            raise ValidationError("LLM profile must have a name", "LLM_PROFILE_NO_NAME")
+            raise ValidationError(
+                "LLM profile must have a name", "LLM_PROFILE_NO_NAME"
+            )
 
         if self.provider and self.provider not in SUPPORTED_LLM_PROVIDERS:
             raise ValidationError(
@@ -115,7 +123,9 @@ class LLMProfileConfig:
             url=self.url or base.url,
             max_tokens=self.max_tokens or base.max_tokens,
             temperature=(
-                self.temperature if self.temperature is not None else base.temperature
+                self.temperature
+                if self.temperature is not None
+                else base.temperature
             ),
             timeout=self.timeout or base.timeout,
         )
@@ -158,23 +168,34 @@ class AudioConfig:
     def validate(self) -> None:
         """Validate audio configuration."""
         if self.sample_rate <= 0:
-            raise ValidationError("Sample rate must be positive", "INVALID_SAMPLE_RATE")
+            raise ValidationError(
+                "Sample rate must be positive", "INVALID_SAMPLE_RATE"
+            )
 
         if self.chunk_size <= 0:
-            raise ValidationError("Chunk size must be positive", "INVALID_CHUNK_SIZE")
+            raise ValidationError(
+                "Chunk size must be positive", "INVALID_CHUNK_SIZE"
+            )
 
         if not 0.0 <= self.input_threshold <= 1.0:
             raise ValidationError(
-                "Input threshold must be between 0.0 and 1.0", "INVALID_THRESHOLD"
+                "Input threshold must be between 0.0 and 1.0",
+                "INVALID_THRESHOLD",
             )
 
-        if self.tts_provider and self.tts_provider not in SUPPORTED_TTS_PROVIDERS:
+        if (
+            self.tts_provider
+            and self.tts_provider not in SUPPORTED_TTS_PROVIDERS
+        ):
             raise ValidationError(
                 f"Unsupported TTS provider: {self.tts_provider}",
                 "UNSUPPORTED_TTS_PROVIDER",
             )
 
-        if self.llm_provider and self.llm_provider not in SUPPORTED_LLM_PROVIDERS:
+        if (
+            self.llm_provider
+            and self.llm_provider not in SUPPORTED_LLM_PROVIDERS
+        ):
             raise ValidationError(
                 f"Unsupported audio LLM provider: {self.llm_provider}",
                 "UNSUPPORTED_AUDIO_LLM_PROVIDER",
@@ -194,7 +215,8 @@ class AudioConfig:
 
         if self.vad_silence_duration_ms <= 0:
             raise ValidationError(
-                "VAD silence duration must be positive", "INVALID_VAD_SILENCE_DURATION"
+                "VAD silence duration must be positive",
+                "INVALID_VAD_SILENCE_DURATION",
             )
 
         if (
@@ -232,7 +254,9 @@ class VisionConfig:
             )
 
         if not self.supported_formats:
-            raise ValidationError("Supported formats cannot be empty", "EMPTY_FORMATS")
+            raise ValidationError(
+                "Supported formats cannot be empty", "EMPTY_FORMATS"
+            )
 
         if self.device not in ["auto", "cpu", "cuda", "mps"]:
             raise ValidationError(
@@ -268,7 +292,8 @@ class MemoryConfig:
 
         if not 0.0 <= self.similarity_threshold <= 1.0:
             raise ValidationError(
-                "Similarity threshold must be between 0.0 and 1.0", "INVALID_THRESHOLD"
+                "Similarity threshold must be between 0.0 and 1.0",
+                "INVALID_THRESHOLD",
             )
 
         if not self.vector_db_path:
@@ -277,7 +302,9 @@ class MemoryConfig:
             )
 
         if self.max_results <= 0:
-            raise ValidationError("Max results must be positive", "INVALID_MAX_RESULTS")
+            raise ValidationError(
+                "Max results must be positive", "INVALID_MAX_RESULTS"
+            )
 
 
 @dataclass
@@ -345,7 +372,8 @@ class TelegramConfig:
     def validate(self) -> None:
         if self.request_timeout <= 0:
             raise ValidationError(
-                "Telegram request timeout must be positive", "INVALID_TELEGRAM_TIMEOUT"
+                "Telegram request timeout must be positive",
+                "INVALID_TELEGRAM_TIMEOUT",
             )
         if not self.enabled:
             return
@@ -384,7 +412,9 @@ class SecurityConfig:
     def validate(self) -> None:
         """Validate security configuration."""
         if self.max_file_size <= 0:
-            raise ValidationError("Max file size must be positive", "INVALID_FILE_SIZE")
+            raise ValidationError(
+                "Max file size must be positive", "INVALID_FILE_SIZE"
+            )
 
         if self.max_command_length <= 0:
             raise ValidationError(
@@ -396,7 +426,9 @@ class SecurityConfig:
                 raise ValidationError(
                     "API key identifier cannot be empty", "INVALID_API_KEY"
                 )
-            if scope_list and not all(isinstance(scope, str) for scope in scope_list):
+            if scope_list and not all(
+                isinstance(scope, str) for scope in scope_list
+            ):
                 raise ValidationError(
                     "API key scopes must be strings", "INVALID_API_SCOPE"
                 )
@@ -423,10 +455,14 @@ class SystemConfig:
             )
 
         if self.max_workers <= 0:
-            raise ValidationError("Max workers must be positive", "INVALID_MAX_WORKERS")
+            raise ValidationError(
+                "Max workers must be positive", "INVALID_MAX_WORKERS"
+            )
 
         if self.request_timeout <= 0:
-            raise ValidationError("Request timeout must be positive", "INVALID_TIMEOUT")
+            raise ValidationError(
+                "Request timeout must be positive", "INVALID_TIMEOUT"
+            )
 
         if self.retry_attempts < 0:
             raise ValidationError(
@@ -525,7 +561,8 @@ class ConfigManager:
             config_file = Path(config_path)
             if not config_file.exists():
                 raise ConfigurationError(
-                    f"Configuration file not found: {config_path}", "CONFIG_NOT_FOUND"
+                    f"Configuration file not found: {config_path}",
+                    "CONFIG_NOT_FOUND",
                 )
         elif self._explicit_config_file:
             config_file = self._explicit_config_file
@@ -537,9 +574,12 @@ class ConfigManager:
                 config_data = self._load_config_file(config_file)
                 self.config = self._create_config_from_dict(config_data)
             except Exception as e:
-                logger.error(f"Failed to load configuration from {config_file}: {e}")
+                logger.error(
+                    f"Failed to load configuration from {config_file}: {e}"
+                )
                 raise ConfigurationError(
-                    f"Configuration load failed: {str(e)}", "CONFIG_LOAD_FAILED"
+                    f"Configuration load failed: {str(e)}",
+                    "CONFIG_LOAD_FAILED",
                 )
         else:
             logger.info("No configuration file found, using defaults")
@@ -553,7 +593,8 @@ class ConfigManager:
             self.config.validate()
         except ValidationError as e:
             raise ConfigurationError(
-                f"Configuration validation failed: {str(e)}", "CONFIG_VALIDATION_FAILED"
+                f"Configuration validation failed: {str(e)}",
+                "CONFIG_VALIDATION_FAILED",
             )
 
         self.active_llm_profile = self.config.default_llm_profile
@@ -593,13 +634,17 @@ class ConfigManager:
                 f"Error reading config file: {str(e)}", "FILE_READ_ERROR"
             )
 
-    def _create_config_from_dict(self, config_data: Dict[str, Any]) -> MIAConfig:
+    def _create_config_from_dict(
+        self, config_data: Dict[str, Any]
+    ) -> MIAConfig:
         """Create MIAConfig from dictionary."""
         try:
             profiles: Dict[str, LLMProfileConfig] = {}
             raw_profiles = config_data.get("llm_profiles", {})
 
-            def _iter_profiles(source: Any) -> Iterable[tuple[str, Dict[str, Any]]]:
+            def _iter_profiles(
+                source: Any,
+            ) -> Iterable[tuple[str, Dict[str, Any]]]:
                 if isinstance(source, dict):
                     for name, payload in source.items():
                         if isinstance(payload, dict):
@@ -630,7 +675,8 @@ class ConfigManager:
             )
         except TypeError as e:
             raise ConfigurationError(
-                f"Invalid configuration structure: {str(e)}", "INVALID_STRUCTURE"
+                f"Invalid configuration structure: {str(e)}",
+                "INVALID_STRUCTURE",
             )
 
     def _load_env_overrides(self):
@@ -749,7 +795,9 @@ class ConfigManager:
                     try:
                         value = int(value)
                     except ValueError:
-                        logger.warning("Invalid integer for %s: %s", env_var, value)
+                        logger.warning(
+                            "Invalid integer for %s: %s", env_var, value
+                        )
                         continue
                 elif key in [
                     "temperature",
@@ -763,7 +811,9 @@ class ConfigManager:
                     try:
                         value = int(value)
                     except ValueError:
-                        logger.warning("Invalid value for MIA_SANDBOX_FUEL: %s", value)
+                        logger.warning(
+                            "Invalid value for MIA_SANDBOX_FUEL: %s", value
+                        )
                         value = None
 
                 setattr(section_obj, key, value)
@@ -937,12 +987,16 @@ class ConfigManager:
             return []
         return list(self.config.llm_profiles.keys())
 
-    def get_llm_profile(self, name: Optional[str]) -> Optional[LLMProfileConfig]:
+    def get_llm_profile(
+        self, name: Optional[str]
+    ) -> Optional[LLMProfileConfig]:
         if not self.config or not name:
             return None
         return self.config.llm_profiles.get(name)
 
-    def activate_llm_profile(self, name: Optional[str]) -> Optional[LLMProfileConfig]:
+    def activate_llm_profile(
+        self, name: Optional[str]
+    ) -> Optional[LLMProfileConfig]:
         if not self.config:
             raise ConfigurationError("No configuration loaded", "NO_CONFIG")
         if name is None:
@@ -964,7 +1018,9 @@ class ConfigManager:
 
         base = self.config.llm
         chosen = (
-            profile_name or self.active_llm_profile or self.config.default_llm_profile
+            profile_name
+            or self.active_llm_profile
+            or self.config.default_llm_profile
         )
         if chosen and chosen in self.config.llm_profiles:
             profile = self.config.llm_profiles[chosen]
@@ -988,7 +1044,9 @@ class ConfigManager:
 
         section_obj = getattr(self.config, section)
         if not hasattr(section_obj, key):
-            raise ConfigurationError(f"Unknown configuration key: {key}", "UNKNOWN_KEY")
+            raise ConfigurationError(
+                f"Unknown configuration key: {key}", "UNKNOWN_KEY"
+            )
 
         setattr(section_obj, key, value)
 
@@ -1014,7 +1072,8 @@ class ConfigManager:
         except ValidationError as e:
             logger.error(f"Configuration validation failed: {str(e)}")
             raise ConfigurationError(
-                f"Configuration validation failed: {str(e)}", "VALIDATION_FAILED"
+                f"Configuration validation failed: {str(e)}",
+                "VALIDATION_FAILED",
             )
 
 

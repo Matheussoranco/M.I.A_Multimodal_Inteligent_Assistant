@@ -21,7 +21,8 @@ class DocumentGenerator:
     ) -> None:
         self.logger = logger_instance or logging.getLogger(__name__)
         self.template_dir = Path(
-            template_dir or os.getenv("MIA_DOC_TEMPLATE_DIR", "templates/documents")
+            template_dir
+            or os.getenv("MIA_DOC_TEMPLATE_DIR", "templates/documents")
         )
         self.output_dir = Path(
             output_dir or os.getenv("MIA_DOC_OUTPUT_DIR", "output/documents")
@@ -47,7 +48,9 @@ class DocumentGenerator:
             return "python-docx is not installed. Run: pip install python-docx"
 
         context = context or {}
-        output_path = output_path or self._default_filename(template_name, "docx")
+        output_path = output_path or self._default_filename(
+            template_name, "docx"
+        )
         document = Document()
 
         heading = context.get("title", template_name.title())
@@ -62,7 +65,9 @@ class DocumentGenerator:
         for section_name, section_content in sorted(context.items()):
             if section_name in {"title", "summary"}:
                 continue
-            document.add_heading(section_name.replace("_", " ").title(), level=1)
+            document.add_heading(
+                section_name.replace("_", " ").title(), level=1
+            )
             document.add_paragraph(str(section_content))
 
         document.save(output_path)
@@ -84,7 +89,9 @@ class DocumentGenerator:
             return "reportlab is not installed. Run: pip install reportlab"
 
         context = context or {}
-        output_path = output_path or self._default_filename(template_name, "pdf")
+        output_path = output_path or self._default_filename(
+            template_name, "pdf"
+        )
         c = canvas.Canvas(output_path, pagesize=LETTER)
 
         width, height = LETTER
@@ -117,7 +124,9 @@ class DocumentGenerator:
         return f"PDF generated at {output_path}"
 
     def _default_filename(self, template_name: str, extension: str) -> str:
-        base_name = f"{template_name}_{os.getenv('USER', 'mia')}_{self._timestamp()}"
+        base_name = (
+            f"{template_name}_{os.getenv('USER', 'mia')}_{self._timestamp()}"
+        )
         return str(self.output_dir / f"{base_name}.{extension}")
 
     @staticmethod

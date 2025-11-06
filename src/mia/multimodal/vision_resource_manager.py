@@ -36,7 +36,9 @@ class VisionResource(ManagedResource):
                 self.data.close()
             logger.info(f"Vision resource {self.resource_id} cleaned up")
         except Exception as e:
-            logger.error(f"Error cleaning up vision resource {self.resource_id}: {e}")
+            logger.error(
+                f"Error cleaning up vision resource {self.resource_id}: {e}"
+            )
 
     def get_memory_usage(self) -> int:
         """Get memory usage of vision resource."""
@@ -100,7 +102,8 @@ class VisionResourceManager(ResourceManager):
         """Check if any vision resource is currently processing."""
         with self._lock:
             return any(
-                resource.is_processing for resource in self.vision_resources.values()
+                resource.is_processing
+                for resource in self.vision_resources.values()
             )
 
     def stop_all_processing(self):

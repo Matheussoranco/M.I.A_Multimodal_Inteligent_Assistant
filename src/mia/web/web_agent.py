@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from selenium.webdriver.common.by import By  # type: ignore
-from selenium.webdriver.support import expected_conditions as EC  # type: ignore
+from selenium.webdriver.support import (
+    expected_conditions as EC,  # type: ignore
+)
 from selenium.webdriver.support.ui import WebDriverWait  # type: ignore
 
 try:
@@ -110,7 +112,9 @@ class WebAgent:
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--window-size={}x{}".format(*(viewport or (1440, 900))))
+        options.add_argument(
+            "--window-size={}x{}".format(*(viewport or (1440, 900)))
+        )
         prefs = {
             "download.default_directory": str(self.download_dir.resolve()),
             "download.prompt_for_download": False,
@@ -146,10 +150,15 @@ class WebAgent:
                         raise WebAgentError(f"Unsupported action '{action}'")
                     results.append(
                         WebAgentStepResult(
-                            action=action, success=True, message="ok", payload=payload
+                            action=action,
+                            success=True,
+                            message="ok",
+                            payload=payload,
                         )
                     )
-                except Exception as exc:  # pragma: no cover - headless runtime failure
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - headless runtime failure
                     logger.exception("WebAgent step %s failed: %s", idx, exc)
                     results.append(
                         WebAgentStepResult(
@@ -183,7 +192,9 @@ class WebAgent:
             return By.ID, step["id"]
         raise WebAgentError("Step requires locator (css/xpath/name/id)")
 
-    def _step_click(self, driver, wait, step: Dict[str, Any]) -> Dict[str, Any]:
+    def _step_click(
+        self, driver, wait, step: Dict[str, Any]
+    ) -> Dict[str, Any]:
         locator = self._resolve_locator(step)
         element = wait.until(EC.element_to_be_clickable(locator))
         element.click()
@@ -210,15 +221,21 @@ class WebAgent:
     def _step_scroll(self, driver, step: Dict[str, Any]) -> Dict[str, Any]:
         position = step.get("to", "end")
         if position == "end":
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            driver.execute_script(
+                "window.scrollTo(0, document.body.scrollHeight);"
+            )
         else:
-            driver.execute_script("window.scrollTo(0, arguments[0]);", int(position))
+            driver.execute_script(
+                "window.scrollTo(0, arguments[0]);", int(position)
+            )
         return {"scroll": position}
 
     def _step_screenshot(
         self, driver, index: int, step: Dict[str, Any]
     ) -> Dict[str, Any]:
-        filename = step.get("path") or self.screenshot_dir / f"step_{index:02d}.png"
+        filename = (
+            step.get("path") or self.screenshot_dir / f"step_{index:02d}.png"
+        )
         filename = Path(filename)
         filename.parent.mkdir(parents=True, exist_ok=True)
         driver.save_screenshot(str(filename))
@@ -248,7 +265,9 @@ class WebAgent:
         if step.get("extract_tables") and pd is not None:
             try:
                 tables = pd.read_html(html)
-                parsed["tables"] = [table.to_dict(orient="records") for table in tables]
+                parsed["tables"] = [
+                    table.to_dict(orient="records") for table in tables
+                ]
             except ValueError:
                 parsed["tables"] = []
             except Exception as exc:  # pragma: no cover - optional failure
@@ -322,7 +341,9 @@ class WebAgent:
             if summarize and scrape_results:
                 last_result = scrape_results[-1]
                 if last_result.success and last_result.payload:
-                    summary = self._generate_content_summary(last_result.payload, query)
+                    summary = self._generate_content_summary(
+                        last_result.payload, query
+                    )
                     if summary:
                         results.append(
                             WebAgentStepResult(
@@ -353,7 +374,11 @@ class WebAgent:
         for url in urls:
             if not any(
                 domain in url
-                for domain in ["google.com", "googleusercontent.com", "gstatic.com"]
+                for domain in [
+                    "google.com",
+                    "googleusercontent.com",
+                    "gstatic.com",
+                ]
             ):
                 if url not in seen:
                     filtered_urls.append(url)

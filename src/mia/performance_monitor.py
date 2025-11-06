@@ -76,7 +76,9 @@ class PerformanceMonitor:
         with self.lock:
             self.metrics_history.append(initial_metrics)
 
-        self.monitoring_thread = Thread(target=self._monitoring_loop, daemon=True)
+        self.monitoring_thread = Thread(
+            target=self._monitoring_loop, daemon=True
+        )
         self.monitoring_thread.start()
         logger.info("Performance monitoring started")
 
@@ -120,7 +122,9 @@ class PerformanceMonitor:
         # Disk I/O
         disk_io = psutil.disk_io_counters()
         disk_io_read_mb = disk_io.read_bytes / (1024 * 1024) if disk_io else 0
-        disk_io_write_mb = disk_io.write_bytes / (1024 * 1024) if disk_io else 0
+        disk_io_write_mb = (
+            disk_io.write_bytes / (1024 * 1024) if disk_io else 0
+        )
 
         # Network
         network_io = psutil.net_io_counters()
@@ -236,7 +240,9 @@ class PerformanceMonitor:
                 if os.path.exists(os.path.join(root, file))
             )
             if size > 100 * 1024 * 1024:  # > 100MB
-                logger.info(f"Large directory: {root} ({size/1024/1024:.1f}MB)")
+                logger.info(
+                    f"Large directory: {root} ({size/1024/1024:.1f}MB)"
+                )
 
     def _optimize_resource_usage(self):
         """Optimize resource usage by cleaning up unused resources."""
@@ -248,9 +254,13 @@ class PerformanceMonitor:
                 "max_memory_limit", 1024 * 1024 * 1024
             )  # 1GB default
 
-            memory_usage_percent = (total_memory_usage / max_memory_limit) * 100
+            memory_usage_percent = (
+                total_memory_usage / max_memory_limit
+            ) * 100
 
-            if memory_usage_percent > 70:  # If using more than 70% of memory limit
+            if (
+                memory_usage_percent > 70
+            ):  # If using more than 70% of memory limit
                 logger.info(
                     f"High resource memory usage: {memory_usage_percent:.1f}%, triggering cleanup"
                 )
@@ -283,7 +293,9 @@ class PerformanceMonitor:
             memory_by_type = {}
 
             for info in resource_info:
-                resource_counts[info.type] = resource_counts.get(info.type, 0) + 1
+                resource_counts[info.type] = (
+                    resource_counts.get(info.type, 0) + 1
+                )
                 memory_by_type[info.type] = (
                     memory_by_type.get(info.type, 0) + info.memory_usage
                 )
@@ -291,7 +303,9 @@ class PerformanceMonitor:
             return {
                 "resource_counts": resource_counts,
                 "memory_by_type": memory_by_type,
-                "total_resource_memory": resource_stats.get("total_memory_usage", 0),
+                "total_resource_memory": resource_stats.get(
+                    "total_memory_usage", 0
+                ),
                 "resource_memory_percent": resource_stats.get(
                     "memory_usage_percent", 0
                 ),
@@ -329,7 +343,9 @@ class PerformanceMonitor:
 
         logger.info("Performance optimization completed")
 
-    def get_memory_top_consumers(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_memory_top_consumers(
+        self, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """Get top memory consumers."""
         if not tracemalloc.is_tracing():
             return []
@@ -389,7 +405,9 @@ class PerformanceMonitor:
 
             # Extract metric values
             cpu_values = [
-                m.cpu_percent for m in self.metrics_history if m.cpu_percent is not None
+                m.cpu_percent
+                for m in self.metrics_history
+                if m.cpu_percent is not None
             ]
             memory_values = [
                 m.memory_percent
@@ -436,14 +454,19 @@ class PerformanceMonitor:
                 memory_section.update(
                     {
                         "current_percent": memory_values[-1],
-                        "average_percent": sum(memory_values) / len(memory_values),
+                        "average_percent": sum(memory_values)
+                        / len(memory_values),
                         "max_percent": max(memory_values),
                         "min_percent": min(memory_values),
                     }
                 )
                 # Add flat keys for backward compatibility
-                summary["average_memory_percent"] = memory_section["average_percent"]
-                summary["current_memory_percent"] = memory_section["current_percent"]
+                summary["average_memory_percent"] = memory_section[
+                    "average_percent"
+                ]
+                summary["current_memory_percent"] = memory_section[
+                    "current_percent"
+                ]
                 summary["max_memory_percent"] = memory_section["max_percent"]
                 summary["min_memory_percent"] = memory_section["min_percent"]
 
@@ -452,7 +475,8 @@ class PerformanceMonitor:
                 memory_section.update(
                     {
                         "current_mb": memory_used_values[-1],
-                        "average_mb": sum(memory_used_values) / len(memory_used_values),
+                        "average_mb": sum(memory_used_values)
+                        / len(memory_used_values),
                         "max_mb": max(memory_used_values),
                         "min_mb": min(memory_used_values),
                     }

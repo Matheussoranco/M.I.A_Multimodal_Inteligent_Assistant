@@ -13,7 +13,9 @@ import pytest
 class TestCoreIntegration:
     """Test core component integration with real dependencies."""
 
-    def test_config_resource_integration(self, config_manager, resource_manager):
+    def test_config_resource_integration(
+        self, config_manager, resource_manager
+    ):
         """Test configuration and resource manager integration."""
         # Test that config manager loads properly
         assert config_manager.config is not None
@@ -26,7 +28,9 @@ class TestCoreIntegration:
         max_workers = config_manager.config.system.max_workers
         assert max_workers == 2  # From our test config
 
-    def test_cache_performance_integration(self, cache_manager, performance_monitor):
+    def test_cache_performance_integration(
+        self, cache_manager, performance_monitor
+    ):
         """Test cache and performance monitor integration."""
         # Start performance monitoring
         performance_monitor.start_monitoring()
@@ -96,11 +100,15 @@ class TestCoreIntegration:
         result = safe_execute(failing_operation, default=None)
         assert result is None  # Should return None on error
 
-    def test_memory_management_integration(self, resource_manager, cache_manager):
+    def test_memory_management_integration(
+        self, resource_manager, cache_manager
+    ):
         """Test memory management across components."""
         # Fill cache with some data
         for i in range(10):
-            cache_manager.put(f"key_{i}", f"value_{i}" * 100, ttl=3600)  # Larger values
+            cache_manager.put(
+                f"key_{i}", f"value_{i}" * 100, ttl=3600
+            )  # Larger values
 
         # Check that cache stats are updated
         stats = cache_manager.get_stats()
@@ -138,7 +146,9 @@ class TestWorkflowIntegration:
         assert result == {"step": 1}
 
         # Test cache expiration (simulate)
-        with patch("time.time", return_value=time.time() + 120):  # 2 minutes later
+        with patch(
+            "time.time", return_value=time.time() + 120
+        ):  # 2 minutes later
             expired_result = cache_manager.get("workflow_test")
             assert expired_result is None  # Should be expired
 

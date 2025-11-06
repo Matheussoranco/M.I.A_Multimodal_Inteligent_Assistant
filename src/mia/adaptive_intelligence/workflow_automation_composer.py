@@ -72,8 +72,12 @@ class WorkflowTask:
     requires_approval: bool = False
     approvers: List[str] = field(default_factory=list)
     parallel_group: Optional[str] = None  # Group for parallel execution
-    on_success: List[str] = field(default_factory=list)  # Next tasks on success
-    on_failure: List[str] = field(default_factory=list)  # Next tasks on failure
+    on_success: List[str] = field(
+        default_factory=list
+    )  # Next tasks on success
+    on_failure: List[str] = field(
+        default_factory=list
+    )  # Next tasks on failure
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -131,11 +135,15 @@ class TaskExecutor:
     Each executor handles a specific type of task.
     """
 
-    def __init__(self, task_type: str, config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self, task_type: str, config: Optional[Dict[str, Any]] = None
+    ):
         self.task_type = task_type
         self.config = config or {}
 
-    async def execute(self, task: WorkflowTask, context: Dict[str, Any]) -> Any:
+    async def execute(
+        self, task: WorkflowTask, context: Dict[str, Any]
+    ) -> Any:
         """Execute the task and return result."""
         raise NotImplementedError("Subclasses must implement execute method")
 
@@ -150,7 +158,9 @@ class ActionExecutor(TaskExecutor):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__("action", config)
 
-    async def execute(self, task: WorkflowTask, context: Dict[str, Any]) -> Any:
+    async def execute(
+        self, task: WorkflowTask, context: Dict[str, Any]
+    ) -> Any:
         """Execute an action task."""
         action = task.config.get("action")
         if not action:
@@ -167,7 +177,11 @@ class ActionExecutor(TaskExecutor):
             var_value = task.config.get("value")
             if var_name:
                 context[var_name] = var_value
-                return {"status": "set", "variable": var_name, "value": var_value}
+                return {
+                    "status": "set",
+                    "variable": var_name,
+                    "value": var_value,
+                }
 
         elif action == "delay":
             delay = task.config.get("seconds", 1)
@@ -184,7 +198,9 @@ class HttpExecutor(TaskExecutor):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__("http", config)
 
-    async def execute(self, task: WorkflowTask, context: Dict[str, Any]) -> Any:
+    async def execute(
+        self, task: WorkflowTask, context: Dict[str, Any]
+    ) -> Any:
         """Execute an HTTP request task."""
         try:
             import aiohttp
@@ -224,7 +240,9 @@ class ApprovalExecutor(TaskExecutor):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__("approval", config)
 
-    async def execute(self, task: WorkflowTask, context: Dict[str, Any]) -> Any:
+    async def execute(
+        self, task: WorkflowTask, context: Dict[str, Any]
+    ) -> Any:
         """Execute an approval task."""
         # Approval tasks are handled specially by the workflow engine
         # This executor just validates the approval configuration
@@ -330,7 +348,9 @@ class WorkflowAutomationComposer:
 
         return workflow_id
 
-    def update_workflow(self, workflow_id: str, updates: Dict[str, Any]) -> bool:
+    def update_workflow(
+        self, workflow_id: str, updates: Dict[str, Any]
+    ) -> bool:
         """
         Update an existing workflow.
 
@@ -435,7 +455,9 @@ class WorkflowAutomationComposer:
     def _update_execution_metrics(self, execution: WorkflowExecution):
         """Update execution time metrics."""
         if execution.start_time and execution.end_time:
-            execution_time = (execution.end_time - execution.start_time).total_seconds()
+            execution_time = (
+                execution.end_time - execution.start_time
+            ).total_seconds()
             total_time = self.metrics["average_execution_time"] * (
                 self.metrics["total_executions"] - 1
             )
@@ -459,7 +481,9 @@ class WorkflowAutomationComposer:
             # Check for tasks that can be started
             startable_tasks = []
             for task_id in pending_tasks:
-                if self._can_start_task(task_id, workflow, completed_tasks, execution):
+                if self._can_start_task(
+                    task_id, workflow, completed_tasks, execution
+                ):
                     startable_tasks.append(task_id)
 
             # Start tasks
@@ -473,9 +497,12 @@ class WorkflowAutomationComposer:
                         group_tasks = [
                             t
                             for t in startable_tasks
-                            if workflow.tasks[t].parallel_group == task.parallel_group
+                            if workflow.tasks[t].parallel_group
+                            == task.parallel_group
                         ]
-                        if task_id == min(group_tasks):  # Start only one from group
+                        if task_id == min(
+                            group_tasks
+                        ):  # Start only one from group
                             tasks_to_start.extend(group_tasks)
                     else:
                         tasks_to_start.append(task_id)
@@ -489,7 +516,11 @@ class WorkflowAutomationComposer:
                     running_tasks.add(task_id)
                     asyncio.create_task(
                         self._execute_task(
-                            task_id, workflow, execution, completed_tasks, running_tasks
+                            task_id,
+                            workflow,
+                            execution,
+                            completed_tasks,
+                            running_tasks,
                         )
                     )
             else:
@@ -499,7 +530,11 @@ class WorkflowAutomationComposer:
                     pending_tasks.discard(task_id)
                     running_tasks.add(task_id)
                     await self._execute_task(
-                        task_id, workflow, execution, completed_tasks, running_tasks
+                        task_id,
+                        workflow,
+                        execution,
+                        completed_tasks,
+                        running_tasks,
                     )
 
             # Wait a bit before checking again
@@ -563,12 +598,15 @@ class WorkflowAutomationComposer:
             # Get executor
             executor = self.executors.get(task.task_type)
             if not executor:
-                raise ValueError(f"No executor found for task type: {task.task_type}")
+                raise ValueError(
+                    f"No executor found for task type: {task.task_type}"
+                )
 
             # Execute with timeout
             if task.timeout:
                 result = await asyncio.wait_for(
-                    executor.execute(task, execution.context), timeout=task.timeout
+                    executor.execute(task, execution.context),
+                    timeout=task.timeout,
                 )
             else:
                 result = await executor.execute(task, execution.context)
@@ -619,13 +657,17 @@ class WorkflowAutomationComposer:
             "created_at": datetime.now(),
         }
 
-        self.pending_approvals[f"{execution.execution_id}_{task_id}"] = approval_request
+        self.pending_approvals[f"{execution.execution_id}_{task_id}"] = (
+            approval_request
+        )
 
         # Wait for approval (simplified - in real implementation would have proper approval workflow)
         await asyncio.sleep(1)  # Placeholder
 
         # For demo purposes, auto-approve
-        await self.approve_task(execution.execution_id, task_id, "auto_approver")
+        await self.approve_task(
+            execution.execution_id, task_id, "auto_approver"
+        )
 
     async def _trigger_next_tasks(
         self,
@@ -676,12 +718,18 @@ class WorkflowAutomationComposer:
         # Check retry logic
         if task_exec.attempts < task.retry_count:
             task_exec.attempts += 1
-            logger.info(f"Retrying task {task.id} (attempt {task_exec.attempts})")
+            logger.info(
+                f"Retrying task {task.id} (attempt {task_exec.attempts})"
+            )
             await asyncio.sleep(task.retry_delay)
             running_tasks.add(task.id)
             asyncio.create_task(
                 self._execute_task(
-                    task.id, workflow, execution, completed_tasks, running_tasks
+                    task.id,
+                    workflow,
+                    execution,
+                    completed_tasks,
+                    running_tasks,
                 )
             )
         else:
@@ -801,7 +849,9 @@ class WorkflowAutomationComposer:
             return True
         return False
 
-    def get_execution_status(self, execution_id: str) -> Optional[WorkflowExecution]:
+    def get_execution_status(
+        self, execution_id: str
+    ) -> Optional[WorkflowExecution]:
         """Get the status of a workflow execution."""
         return self.executions.get(execution_id)
 
@@ -834,17 +884,23 @@ class WorkflowAutomationComposer:
         """List workflow executions."""
         executions = self.executions.values()
         if workflow_id:
-            executions = [e for e in executions if e.workflow_id == workflow_id]
+            executions = [
+                e for e in executions if e.workflow_id == workflow_id
+            ]
 
         return [
             {
                 "execution_id": e.execution_id,
                 "workflow_id": e.workflow_id,
                 "status": e.status.value,
-                "start_time": e.start_time.isoformat() if e.start_time else None,
+                "start_time": (
+                    e.start_time.isoformat() if e.start_time else None
+                ),
                 "end_time": e.end_time.isoformat() if e.end_time else None,
                 "tasks_completed": sum(
-                    1 for t in e.tasks.values() if t.status == TaskStatus.COMPLETED
+                    1
+                    for t in e.tasks.values()
+                    if t.status == TaskStatus.COMPLETED
                 ),
                 "tasks_total": len(e.tasks),
             }

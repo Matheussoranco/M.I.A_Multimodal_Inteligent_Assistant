@@ -39,7 +39,9 @@ class AudioResource(ManagedResource):
                 self.data.close()
             logger.info(f"Audio resource {self.resource_id} cleaned up")
         except Exception as e:
-            logger.error(f"Error cleaning up audio resource {self.resource_id}: {e}")
+            logger.error(
+                f"Error cleaning up audio resource {self.resource_id}: {e}"
+            )
 
     def get_memory_usage(self) -> int:
         """Get memory usage of audio resource."""
@@ -114,14 +116,16 @@ class AudioResourceManager(ResourceManager):
         """Check if any audio resource is currently recording."""
         with self._lock:
             return any(
-                resource.is_recording for resource in self.audio_resources.values()
+                resource.is_recording
+                for resource in self.audio_resources.values()
             )
 
     def is_playback_active(self) -> bool:
         """Check if any audio resource is currently playing."""
         with self._lock:
             return any(
-                resource.is_playing for resource in self.audio_resources.values()
+                resource.is_playing
+                for resource in self.audio_resources.values()
             )
 
     def stop_all_recording(self):

@@ -32,10 +32,16 @@ class TelegramMessenger:
         self.request_timeout = request_timeout
 
         self.api_id = self._to_int(api_id)
-        self.api_hash = api_hash.strip() if isinstance(api_hash, str) else api_hash
-        self.bot_token = bot_token.strip() if isinstance(bot_token, str) else bot_token
+        self.api_hash = (
+            api_hash.strip() if isinstance(api_hash, str) else api_hash
+        )
+        self.bot_token = (
+            bot_token.strip() if isinstance(bot_token, str) else bot_token
+        )
         self.phone_number = (
-            phone_number.strip() if isinstance(phone_number, str) else phone_number
+            phone_number.strip()
+            if isinstance(phone_number, str)
+            else phone_number
         )
 
         self.session_path = Path(session_dir or "sessions") / (
@@ -45,7 +51,9 @@ class TelegramMessenger:
 
         self._available = self._validate_credentials()
         if not self._available:
-            self.logger.debug("TelegramMessenger disabled due to missing credentials")
+            self.logger.debug(
+                "TelegramMessenger disabled due to missing credentials"
+            )
 
     @staticmethod
     def _to_int(value: Optional[int]) -> Optional[int]:
@@ -71,7 +79,10 @@ class TelegramMessenger:
         return self._available
 
     def send_message(
-        self, message: str, recipient: Optional[str] = None, silent: bool = False
+        self,
+        message: str,
+        recipient: Optional[str] = None,
+        silent: bool = False,
     ) -> str:
         if not self._available:
             return "Telegram messenger not configured. Provide API credentials and enable it."
@@ -81,14 +92,18 @@ class TelegramMessenger:
         if not peer:
             return "No Telegram recipient configured."
         try:
-            return self._run_coroutine(lambda: self._send_async(peer, message, silent))
+            return self._run_coroutine(
+                lambda: self._send_async(peer, message, silent)
+            )
         except ImportError:
             return "Telethon not installed. Run: pip install telethon"
         except Exception as exc:  # pragma: no cover - runtime errors
             self.logger.error("Failed to send Telegram message: %s", exc)
             return f"Error sending Telegram message: {exc}"
 
-    def _run_coroutine(self, coroutine_factory: Callable[[], Coroutine[Any, Any, str]]):
+    def _run_coroutine(
+        self, coroutine_factory: Callable[[], Coroutine[Any, Any, str]]
+    ):
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

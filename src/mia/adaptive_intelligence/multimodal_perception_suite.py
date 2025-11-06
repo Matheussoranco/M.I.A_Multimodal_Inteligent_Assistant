@@ -85,7 +85,9 @@ class PerceptionProcessor:
     Each processor handles a specific modality and extracts relevant information.
     """
 
-    def __init__(self, modality: ModalityType, config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self, modality: ModalityType, config: Optional[Dict[str, Any]] = None
+    ):
         self.modality = modality
         self.config = config or {}
         self.is_available = False
@@ -197,7 +199,14 @@ class TextProcessor(PerceptionProcessor):
             "wonderful",
             "fantastic",
         ]
-        negative_words = ["bad", "terrible", "awful", "horrible", "worst", "hate"]
+        negative_words = [
+            "bad",
+            "terrible",
+            "awful",
+            "horrible",
+            "worst",
+            "hate",
+        ]
 
         words = text.lower().split()
         positive_count = sum(1 for word in words if word in positive_words)
@@ -235,7 +244,9 @@ class TextProcessor(PerceptionProcessor):
             r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", text
         )
         for email in emails:
-            entities.append({"text": email, "type": "email", "confidence": 0.9})
+            entities.append(
+                {"text": email, "type": "email", "confidence": 0.9}
+            )
 
         # Simple URL extraction
         urls = re.findall(
@@ -271,7 +282,9 @@ class TextProcessor(PerceptionProcessor):
             "was",
             "were",
         }
-        keywords = [word for word in words if word not in stop_words and len(word) > 3]
+        keywords = [
+            word for word in words if word not in stop_words and len(word) > 3
+        ]
 
         # Return most common keywords
         from collections import Counter
@@ -335,7 +348,9 @@ class ImageProcessor(PerceptionProcessor):
 
             # Perform image analyses
             results = {
-                "dimensions": image.shape[:2] if len(image.shape) >= 2 else (0, 0),
+                "dimensions": (
+                    image.shape[:2] if len(image.shape) >= 2 else (0, 0)
+                ),
                 "channels": image.shape[2] if len(image.shape) >= 3 else 1,
                 "objects": self._detect_objects(image),
                 "text": self._extract_text_from_image(image),
@@ -428,10 +443,16 @@ class ImageProcessor(PerceptionProcessor):
             if len(image.shape) == 3:
                 # Simple color histogram
                 hist = self.cv2.calcHist(
-                    [image], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256]
+                    [image],
+                    [0, 1, 2],
+                    None,
+                    [8, 8, 8],
+                    [0, 256, 0, 256, 0, 256],
                 )
                 return {
-                    "dominant_colors": hist.flatten().argsort()[-3:][::-1].tolist(),
+                    "dominant_colors": hist.flatten()
+                    .argsort()[-3:][::-1]
+                    .tolist(),
                     "color_distribution": "analyzed",
                 }
             else:
@@ -470,7 +491,9 @@ class AudioProcessor(PerceptionProcessor):
         except ImportError:
             self.speech_recognition = None
             self.is_available = False
-            logger.warning("Speech recognition not available, audio processing limited")
+            logger.warning(
+                "Speech recognition not available, audio processing limited"
+            )
 
     async def process(self, input_data: PerceptionInput) -> PerceptionResult:
         """Process audio input."""
@@ -567,7 +590,9 @@ class DocumentProcessor(PerceptionProcessor):
 
         try:
             # Extract document content
-            content = self._extract_document_content(input_data.data, input_data.format)
+            content = self._extract_document_content(
+                input_data.data, input_data.format
+            )
 
             results = {
                 "text": content.get("text", ""),
@@ -719,10 +744,14 @@ class MultimodalPerceptionSuite:
                     self.processors[modality] = processor
                     logger.info("Initialized %s processor", modality.value)
                 else:
-                    logger.warning("%s processor not available", modality.value)
+                    logger.warning(
+                        "%s processor not available", modality.value
+                    )
             except Exception as exc:
                 logger.error(
-                    "Failed to initialize %s processor: %s", modality.value, exc
+                    "Failed to initialize %s processor: %s",
+                    modality.value,
+                    exc,
                 )
 
     async def process_input(
@@ -741,9 +770,7 @@ class MultimodalPerceptionSuite:
         async with self.task_semaphore:
             try:
                 # Check cache first
-                cache_key = (
-                    f"{input_data.modality.value}_{hash(str(input_data.data)) % 10000}"
-                )
+                cache_key = f"{input_data.modality.value}_{hash(str(input_data.data)) % 10000}"
                 if cache_key in self.results_cache:
                     cached_result = self.results_cache[cache_key]
                     if enable_fusion:
@@ -762,7 +789,8 @@ class MultimodalPerceptionSuite:
 
                 # Process input
                 result = await asyncio.wait_for(
-                    processor.process(input_data), timeout=self.processing_timeout
+                    processor.process(input_data),
+                    timeout=self.processing_timeout,
                 )
 
                 # Cache result
@@ -791,7 +819,9 @@ class MultimodalPerceptionSuite:
                 )
 
     async def process_multimodal(
-        self, inputs: List[PerceptionInput], fusion_strategy: str = "complementary"
+        self,
+        inputs: List[PerceptionInput],
+        fusion_strategy: str = "complementary",
     ) -> MultimodalContext:
         """
         Process multiple inputs and fuse results.
@@ -808,7 +838,9 @@ class MultimodalPerceptionSuite:
 
         # Process all inputs (in parallel if enabled)
         if self.enable_parallel_processing:
-            tasks = [self.process_input(inp, enable_fusion=False) for inp in inputs]
+            tasks = [
+                self.process_input(inp, enable_fusion=False) for inp in inputs
+            ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             # Filter out exceptions and keep only successful results
             valid_results = [
@@ -840,7 +872,9 @@ class MultimodalPerceptionSuite:
 
         return context
 
-    async def _fuse_with_context(self, result: PerceptionResult) -> MultimodalContext:
+    async def _fuse_with_context(
+        self, result: PerceptionResult
+    ) -> MultimodalContext:
         """Fuse a single result with available context."""
         # Simple context fusion - in real implementation would be more sophisticated
         context = MultimodalContext(inputs=[result])
@@ -852,7 +886,10 @@ class MultimodalPerceptionSuite:
             for cache_result in list(self.results_cache.values())[
                 -10:
             ]:  # Last 10 results
-                if cache_result.modality in [ModalityType.IMAGE, ModalityType.AUDIO]:
+                if cache_result.modality in [
+                    ModalityType.IMAGE,
+                    ModalityType.AUDIO,
+                ]:
                     relations.append(
                         {
                             "source": result.input_id,
@@ -874,13 +911,21 @@ class MultimodalPerceptionSuite:
         # Combine complementary information from different modalities
         fused_insights = {}
 
-        text_results = [r for r in context.inputs if r.modality == ModalityType.TEXT]
-        image_results = [r for r in context.inputs if r.modality == ModalityType.IMAGE]
-        audio_results = [r for r in context.inputs if r.modality == ModalityType.AUDIO]
+        text_results = [
+            r for r in context.inputs if r.modality == ModalityType.TEXT
+        ]
+        image_results = [
+            r for r in context.inputs if r.modality == ModalityType.IMAGE
+        ]
+        audio_results = [
+            r for r in context.inputs if r.modality == ModalityType.AUDIO
+        ]
 
         # Example: Combine text sentiment with audio emotion
         if text_results and audio_results:
-            text_sentiment = text_results[0].extracted_data.get("sentiment", {})
+            text_sentiment = text_results[0].extracted_data.get(
+                "sentiment", {}
+            )
             audio_emotion = audio_results[0].extracted_data.get("emotions", {})
 
             # Fuse sentiment and emotion
@@ -894,7 +939,9 @@ class MultimodalPerceptionSuite:
             image_desc = image_results[0].extracted_data.get("description", "")
             text_content = text_results[0].extracted_data.get("text", "")
 
-            fused_insights["combined_description"] = f"{image_desc}. {text_content}"
+            fused_insights["combined_description"] = (
+                f"{image_desc}. {text_content}"
+            )
 
         context.fused_insights = fused_insights
         context.confidence = sum(

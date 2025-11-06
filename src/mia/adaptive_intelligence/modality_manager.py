@@ -122,7 +122,8 @@ class ModalityManager:
         self.start_health_monitoring()
 
         logger.info(
-            "Modality Manager initialized with %d capabilities", len(self.capabilities)
+            "Modality Manager initialized with %d capabilities",
+            len(self.capabilities),
         )
 
     def _initialize_capabilities(self):
@@ -221,7 +222,9 @@ class ModalityManager:
                     # Update state based on health
                     if health_score >= 0.8:
                         if capability.error_count > 0:
-                            capability.error_count = max(0, capability.error_count - 1)
+                            capability.error_count = max(
+                                0, capability.error_count - 1
+                            )
                         capability.state = ModalityState.AVAILABLE
                     elif health_score >= 0.5:
                         capability.state = ModalityState.DEGRADED
@@ -232,7 +235,9 @@ class ModalityManager:
                             self._attempt_recovery(modality)
 
                 except Exception as exc:
-                    logger.debug("Health check failed for %s: %s", modality.value, exc)
+                    logger.debug(
+                        "Health check failed for %s: %s", modality.value, exc
+                    )
                     capability.error_count += 1
                     if capability.error_count >= self.max_error_threshold:
                         capability.state = ModalityState.UNAVAILABLE
@@ -267,7 +272,9 @@ class ModalityManager:
             elif modality == ModalityType.MULTIMODAL:
                 # Check combination of modalities
                 voice_health = self._check_modality_health(ModalityType.VOICE)
-                vision_health = self._check_modality_health(ModalityType.VISION)
+                vision_health = self._check_modality_health(
+                    ModalityType.VISION
+                )
                 return min(voice_health, vision_health) * 0.8
 
         except Exception as exc:
@@ -293,7 +300,9 @@ class ModalityManager:
             if health >= 0.5:
                 capability.state = ModalityState.AVAILABLE
                 capability.error_count = 0
-                logger.info("Successfully recovered modality %s", modality.value)
+                logger.info(
+                    "Successfully recovered modality %s", modality.value
+                )
             else:
                 capability.state = ModalityState.UNAVAILABLE
                 logger.warning("Failed to recover modality %s", modality.value)
@@ -330,13 +339,20 @@ class ModalityManager:
                 logger.debug("Policy %s failed: %s", policy_name, exc)
 
         return (
-            (best_switch.to_modality, best_switch.reason, best_switch.confidence)
+            (
+                best_switch.to_modality,
+                best_switch.reason,
+                best_switch.confidence,
+            )
             if best_switch
             else None
         )
 
     def _policy_voice_to_text_fallback(
-        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
+        self,
+        current: ModalityType,
+        context: ModalityContext,
+        user_input: Optional[str],
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch from voice to text if voice is degraded."""
         if current != ModalityType.VOICE:
@@ -359,7 +375,10 @@ class ModalityManager:
         return None
 
     def _policy_vision_to_text_fallback(
-        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
+        self,
+        current: ModalityType,
+        context: ModalityContext,
+        user_input: Optional[str],
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch from vision to text if vision is degraded."""
         if current != ModalityType.VISION:
@@ -382,7 +401,10 @@ class ModalityManager:
         return None
 
     def _policy_text_to_voice_enhancement(
-        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
+        self,
+        current: ModalityType,
+        context: ModalityContext,
+        user_input: Optional[str],
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch from text to voice for better UX."""
         if current != ModalityType.TEXT:
@@ -402,7 +424,10 @@ class ModalityManager:
         return None
 
     def _policy_multimodal_optimization(
-        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
+        self,
+        current: ModalityType,
+        context: ModalityContext,
+        user_input: Optional[str],
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch to multimodal when multiple inputs are available."""
         if current == ModalityType.MULTIMODAL:
@@ -417,7 +442,10 @@ class ModalityManager:
 
         if len(available_modalities) >= 2:
             multimodal_cap = self.capabilities.get(ModalityType.MULTIMODAL)
-            if multimodal_cap and multimodal_cap.state == ModalityState.AVAILABLE:
+            if (
+                multimodal_cap
+                and multimodal_cap.state == ModalityState.AVAILABLE
+            ):
                 return ModalitySwitch(
                     from_modality=current,
                     to_modality=ModalityType.MULTIMODAL,
@@ -428,13 +456,19 @@ class ModalityManager:
         return None
 
     def _policy_accessibility_adaptation(
-        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
+        self,
+        current: ModalityType,
+        context: ModalityContext,
+        user_input: Optional[str],
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch modalities based on accessibility needs."""
         # Check for accessibility preferences
         accessibility_needs = context.user_preferences.get("accessibility", {})
 
-        if accessibility_needs.get("voice_preferred") and current != ModalityType.VOICE:
+        if (
+            accessibility_needs.get("voice_preferred")
+            and current != ModalityType.VOICE
+        ):
             voice_cap = self.capabilities.get(ModalityType.VOICE)
             if voice_cap and voice_cap.state == ModalityState.AVAILABLE:
                 return ModalitySwitch(
@@ -444,7 +478,10 @@ class ModalityManager:
                     confidence=0.9,
                 )
 
-        elif accessibility_needs.get("text_preferred") and current != ModalityType.TEXT:
+        elif (
+            accessibility_needs.get("text_preferred")
+            and current != ModalityType.TEXT
+        ):
             text_cap = self.capabilities.get(ModalityType.TEXT)
             if text_cap and text_cap.state == ModalityState.AVAILABLE:
                 return ModalitySwitch(
@@ -457,7 +494,10 @@ class ModalityManager:
         return None
 
     def _policy_performance_optimization(
-        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
+        self,
+        current: ModalityType,
+        context: ModalityContext,
+        user_input: Optional[str],
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch to faster/better performing modality."""
         current_cap = self.capabilities.get(current)
@@ -469,7 +509,10 @@ class ModalityManager:
         best_score = self._calculate_performance_score(current_cap)
 
         for modality, capability in self.capabilities.items():
-            if modality == current or capability.state != ModalityState.AVAILABLE:
+            if (
+                modality == current
+                or capability.state != ModalityState.AVAILABLE
+            ):
                 continue
 
             score = self._calculate_performance_score(capability)
@@ -488,7 +531,10 @@ class ModalityManager:
         return None
 
     def _policy_user_preference_switching(
-        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
+        self,
+        current: ModalityType,
+        context: ModalityContext,
+        user_input: Optional[str],
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch based on learned user preferences."""
         user_id = context.user_preferences.get("user_id")
@@ -511,7 +557,9 @@ class ModalityManager:
 
         return None
 
-    def _calculate_performance_score(self, capability: ModalityCapability) -> float:
+    def _calculate_performance_score(
+        self, capability: ModalityCapability
+    ) -> float:
         """Calculate performance score for a modality capability."""
         base_score = capability.confidence
 
@@ -557,9 +605,13 @@ class ModalityManager:
             # Update preferred modality based on frequency
             switches = pattern["modality_switches"]
             if len(switches) >= 5:
-                to_modalities = [s["to"] for s in switches[-10:]]  # Last 10 switches
+                to_modalities = [
+                    s["to"] for s in switches[-10:]
+                ]  # Last 10 switches
                 if to_modalities:
-                    preferred = max(set(to_modalities), key=to_modalities.count)
+                    preferred = max(
+                        set(to_modalities), key=to_modalities.count
+                    )
                     pattern["preferred_modality"] = preferred
 
     def get_modality_status(self) -> Dict[str, Any]:
@@ -589,7 +641,10 @@ class ModalityManager:
             return False
 
         capability = self.capabilities[to_modality]
-        if capability.state not in [ModalityState.AVAILABLE, ModalityState.ACTIVE]:
+        if capability.state not in [
+            ModalityState.AVAILABLE,
+            ModalityState.ACTIVE,
+        ]:
             return False
 
         switch = ModalitySwitch(

@@ -136,7 +136,10 @@ class MetricsCollector:
         self.lock = threading.Lock()
 
     def increment_counter(
-        self, name: str, value: int = 1, labels: Optional[Dict[str, str]] = None
+        self,
+        name: str,
+        value: int = 1,
+        labels: Optional[Dict[str, str]] = None,
     ):
         """Increment a counter metric."""
         with self.lock:
@@ -163,7 +166,10 @@ class MetricsCollector:
             self.gauges[key] = value
 
             metric = Metric(
-                name=name, type=MetricType.GAUGE, value=value, labels=labels or {}
+                name=name,
+                type=MetricType.GAUGE,
+                value=value,
+                labels=labels or {},
             )
             self._store_metric(metric)
 
@@ -185,7 +191,10 @@ class MetricsCollector:
                 self.histograms[key] = self.histograms[key][-1000:]
 
             metric = Metric(
-                name=name, type=MetricType.HISTOGRAM, value=value, labels=labels or {}
+                name=name,
+                type=MetricType.HISTOGRAM,
+                value=value,
+                labels=labels or {},
             )
             self._store_metric(metric)
 
@@ -207,7 +216,9 @@ class MetricsCollector:
             if name not in self.metrics:
                 return {}
 
-            recent_metrics = [m for m in self.metrics[name] if m.timestamp > cutoff]
+            recent_metrics = [
+                m for m in self.metrics[name] if m.timestamp > cutoff
+            ]
             if not recent_metrics:
                 return {}
 
@@ -239,7 +250,12 @@ class MetricsCollector:
                     labels = {}
 
                 result.append(
-                    {"name": name, "type": "counter", "value": value, "labels": labels}
+                    {
+                        "name": name,
+                        "type": "counter",
+                        "value": value,
+                        "labels": labels,
+                    }
                 )
 
             # Gauges
@@ -252,7 +268,12 @@ class MetricsCollector:
                     labels = {}
 
                 result.append(
-                    {"name": name, "type": "gauge", "value": value, "labels": labels}
+                    {
+                        "name": name,
+                        "type": "gauge",
+                        "value": value,
+                        "labels": labels,
+                    }
                 )
 
             # Histograms
@@ -300,7 +321,9 @@ class AlertManager:
             for rule in self.alert_rules:
                 self._check_rule(rule, metrics_collector)
 
-    def _check_rule(self, rule: Dict[str, Any], metrics_collector: MetricsCollector):
+    def _check_rule(
+        self, rule: Dict[str, Any], metrics_collector: MetricsCollector
+    ):
         """Check a single alert rule."""
         metric_name = rule.get("metric")
         condition = rule.get("condition")  # "gt", "lt", "eq"
@@ -371,13 +394,19 @@ class AlertManager:
     def get_active_alerts(self) -> List[Alert]:
         """Get all active (unresolved) alerts."""
         with self.lock:
-            return [alert for alert in self.alerts.values() if not alert.resolved]
+            return [
+                alert for alert in self.alerts.values() if not alert.resolved
+            ]
 
     def get_all_alerts(self, hours: int = 24) -> List[Alert]:
         """Get all alerts from the last N hours."""
         cutoff = datetime.now() - timedelta(hours=hours)
         with self.lock:
-            return [alert for alert in self.alerts.values() if alert.timestamp > cutoff]
+            return [
+                alert
+                for alert in self.alerts.values()
+                if alert.timestamp > cutoff
+            ]
 
 
 class LogAggregator:
@@ -438,7 +467,9 @@ class LogAggregator:
             level_str = log.level.value
             component_str = log.component
 
-            stats["by_level"][level_str] = stats["by_level"].get(level_str, 0) + 1
+            stats["by_level"][level_str] = (
+                stats["by_level"].get(level_str, 0) + 1
+            )
             stats["by_component"][component_str] = (
                 stats["by_component"].get(component_str, 0) + 1
             )
@@ -560,22 +591,30 @@ class ObservabilityAdminConsole:
 
             # Memory usage
             memory = psutil.virtual_memory()  # type: ignore
-            self.metrics_collector.set_gauge("system_memory_percent", memory.percent)
+            self.metrics_collector.set_gauge(
+                "system_memory_percent", memory.percent
+            )
             self.metrics_collector.set_gauge(
                 "system_memory_used_mb", memory.used / 1024 / 1024
             )
 
             # Disk usage
             disk = psutil.disk_usage("/")  # type: ignore
-            self.metrics_collector.set_gauge("system_disk_percent", disk.percent)
+            self.metrics_collector.set_gauge(
+                "system_disk_percent", disk.percent
+            )
 
             # Network connections
             net_connections = len(psutil.net_connections())  # type: ignore
-            self.metrics_collector.set_gauge("system_net_connections", net_connections)
+            self.metrics_collector.set_gauge(
+                "system_net_connections", net_connections
+            )
 
             # Thread count
             thread_count = threading.active_count()
-            self.metrics_collector.set_gauge("system_active_threads", thread_count)
+            self.metrics_collector.set_gauge(
+                "system_active_threads", thread_count
+            )
 
             # System health snapshot
             health = SystemHealth(
@@ -693,7 +732,9 @@ class ObservabilityAdminConsole:
                 metric.name, int(metric.value), metric.labels
             )
         elif metric.type == MetricType.GAUGE:
-            self.metrics_collector.set_gauge(metric.name, metric.value, metric.labels)
+            self.metrics_collector.set_gauge(
+                metric.name, metric.value, metric.labels
+            )
         elif metric.type == MetricType.HISTOGRAM:
             self.metrics_collector.record_histogram(
                 metric.name, metric.value, metric.labels
@@ -819,7 +860,8 @@ class ObservabilityAdminConsole:
         return {
             "components": list(self.component_statuses.keys()),
             "statuses": {
-                name: status.status for name, status in self.component_statuses.items()
+                name: status.status
+                for name, status in self.component_statuses.items()
             },
         }
 
@@ -887,7 +929,9 @@ class ObservabilityAdminConsole:
 # Register with provider registry
 def create_observability_admin_console(config_manager=None, **kwargs):
     """Factory function for ObservabilityAdminConsole."""
-    console = ObservabilityAdminConsole(config_manager=config_manager, **kwargs)
+    console = ObservabilityAdminConsole(
+        config_manager=config_manager, **kwargs
+    )
     console.start_monitoring()  # Auto-start monitoring
     return console
 

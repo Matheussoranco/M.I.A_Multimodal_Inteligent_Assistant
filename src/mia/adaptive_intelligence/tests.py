@@ -31,7 +31,11 @@ import time
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch
 
-from .knowledge_memory_graph import KnowledgeEdge, KnowledgeMemoryGraph, KnowledgeNode
+from .knowledge_memory_graph import (
+    KnowledgeEdge,
+    KnowledgeMemoryGraph,
+    KnowledgeNode,
+)
 from .multimodal_perception_suite import (
     AudioProcessor,
     DocumentProcessor,
@@ -79,7 +83,9 @@ class TestKnowledgeMemoryGraph:
         """Test adding knowledge to the graph."""
         # Add a knowledge node
         node_id = kmg.add_knowledge(
-            content="Test knowledge", knowledge_type="fact", metadata={"source": "test"}
+            content="Test knowledge",
+            knowledge_type="fact",
+            metadata={"source": "test"},
         )
 
         assert node_id in kmg.nodes
@@ -93,11 +99,15 @@ class TestKnowledgeMemoryGraph:
         """Test knowledge search functionality."""
         # Add test knowledge
         kmg.add_knowledge("Python programming", "skill", {"level": "beginner"})
-        kmg.add_knowledge("Machine learning", "skill", {"level": "intermediate"})
+        kmg.add_knowledge(
+            "Machine learning", "skill", {"level": "intermediate"}
+        )
         kmg.add_knowledge("Data analysis", "skill", {"level": "advanced"})
 
         # Test vector search (mocked)
-        with patch.object(kmg, "_generate_embedding", return_value=[0.1, 0.2, 0.3]):
+        with patch.object(
+            kmg, "_generate_embedding", return_value=[0.1, 0.2, 0.3]
+        ):
             results = kmg.search_knowledge("programming", top_k=2)
             assert len(results) <= 2
 
@@ -122,7 +132,9 @@ class TestKnowledgeMemoryGraph:
         """Test knowledge consolidation."""
         # Add similar knowledge
         for i in range(12):  # Exceed consolidation threshold
-            kmg.add_knowledge(f"Python concept {i}", "concept", {"topic": "python"})
+            kmg.add_knowledge(
+                f"Python concept {i}", "concept", {"topic": "python"}
+            )
 
         # Trigger consolidation
         consolidated = kmg.consolidate_knowledge()
@@ -178,7 +190,8 @@ class TestMultimodalPerceptionSuite:
     async def test_process_text_input(self, mps):
         """Test processing text input."""
         input_data = PerceptionInput(
-            modality=ModalityType.TEXT, data="This is a test message for analysis."
+            modality=ModalityType.TEXT,
+            data="This is a test message for analysis.",
         )
 
         result = await mps.process_input(input_data)
@@ -324,7 +337,10 @@ class TestWorkflowAutomationComposer:
                     id="approval_task",
                     name="Approval Task",
                     task_type="approval",
-                    config={"message": "Please approve", "approvers": ["user1"]},
+                    config={
+                        "message": "Please approve",
+                        "approvers": ["user1"],
+                    },
                     requires_approval=True,
                     approvers=["user1"],
                 )
@@ -409,7 +425,9 @@ class TestObservabilityAdminConsole:
         # Add metric that should trigger alert
         oac.add_metric(
             Metric(
-                name="test_gauge", type=MetricType.GAUGE, value=75  # Above threshold
+                name="test_gauge",
+                type=MetricType.GAUGE,
+                value=75,  # Above threshold
             )
         )
 
@@ -418,7 +436,9 @@ class TestObservabilityAdminConsole:
         active_alerts = oac.alert_manager.get_active_alerts()
 
         # Should have triggered an alert
-        assert len(active_alerts) >= 0  # May not trigger immediately due to timing
+        assert (
+            len(active_alerts) >= 0
+        )  # May not trigger immediately due to timing
 
     def test_logging(self, oac):
         """Test logging functionality."""
@@ -437,7 +457,9 @@ class TestObservabilityAdminConsole:
         )
 
         # Get logs
-        logs = oac.log_aggregator.get_logs(component="test_component", limit=10)
+        logs = oac.log_aggregator.get_logs(
+            component="test_component", limit=10
+        )
         assert len(logs) >= 2
 
         info_logs = [l for l in logs if l.level == LogLevel.INFO]
@@ -469,7 +491,14 @@ class TestObservabilityAdminConsole:
         """Test dashboard data generation."""
         dashboard = oac.get_dashboard_data()
 
-        required_keys = ["status", "health", "metrics", "alerts", "logs", "system_info"]
+        required_keys = [
+            "status",
+            "health",
+            "metrics",
+            "alerts",
+            "logs",
+            "system_info",
+        ]
         for key in required_keys:
             assert key in dashboard
 
@@ -613,7 +642,9 @@ class TestIntegration:
             component="multimodal_processor",
             message=f"Processed {len(multimodal_result.inputs)} modalities",
             metadata={
-                "modalities": [inp.modality.value for inp in multimodal_result.inputs]
+                "modalities": [
+                    inp.modality.value for inp in multimodal_result.inputs
+                ]
             },
         )
 
@@ -637,7 +668,9 @@ class TestIntegration:
 
         metrics = oac.metrics_collector.get_all_metrics()
         processing_metrics = [
-            m for m in metrics if m["name"] == "multimodal_processing_completed"
+            m
+            for m in metrics
+            if m["name"] == "multimodal_processing_completed"
         ]
         assert len(processing_metrics) > 0
 

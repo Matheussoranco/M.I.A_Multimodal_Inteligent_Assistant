@@ -35,7 +35,9 @@ try:
 
     # Suppress pydub ffmpeg warning
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="Couldn't find ffmpeg or avconv")
+        warnings.filterwarnings(
+            "ignore", message="Couldn't find ffmpeg or avconv"
+        )
         from pydub import AudioSegment
         from pydub.playback import play
     HAS_PYDUB = True
@@ -75,7 +77,11 @@ class AudioUtils:
             self.input_threshold = float(input_threshold)
 
     def record_audio(
-        self, transcriber, chunk_length_s=2.0, stream_chunk_s=0.25, save_to_file=None
+        self,
+        transcriber,
+        chunk_length_s=2.0,
+        stream_chunk_s=0.25,
+        save_to_file=None,
     ) -> Generator[np.ndarray, None, None]:
         """
         Record audio using a live microphone stream.
@@ -87,7 +93,9 @@ class AudioUtils:
         :return: Recorded audio data as a generator.
         """
         if not HAS_SOUNDDEVICE:
-            logger.error("sounddevice not available - audio recording disabled")
+            logger.error(
+                "sounddevice not available - audio recording disabled"
+            )
             logger.error("Install sounddevice: pip install sounddevice")
             raise RuntimeError(
                 "Audio recording not available - sounddevice not installed"
@@ -109,7 +117,9 @@ class AudioUtils:
                 sd.wait()  # type: ignore
             else:
                 # Fallback simulation
-                audio_data = self._create_simulated_audio(chunk_length_s).reshape(-1, 1)
+                audio_data = self._create_simulated_audio(
+                    chunk_length_s
+                ).reshape(-1, 1)
 
             # Flatten if multi-channel
             if audio_data.ndim > 1:
@@ -144,7 +154,11 @@ class AudioUtils:
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 dtype=np.float32,
-                device=device_index if device_index is not None else self.device_id,
+                device=(
+                    device_index
+                    if device_index is not None
+                    else self.device_id
+                ),
             )
             sd.wait()  # type: ignore
             if audio.ndim > 1:
@@ -154,7 +168,9 @@ class AudioUtils:
             logger.error("Audio chunk capture failed: %s", exc)
             return None
 
-    def play_audio(self, audio_data: np.ndarray, sample_rate: Optional[int] = None):
+    def play_audio(
+        self, audio_data: np.ndarray, sample_rate: Optional[int] = None
+    ):
         """
         Play audio data.
 
@@ -187,7 +203,10 @@ class AudioUtils:
             logger.error(f"Error playing audio: {e}")
 
     def save_audio(
-        self, audio_data: np.ndarray, filename: str, sample_rate: Optional[int] = None
+        self,
+        audio_data: np.ndarray,
+        filename: str,
+        sample_rate: Optional[int] = None,
     ):
         """
         Save audio data to file.
@@ -248,7 +267,9 @@ class AudioUtils:
         if isinstance(payload, dict):
             audio_bytes = payload.get("audio_bytes") or payload.get("data")
             if audio_bytes is None and "audio_url" in payload:
-                logger.info("TTS response returned URL; download not implemented")
+                logger.info(
+                    "TTS response returned URL; download not implemented"
+                )
                 return False
 
         if not audio_bytes:
@@ -264,7 +285,12 @@ class AudioUtils:
             except Exception as exc:
                 logger.error("Failed to play TTS payload via pydub: %s", exc)
 
-        if HAS_SOUNDDEVICE and HAS_SOUNDFILE and sd is not None and sf is not None:
+        if (
+            HAS_SOUNDDEVICE
+            and HAS_SOUNDFILE
+            and sd is not None
+            and sf is not None
+        ):
             try:
                 buffer = io.BytesIO(audio_bytes)
                 audio_array, sample_rate = sf.read(buffer)  # type: ignore
@@ -276,7 +302,9 @@ class AudioUtils:
                     )
                     return True
             except Exception as exc:
-                logger.error("Failed to play TTS payload via soundfile: %s", exc)
+                logger.error(
+                    "Failed to play TTS payload via soundfile: %s", exc
+                )
 
         logger.warning("Unable to play TTS payload; missing audio backends")
         return False

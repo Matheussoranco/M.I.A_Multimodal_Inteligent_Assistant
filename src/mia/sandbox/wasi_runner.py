@@ -68,7 +68,9 @@ class WasiSandbox:
         self.work_dir = Path(
             work_dir or os.getenv("MIA_SANDBOX_WORKDIR", tempfile.gettempdir())
         )
-        self.log_dir = Path(log_dir or os.getenv("MIA_SANDBOX_LOGDIR", "logs/sandbox"))
+        self.log_dir = Path(
+            log_dir or os.getenv("MIA_SANDBOX_LOGDIR", "logs/sandbox")
+        )
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.work_dir.mkdir(parents=True, exist_ok=True)
         logger.debug(
@@ -89,7 +91,9 @@ class WasiSandbox:
         """Execute a WASI module and return captured metadata."""
 
         if not module_path and not wasi_bytes:
-            raise WasiSandboxError("A module path or raw bytes must be provided")
+            raise WasiSandboxError(
+                "A module path or raw bytes must be provided"
+            )
 
         run_id = uuid.uuid4().hex
         work_dir = self.work_dir / run_id
@@ -119,13 +123,23 @@ class WasiSandbox:
             if engine["name"] == "wasmtime":
                 result.update(
                     self._run_wasmtime(
-                        engine["obj"], module_path, wasi_bytes, stdin, args, env
+                        engine["obj"],
+                        module_path,
+                        wasi_bytes,
+                        stdin,
+                        args,
+                        env,
                     )
                 )
             else:
                 result.update(
                     self._run_wasmer(
-                        engine["obj"], module_path, wasi_bytes, stdin, args, env
+                        engine["obj"],
+                        module_path,
+                        wasi_bytes,
+                        stdin,
+                        args,
+                        env,
                     )
                 )
         except Exception as exc:  # pragma: no cover - defensive

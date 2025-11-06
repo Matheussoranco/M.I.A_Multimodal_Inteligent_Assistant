@@ -35,7 +35,11 @@ class BenchmarkRunner:
         """Run text processing benchmark."""
         logger.info("Running text processing benchmark...")
 
-        results = {"benchmark": "text_processing", "iterations": [], "summary": {}}
+        results = {
+            "benchmark": "text_processing",
+            "iterations": [],
+            "summary": {},
+        }
 
         # Mock text processing benchmark
         for i in range(config.iterations):
@@ -52,7 +56,9 @@ class BenchmarkRunner:
             )
 
         # Calculate summary
-        processing_times = [iter["processing_time"] for iter in results["iterations"]]
+        processing_times = [
+            iter["processing_time"] for iter in results["iterations"]
+        ]
         results["summary"] = {
             "total_iterations": len(processing_times),
             "average_time": sum(processing_times) / len(processing_times),
@@ -67,7 +73,11 @@ class BenchmarkRunner:
         """Run memory operations benchmark."""
         logger.info("Running memory benchmark...")
 
-        results = {"benchmark": "memory_operations", "iterations": [], "summary": {}}
+        results = {
+            "benchmark": "memory_operations",
+            "iterations": [],
+            "summary": {},
+        }
 
         # Mock memory operations
         for i in range(config.iterations):
@@ -86,7 +96,9 @@ class BenchmarkRunner:
             )
 
         # Calculate summary
-        processing_times = [iter["processing_time"] for iter in results["iterations"]]
+        processing_times = [
+            iter["processing_time"] for iter in results["iterations"]
+        ]
         results["summary"] = {
             "total_iterations": len(processing_times),
             "average_time": sum(processing_times) / len(processing_times),
@@ -154,7 +166,9 @@ class BenchmarkRunner:
         logger.info("Generating benchmark report...")
 
         # Add performance summary
-        performance_summary = self.performance_monitor.get_performance_summary()
+        performance_summary = (
+            self.performance_monitor.get_performance_summary()
+        )
         self.results["performance_summary"] = performance_summary
 
         report_path = create_benchmark_report(self.results, output_dir)
@@ -186,7 +200,8 @@ def main():
     # Setup logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
-        level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Run benchmarks

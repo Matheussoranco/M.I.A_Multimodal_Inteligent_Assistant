@@ -23,7 +23,9 @@ import pytest
 class TestPerformanceScenarios:
     """Test performance characteristics under different scenarios."""
 
-    def test_cache_performance_under_load(self, cache_manager, performance_monitor):
+    def test_cache_performance_under_load(
+        self, cache_manager, performance_monitor
+    ):
         """Test cache performance with high concurrent load."""
         performance_monitor.start_monitoring()
 
@@ -44,8 +46,12 @@ class TestPerformanceScenarios:
                 assert retrieved == value
 
         # Execute concurrent operations
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [executor.submit(cache_worker, i) for i in range(num_threads)]
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=num_threads
+        ) as executor:
+            futures = [
+                executor.submit(cache_worker, i) for i in range(num_threads)
+            ]
             concurrent.futures.wait(futures)
 
         performance_monitor.stop_monitoring()
@@ -56,7 +62,10 @@ class TestPerformanceScenarios:
 
         # Check cache stats after load
         stats = cache_manager.get_stats()
-        assert stats["memory_cache"]["size"] >= num_threads * operations_per_thread
+        assert (
+            stats["memory_cache"]["size"]
+            >= num_threads * operations_per_thread
+        )
 
     def test_memory_scaling(self, cache_manager, performance_monitor):
         """Test how memory usage scales with data size."""
@@ -92,7 +101,9 @@ class TestPerformanceScenarios:
         summary = performance_monitor.get_performance_summary()
         assert summary["metrics_count"] >= 1
 
-    def test_concurrent_resource_access(self, resource_manager, performance_monitor):
+    def test_concurrent_resource_access(
+        self, resource_manager, performance_monitor
+    ):
         """Test concurrent access to shared resources."""
         performance_monitor.start_monitoring()
 
@@ -133,8 +144,12 @@ class TestPerformanceScenarios:
                     assert count > 0
 
         # Execute concurrent resource access
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [executor.submit(resource_worker, i) for i in range(num_threads)]
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=num_threads
+        ) as executor:
+            futures = [
+                executor.submit(resource_worker, i) for i in range(num_threads)
+            ]
             concurrent.futures.wait(futures)
 
         performance_monitor.stop_monitoring()
@@ -186,7 +201,9 @@ class TestPerformanceScenarios:
             if cache_manager.get(key) is not None:
                 retrievable_count += 1
 
-        assert retrievable_count > 0  # At least some entries should be retrievable
+        assert (
+            retrievable_count > 0
+        )  # At least some entries should be retrievable
 
         performance_monitor.stop_monitoring()
 
@@ -238,7 +255,9 @@ class TestPerformanceScenarios:
         assert summary["metrics_count"] >= 1
         assert summary["average_memory_percent"] > 0
 
-    def test_memory_cleanup_efficiency(self, cache_manager, performance_monitor):
+    def test_memory_cleanup_efficiency(
+        self, cache_manager, performance_monitor
+    ):
         """Test efficiency of memory cleanup operations."""
         performance_monitor.start_monitoring()
 

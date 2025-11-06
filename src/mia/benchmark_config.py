@@ -61,7 +61,11 @@ BENCHMARK_CONFIGS = {
         description="Benchmark combined multimodal processing",
         iterations=10,
         warmup_iterations=3,
-        parameters={"text_length": 500, "audio_length": 10, "image_size": "512x512"},
+        parameters={
+            "text_length": 500,
+            "audio_length": 10,
+            "image_size": "512x512",
+        },
     ),
     "memory_operations": BenchmarkConfig(
         name="memory_operations",

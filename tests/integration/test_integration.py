@@ -30,7 +30,10 @@ from src.mia.multimodal.vision_resource_manager import (
     VisionResource,
     VisionResourceManager,
 )
-from src.mia.resource_manager import ManagedResource, ResourceManager  # type: ignore
+from src.mia.resource_manager import (  # type: ignore
+    ManagedResource,
+    ResourceManager,
+)
 
 
 class TestConfigurationManagement(unittest.TestCase):
@@ -183,7 +186,9 @@ class TestResourceManagement(unittest.TestCase):
         self.resource_manager.resources["test_resource"] = test_resource
 
         # Acquire resource
-        with self.resource_manager.acquire_resource("test_resource") as resource:
+        with self.resource_manager.acquire_resource(
+            "test_resource"
+        ) as resource:
             mock_data = Mock()
             resource.set_data(mock_data)
             self.assertEqual(resource.data, mock_data)

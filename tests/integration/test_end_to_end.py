@@ -14,7 +14,11 @@ class TestEndToEndWorkflows:
     """Test complete end-to-end user workflows."""
 
     def test_basic_assistant_workflow(
-        self, config_manager, cache_manager, performance_monitor, resource_manager
+        self,
+        config_manager,
+        cache_manager,
+        performance_monitor,
+        resource_manager,
     ):
         """Test a basic assistant workflow from start to finish."""
         performance_monitor.start_monitoring()
@@ -82,7 +86,9 @@ class TestEndToEndWorkflows:
         assert cached_result is None
 
         # 3. Simulate multimodal processing
-        with patch("mia.multimodal.processor.MultimodalProcessor") as MockProcessor:
+        with patch(
+            "mia.multimodal.processor.MultimodalProcessor"
+        ) as MockProcessor:
             mock_processor = MockProcessor.return_value
 
             # Mock image processing
@@ -116,7 +122,10 @@ class TestEndToEndWorkflows:
             # 6. Verify results
             assert "mountain" in image_result["objects"]
             assert text_result["language"] == "en"
-            assert "image analysis" in combined_result["integrated_response"].lower()
+            assert (
+                "image analysis"
+                in combined_result["integrated_response"].lower()
+            )
 
         # 7. Verify caching
         cached_result = cache_manager.get(multimodal_key)
@@ -128,7 +137,9 @@ class TestEndToEndWorkflows:
         summary = performance_monitor.get_performance_summary()
         assert summary["metrics_count"] >= 1
 
-    def test_memory_persistence_workflow(self, cache_manager, performance_monitor):
+    def test_memory_persistence_workflow(
+        self, cache_manager, performance_monitor
+    ):
         """Test memory and persistence workflow."""
         performance_monitor.start_monitoring()
 
@@ -193,7 +204,9 @@ class TestEndToEndWorkflows:
             # Simulate primary LLM failure
             with patch("mia.llm.llm_manager.LLMManager") as MockLLM:
                 mock_llm = MockLLM.return_value
-                mock_llm.generate.side_effect = Exception("API rate limit exceeded")
+                mock_llm.generate.side_effect = Exception(
+                    "API rate limit exceeded"
+                )
 
                 # This would fail in real scenario
                 # response = mock_llm.generate(query)
@@ -227,7 +240,9 @@ class TestEndToEndWorkflows:
         assert summary["metrics_count"] >= 1
 
     @pytest.mark.slow
-    def test_load_workflow(self, cache_manager, performance_monitor, resource_manager):
+    def test_load_workflow(
+        self, cache_manager, performance_monitor, resource_manager
+    ):
         """Test workflow under load conditions."""
         performance_monitor.start_monitoring()
 

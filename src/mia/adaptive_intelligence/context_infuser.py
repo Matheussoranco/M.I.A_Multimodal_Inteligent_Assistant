@@ -41,7 +41,9 @@ class ContextElement:
             "timestamp": self.timestamp.isoformat(),
             "relevance_score": self.relevance_score,
             "metadata": self.metadata,
-            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "expires_at": (
+                self.expires_at.isoformat() if self.expires_at else None
+            ),
         }
 
 
@@ -213,7 +215,9 @@ class ContextInfuser:
                     )
                 except Exception as exc:
                     logger.debug(
-                        "Context extraction failed for %s: %s", source_name, exc
+                        "Context extraction failed for %s: %s",
+                        source_name,
+                        exc,
                     )
                     context_components[source_name] = {}
 
@@ -221,11 +225,15 @@ class ContextInfuser:
             fused_context = self._fuse_contexts(context_components, query)
 
             # Apply relevance filtering
-            relevant_context = self._filter_relevant_context(fused_context, query)
+            relevant_context = self._filter_relevant_context(
+                fused_context, query
+            )
 
             # Update learning if enabled
             if self.enable_learning and user_id:
-                self._update_learning_patterns(query, relevant_context, user_id)
+                self._update_learning_patterns(
+                    query, relevant_context, user_id
+                )
 
             # Record context usage
             self._record_context_usage(query, relevant_context)
@@ -240,7 +248,9 @@ class ContextInfuser:
                 "relevant_context": relevant_context,
                 "context_metadata": {
                     "sources_used": list(context_components.keys()),
-                    "total_elements": len(relevant_context.get("elements", [])),
+                    "total_elements": len(
+                        relevant_context.get("elements", [])
+                    ),
                     "relevance_threshold": self.relevance_threshold,
                     "timestamp": datetime.now().isoformat(),
                 },
@@ -296,13 +306,17 @@ class ContextInfuser:
             return {}
 
         # Get relevant preferences
-        relevant_prefs = self._get_relevant_preferences(profile.preferences, query)
+        relevant_prefs = self._get_relevant_preferences(
+            profile.preferences, query
+        )
 
         # Get behavior patterns
         patterns = profile.behavior_patterns
 
         # Get recent interactions
-        recent_interactions = profile.interaction_history[-5:]  # Last 5 interactions
+        recent_interactions = profile.interaction_history[
+            -5:
+        ]  # Last 5 interactions
 
         return {
             "preferences": relevant_prefs,
@@ -362,7 +376,9 @@ class ContextInfuser:
             weight = self.adaptive_weights.get(source_name, 0.25)
 
             # Convert context data to ContextElements
-            elements = self._context_data_to_elements(context_data, source_name, weight)
+            elements = self._context_data_to_elements(
+                context_data, source_name, weight
+            )
             fused_elements.extend(elements)
 
         # Sort by relevance and weight
@@ -384,7 +400,9 @@ class ContextInfuser:
         elements = []
 
         for key, value in context_data.items():
-            if value is None or (isinstance(value, (list, dict)) and not value):
+            if value is None or (
+                isinstance(value, (list, dict)) and not value
+            ):
                 continue
 
             # Create element ID
@@ -402,14 +420,17 @@ class ContextInfuser:
                 source=source,
                 relevance_score=relevance,
                 metadata={"key": key, "data_type": type(value).__name__},
-                expires_at=datetime.now() + timedelta(hours=self.context_ttl_hours),
+                expires_at=datetime.now()
+                + timedelta(hours=self.context_ttl_hours),
             )
 
             elements.append(element)
 
         return elements
 
-    def _calculate_relevance_score(self, content: Any, base_weight: float) -> float:
+    def _calculate_relevance_score(
+        self, content: Any, base_weight: float
+    ) -> float:
         """Calculate relevance score for context content."""
         # Simple relevance calculation - in real implementation would use ML models
         score = base_weight
@@ -491,7 +512,9 @@ class ContextInfuser:
 
         # Simple flow analysis
         user_messages = [m for m in messages if m.get("role") == "user"]
-        assistant_messages = [m for m in messages if m.get("role") == "assistant"]
+        assistant_messages = [
+            m for m in messages if m.get("role") == "assistant"
+        ]
 
         return {
             "total_messages": len(messages),
@@ -585,7 +608,9 @@ class ContextInfuser:
             "query_hash": hashlib.md5(query.encode()).hexdigest()[:16],
             "timestamp": datetime.now().isoformat(),
             "context_elements_used": len(context.get("elements", [])),
-            "sources_used": list(set(e.source for e in context.get("elements", []))),
+            "sources_used": list(
+                set(e.source for e in context.get("elements", []))
+            ),
         }
 
         self.context_queue.append(usage_record)
@@ -603,10 +628,14 @@ class ContextInfuser:
             del self.global_context[expired_id]
 
         if expired_ids:
-            logger.debug("Cleaned %d expired context elements", len(expired_ids))
+            logger.debug(
+                "Cleaned %d expired context elements", len(expired_ids)
+            )
 
     def add_user_profile(
-        self, user_id: str, initial_preferences: Optional[Dict[str, Any]] = None
+        self,
+        user_id: str,
+        initial_preferences: Optional[Dict[str, Any]] = None,
     ):
         """Add or update a user profile."""
         if user_id not in self.user_profiles:

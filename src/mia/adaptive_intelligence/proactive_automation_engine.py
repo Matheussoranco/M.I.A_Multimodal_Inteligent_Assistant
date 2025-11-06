@@ -59,7 +59,9 @@ class AutomationRule:
     actions: List[Dict[str, Any]]
     priority: int = 5  # 1-10, higher = more important
     confidence_threshold: float = 0.7
-    cooldown_period: timedelta = timedelta(minutes=5)  # Minimum time between executions
+    cooldown_period: timedelta = timedelta(
+        minutes=5
+    )  # Minimum time between executions
     enabled: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
     last_executed: Optional[datetime] = None
@@ -152,7 +154,9 @@ class PatternDetector:
                 patterns = algorithm(data_stream, context)
                 detected_patterns.extend(patterns)
             except Exception as exc:
-                logger.error(f"Pattern detection error in {algorithm_name}: {exc}")
+                logger.error(
+                    f"Pattern detection error in {algorithm_name}: {exc}"
+                )
 
         # Filter and rank patterns
         filtered_patterns = self._filter_patterns(detected_patterns)
@@ -233,7 +237,9 @@ class PatternDetector:
         ]
 
         # Find repeated sequences
-        sequences = self._find_repeated_sequences(actions, min_length=2, max_length=5)
+        sequences = self._find_repeated_sequences(
+            actions, min_length=2, max_length=5
+        )
 
         for seq, count in sequences.items():
             if count >= 3:  # At least 3 occurrences
@@ -386,7 +392,9 @@ class PatternDetector:
         """Find repeated sequences in a list of actions."""
         sequences = {}
 
-        for length in range(min_length, min(max_length + 1, len(actions) // 2 + 1)):
+        for length in range(
+            min_length, min(max_length + 1, len(actions) // 2 + 1)
+        ):
             for i in range(len(actions) - length + 1):
                 seq = tuple(actions[i : i + length])
                 sequences[seq] = sequences.get(seq, 0) + 1
@@ -404,7 +412,9 @@ class PatternDetector:
         dimensions = {}
         for point in data_stream:
             for key, value in point.items():
-                if isinstance(value, (int, float)) and key not in ["timestamp"]:
+                if isinstance(value, (int, float)) and key not in [
+                    "timestamp"
+                ]:
                     if key not in dimensions:
                         dimensions[key] = []
                     dimensions[key].append(value)
@@ -454,7 +464,9 @@ class PatternDetector:
         seen_descriptions = set()
         unique_patterns = []
 
-        for pattern in sorted(filtered, key=lambda p: p.confidence, reverse=True):
+        for pattern in sorted(
+            filtered, key=lambda p: p.confidence, reverse=True
+        ):
             desc_key = pattern.description.lower()[:50]  # First 50 chars
             if desc_key not in seen_descriptions:
                 seen_descriptions.add(desc_key)
@@ -492,7 +504,9 @@ class TaskPlanner:
                 return True
             return False
 
-    def evaluate_triggers(self, trigger_data: Dict[str, Any]) -> List[AutomationTask]:
+    def evaluate_triggers(
+        self, trigger_data: Dict[str, Any]
+    ) -> List[AutomationTask]:
         """
         Evaluate automation triggers and create tasks.
 
@@ -512,14 +526,17 @@ class TaskPlanner:
                 # Check cooldown period
                 if (
                     rule.last_executed
-                    and datetime.now() - rule.last_executed < rule.cooldown_period
+                    and datetime.now() - rule.last_executed
+                    < rule.cooldown_period
                 ):
                     continue
 
                 # Evaluate trigger conditions
                 if self._evaluate_trigger(rule, trigger_data):
                     # Check rule conditions
-                    if self._evaluate_conditions(rule.conditions, trigger_data):
+                    if self._evaluate_conditions(
+                        rule.conditions, trigger_data
+                    ):
                         # Create task
                         task = AutomationTask(
                             id=str(uuid.uuid4()),
@@ -590,7 +607,9 @@ class TaskPlanner:
 
         return current
 
-    def _matches_condition(self, actual_value: Any, expected_value: Any) -> bool:
+    def _matches_condition(
+        self, actual_value: Any, expected_value: Any
+    ) -> bool:
         """Check if actual value matches expected condition."""
         if isinstance(expected_value, dict):
             # Range conditions
@@ -621,7 +640,8 @@ class TaskPlanner:
         """Get pending automation tasks."""
         with self._lock:
             return sorted(
-                self.pending_tasks, key=lambda t: (t.priority, t.scheduled_time)
+                self.pending_tasks,
+                key=lambda t: (t.priority, t.scheduled_time),
             )[:limit]
 
     def mark_task_completed(self, task_id: str, result: Dict[str, Any]):
@@ -673,7 +693,9 @@ class TaskPlanner:
             completed_tasks = len(
                 [t for t in self.task_history if t.status == "completed"]
             )
-            failed_tasks = len([t for t in self.task_history if t.status == "failed"])
+            failed_tasks = len(
+                [t for t in self.task_history if t.status == "failed"]
+            )
 
             success_rate = completed_tasks / max(total_tasks, 1)
 
@@ -793,7 +815,9 @@ class ActionExecutor:
         parameters = action.get("parameters", {})
 
         # In a real implementation, this would execute various types of tasks
-        logger.info(f"Executing task: {task_type} with parameters {parameters}")
+        logger.info(
+            f"Executing task: {task_type} with parameters {parameters}"
+        )
 
         # Simulate task execution
         await asyncio.sleep(0.1)  # Simulate some work
@@ -851,7 +875,9 @@ class ActionExecutor:
         assistance_type = action.get("assistance_type", "help")
         user_id = context.get("user_id", "unknown")
 
-        logger.info(f"Providing user assistance: {assistance_type} for user {user_id}")
+        logger.info(
+            f"Providing user assistance: {assistance_type} for user {user_id}"
+        )
 
         # Simulate assistance
         await asyncio.sleep(0.1)
@@ -871,7 +897,9 @@ class ActionExecutor:
         resource_type = action.get("resource_type", "memory")
         optimization_type = action.get("optimization_type", "cleanup")
 
-        logger.info(f"Optimizing resources: {resource_type} with {optimization_type}")
+        logger.info(
+            f"Optimizing resources: {resource_type} with {optimization_type}"
+        )
 
         # Simulate optimization
         await asyncio.sleep(0.3)
@@ -918,8 +946,12 @@ class ProactiveAutomationEngine:
 
         # Start background tasks
         self.monitoring_task = asyncio.create_task(self._monitor_system())
-        self.execution_task = asyncio.create_task(self._execute_pending_tasks())
-        self.pattern_detection_task = asyncio.create_task(self._detect_patterns())
+        self.execution_task = asyncio.create_task(
+            self._execute_pending_tasks()
+        )
+        self.pattern_detection_task = asyncio.create_task(
+            self._detect_patterns()
+        )
 
         logger.info("Proactive Automation Engine started")
 
@@ -1004,7 +1036,9 @@ class ProactiveAutomationEngine:
                                     "pattern": pattern,
                                     "stream_name": stream_name,
                                 }
-                                self.task_planner.evaluate_triggers(trigger_data)
+                                self.task_planner.evaluate_triggers(
+                                    trigger_data
+                                )
 
                 await asyncio.sleep(300)  # Detect patterns every 5 minutes
 
@@ -1033,7 +1067,9 @@ class ProactiveAutomationEngine:
 
         # Time-based triggers
         current_time = datetime.now()
-        if current_time.hour == 9 and current_time.minute < 5:  # Morning trigger
+        if (
+            current_time.hour == 9 and current_time.minute < 5
+        ):  # Morning trigger
             triggers_to_check.append(
                 {
                     "trigger_type": "time_based",
@@ -1084,7 +1120,9 @@ class ProactiveAutomationEngine:
                     "trigger_data": task.trigger_data,
                 }
 
-                result = await self.action_executor.execute_action(action, context)
+                result = await self.action_executor.execute_action(
+                    action, context
+                )
                 results.append(result)
 
             # Mark task as completed
@@ -1096,7 +1134,9 @@ class ProactiveAutomationEngine:
         except Exception as exc:
             error_message = f"Task execution failed: {str(exc)}"
             self.task_planner.mark_task_failed(task.id, error_message)
-            logger.error(f"Automation task failed: {task.id} - {error_message}")
+            logger.error(
+                f"Automation task failed: {task.id} - {error_message}"
+            )
 
     def add_data_point(self, stream_name: str, data_point: Dict[str, Any]):
         """Add a data point to a monitoring stream."""
@@ -1111,7 +1151,9 @@ class ProactiveAutomationEngine:
 
         # Keep only recent data (last 1000 points per stream)
         if len(self.data_streams[stream_name]) > 1000:
-            self.data_streams[stream_name] = self.data_streams[stream_name][-1000:]
+            self.data_streams[stream_name] = self.data_streams[stream_name][
+                -1000:
+            ]
 
     def add_automation_rule(self, rule: AutomationRule):
         """Add an automation rule."""
