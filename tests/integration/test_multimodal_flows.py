@@ -235,7 +235,7 @@ class TestCommandProcessingFlows(unittest.TestCase):
     @patch("builtins.print")
     def test_process_command_models(self, mock_print):
         """Test models command."""
-        self.mock_args.model_id = "deepseek-r1:1.5b"
+        self.mock_args.model_id = "gpt-oss:latest"
 
         should_continue, response = process_command(
             "models", self.mock_args, self.mock_components

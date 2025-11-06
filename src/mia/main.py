@@ -581,7 +581,7 @@ def parse_arguments():
         "--image-input", type=str, default=None, help="Image to process"
     )
     parser.add_argument(
-        "--model-id", type=str, default="deepseek-r1:1.5b", help="Model ID"
+        "--model-id", type=str, default="gpt-oss:latest", help="Model ID"
     )
     parser.add_argument(
         "--profile",
@@ -1168,10 +1168,10 @@ def display_models(args):
     print(bold("─" * 40))
     print(
         green(
-            "  deepseek-r1:1.5b"
+            "  gpt-oss:latest"
             + (
                 " (current)"
-                if getattr(args, "model_id", "") == "deepseek-r1:1.5b"
+                if getattr(args, "model_id", "") == "gpt-oss:latest"
                 else ""
             )
         )

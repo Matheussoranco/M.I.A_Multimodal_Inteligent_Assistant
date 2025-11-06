@@ -33,7 +33,7 @@ BENCHMARK_CONFIGS = {
         warmup_iterations=5,
         parameters={
             "input_sizes": [100, 500, 1000, 2000],
-            "models": ["deepseek-r1:1.5b", "llama3:8b"],
+            "models": ["gpt-oss:latest", "llama3:8b"],
         },
     ),
     "audio_processing": BenchmarkConfig(

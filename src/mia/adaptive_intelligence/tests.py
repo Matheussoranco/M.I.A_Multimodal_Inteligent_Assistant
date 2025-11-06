@@ -703,4 +703,4 @@ if __name__ == "__main__":
     assert "status" in dashboard
     print("✓ Observability Admin Console basic functionality")
 
-    print("All smoke tests passed! ✅")
+    print("All smoke tests passed!")

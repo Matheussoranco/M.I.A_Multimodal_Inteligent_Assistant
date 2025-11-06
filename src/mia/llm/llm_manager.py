@@ -125,13 +125,13 @@ class LLMManager:
             },
             "ollama": {
                 "env_vars": [],  # Ollama doesn't need API key
-                "default_model": "deepseek-r1:1.5b",
+                "default_model": "gpt-oss:latest",
                 "url": os.getenv("OLLAMA_URL")
                 or "http://localhost:11434/api/generate",
             },
         }
 
-        print("🔍 Detecting available LLM providers...")
+        print("Detecting available LLM providers...")
 
         for provider_name, config in provider_configs.items():
             try:
@@ -143,7 +143,7 @@ class LLMManager:
                 )
 
                 if not has_keys:
-                    print(f"❌ {provider_name}: No API key found")
+                    print(f"{provider_name}: No API key found")
                     continue
 
                 # Test connectivity
@@ -166,12 +166,12 @@ class LLMManager:
                             "api_key": api_key_value,
                         }
                     )
-                    print(f"✅ {provider_name}: Available")
+                    print(f"{provider_name}: Available")
                 else:
-                    print(f"❌ {provider_name}: Connection test failed")
+                    print(f"{provider_name}: Connection test failed")
 
             except Exception as e:
-                print(f"❌ {provider_name}: Error - {str(e)}")
+                print(f"{provider_name}: Error - {str(e)}")
 
         if not available_providers:
             raise ConfigurationError(
@@ -182,7 +182,7 @@ class LLMManager:
         # If only one provider, use it
         if len(available_providers) == 1:
             selected = available_providers[0]
-            print(f"📌 Using {selected['name']} (only available provider)")
+            print(f"Using {selected['name']} (only available provider)")
             return {
                 "provider": selected["name"],
                 "model_id": selected["model"],
@@ -192,9 +192,7 @@ class LLMManager:
 
         # Multiple providers available
         if interactive:
-            print(
-                f"\n📋 Found {len(available_providers)} available providers:"
-            )
+            print(f"\nFound {len(available_providers)} available providers:")
             for i, provider in enumerate(available_providers, 1):
                 print(f"  {i}. {provider['name']} ({provider['model']})")
 
@@ -208,7 +206,7 @@ class LLMManager:
                     idx = int(choice) - 1
                     if 0 <= idx < len(available_providers):
                         selected = available_providers[idx]
-                        print(f"📌 Selected: {selected['name']}")
+                        print(f"Selected: {selected['name']}")
                         return {
                             "provider": selected["name"],
                             "model_id": selected["model"],
@@ -234,7 +232,7 @@ class LLMManager:
             for pref in preferred_order:
                 for provider in available_providers:
                     if provider["name"] == pref:
-                        print(f"📌 Using {provider['name']} (preferred)")
+                        print(f"Using {provider['name']} (preferred)")
                         return {
                             "provider": provider["name"],
                             "model_id": provider["model"],
@@ -244,7 +242,7 @@ class LLMManager:
 
             # Fallback to first available
             selected = available_providers[0]
-            print(f"📌 Using {selected['name']} (fallback)")
+            print(f"Using {selected['name']} (fallback)")
             return {
                 "provider": selected["name"],
                 "model_id": selected["model"],

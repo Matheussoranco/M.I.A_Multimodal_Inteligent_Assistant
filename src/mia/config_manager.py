@@ -36,7 +36,7 @@ class LLMConfig:
     """Configuration for LLM providers."""
 
     provider: str = "ollama"
-    model_id: str = "deepseek-r1:1.5b"
+    model_id: str = "gpt-oss:latest"
     api_key: Optional[str] = None
     url: Optional[str] = None
     max_tokens: int = 1024
