@@ -18,7 +18,7 @@ jobs:
         fetch-depth: 0
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     
@@ -27,7 +27,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install build twine
         pip install -r requirements-core.txt
-        pip install -r requirements-optional.txt
+        pip install -r requirements-extras.txt
     
     - name: Build package
       run: |
