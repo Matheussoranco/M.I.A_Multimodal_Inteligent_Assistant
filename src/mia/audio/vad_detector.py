@@ -1,4 +1,5 @@
 """Voice activity detection helper built on top of webrtcvad."""
+
 from __future__ import annotations
 
 import logging
@@ -8,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import webrtcvad  # type: ignore
+
     _HAS_WEBRTCVAD = True
 except ImportError:  # pragma: no cover - optional dependency
     webrtcvad = None  # type: ignore
@@ -32,7 +34,9 @@ class VoiceActivityDetector:
         self.frame_duration_ms = frame_duration_ms
         self.min_active_duration_ms = max(frame_duration_ms, min_active_duration_ms)
         self._vad = None
-        self._min_voiced_frames = max(1, self.min_active_duration_ms // self.frame_duration_ms)
+        self._min_voiced_frames = max(
+            1, self.min_active_duration_ms // self.frame_duration_ms
+        )
 
         if not enabled:
             self.logger.debug("VoiceActivityDetector disabled via configuration")

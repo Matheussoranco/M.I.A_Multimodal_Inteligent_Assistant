@@ -17,13 +17,16 @@ __url__ = "https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis
 __build__ = "alpha"
 __status__ = "Alpha"
 
+
 def get_version():
     """Get the version string."""
     return __version__
 
+
 def get_version_info():
     """Get the version info tuple."""
     return __version_info__
+
 
 def get_full_version():
     """Get full version information."""
@@ -34,5 +37,5 @@ def get_full_version():
         "author": __author__,
         "license": __license__,
         "build": __build__,
-        "status": __status__
+        "status": __status__,
     }

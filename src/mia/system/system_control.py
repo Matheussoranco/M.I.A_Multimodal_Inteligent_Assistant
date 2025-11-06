@@ -1,12 +1,15 @@
 """
 System Control: Cross-platform system actions (file, process, clipboard, etc.)
 """
+
 import os
 import platform
 import shutil
 import subprocess
-import pyperclip
+
 import psutil
+import pyperclip
+
 
 class SystemControl:
     @staticmethod

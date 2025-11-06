@@ -1,4 +1,5 @@
 """Document generation utilities for DOCX and PDF outputs."""
+
 from __future__ import annotations
 
 import logging

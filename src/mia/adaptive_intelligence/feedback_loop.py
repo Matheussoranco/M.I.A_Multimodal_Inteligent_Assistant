@@ -2,15 +2,15 @@
 Feedback Loop
 """
 
-import logging
-import json
-import statistics
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable, Tuple
-from datetime import datetime, timedelta
-from collections import defaultdict, Counter
-import threading
 import asyncio
+import json
+import logging
+import statistics
+import threading
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..providers import provider_registry
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FeedbackEvent:
     """Represents a single feedback event."""
+
     id: str
     event_type: str
     user_id: Optional[str]
@@ -41,13 +42,14 @@ class FeedbackEvent:
             "rating": self.rating,
             "feedback_text": self.feedback_text,
             "metadata": self.metadata,
-            "context_snapshot": self.context_snapshot
+            "context_snapshot": self.context_snapshot,
         }
 
 
 @dataclass
 class FeedbackPattern:
     """Represents a learned feedback pattern."""
+
     pattern_id: str
     trigger_conditions: Dict[str, Any]
     feedback_type: str
@@ -64,7 +66,9 @@ class FeedbackPattern:
 
         if rating is not None:
             # Update average rating
-            self.avg_rating = (self.avg_rating * (self.frequency - 1) + rating) / self.frequency
+            self.avg_rating = (
+                self.avg_rating * (self.frequency - 1) + rating
+            ) / self.frequency
 
         if feedback_text:
             self.common_feedback.append(feedback_text)
@@ -78,6 +82,7 @@ class FeedbackPattern:
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for the system."""
+
     response_time_avg: float = 0.0
     response_time_p95: float = 0.0
     accuracy_score: float = 0.0
@@ -111,7 +116,9 @@ class PerformanceMetrics:
 
         if response_times:
             self.response_time_avg = statistics.mean(response_times)
-            self.response_time_p95 = statistics.quantiles(response_times, n=20)[18]  # 95th percentile
+            self.response_time_p95 = statistics.quantiles(response_times, n=20)[
+                18
+            ]  # 95th percentile
 
         if accuracies:
             self.accuracy_score = statistics.mean(accuracies)
@@ -141,7 +148,7 @@ class FeedbackLoop:
         feedback_retention_days: int = 90,
         pattern_min_frequency: int = 5,
         learning_enabled: bool = True,
-        real_time_analysis: bool = True
+        real_time_analysis: bool = True,
     ):
         self.config_manager = config_manager
         self.feedback_retention_days = feedback_retention_days
@@ -177,7 +184,9 @@ class FeedbackLoop:
         if self.real_time_analysis:
             self.start_real_time_analysis()
 
-        logger.info("Feedback Loop initialized with %d channels", len(self.feedback_channels))
+        logger.info(
+            "Feedback Loop initialized with %d channels", len(self.feedback_channels)
+        )
 
     def _initialize_default_channels(self):
         """Initialize default feedback channels."""
@@ -186,7 +195,7 @@ class FeedbackLoop:
             "implicit_behavior": self._capture_implicit_behavior,
             "error_reporting": self._capture_error_feedback,
             "performance_metrics": self._capture_performance_feedback,
-            "user_correction": self._capture_user_correction
+            "user_correction": self._capture_user_correction,
         }
 
         # Default channel configurations
@@ -195,7 +204,7 @@ class FeedbackLoop:
             "implicit_behavior": {"enabled": True, "auto_capture": True},
             "error_reporting": {"enabled": True, "auto_capture": True},
             "performance_metrics": {"enabled": True, "auto_capture": True},
-            "user_correction": {"enabled": True, "auto_capture": True}
+            "user_correction": {"enabled": True, "auto_capture": True},
         }
 
     def start_real_time_analysis(self):
@@ -271,7 +280,7 @@ class FeedbackLoop:
         rating: Optional[float] = None,
         feedback_text: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        context_snapshot: Optional[Dict[str, Any]] = None
+        context_snapshot: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Capture feedback from various sources.
@@ -291,7 +300,7 @@ class FeedbackLoop:
             rating=rating,
             feedback_text=feedback_text,
             metadata=metadata or {},
-            context_snapshot=context_snapshot or {}
+            context_snapshot=context_snapshot or {},
         )
 
         with self.feedback_lock:
@@ -300,8 +309,7 @@ class FeedbackLoop:
             # Keep only recent feedback
             cutoff_date = datetime.now() - timedelta(days=self.feedback_retention_days)
             self.feedback_events = [
-                event for event in self.feedback_events
-                if event.timestamp > cutoff_date
+                event for event in self.feedback_events if event.timestamp > cutoff_date
             ]
 
         # Queue for analysis
@@ -348,7 +356,9 @@ class FeedbackLoop:
         # Learn from user corrections
         pass
 
-    def _extract_feedback_patterns(self, feedback_events: List[FeedbackEvent]) -> List[FeedbackPattern]:
+    def _extract_feedback_patterns(
+        self, feedback_events: List[FeedbackEvent]
+    ) -> List[FeedbackPattern]:
         """Extract patterns from feedback events."""
         patterns = []
 
@@ -361,7 +371,7 @@ class FeedbackLoop:
                 event.event_type,
                 str(event.metadata.get("modality", "")),
                 str(event.metadata.get("intent", "")),
-                str(event.metadata.get("error_type", ""))
+                str(event.metadata.get("error_type", "")),
             ]
             pattern_key = "|".join(key_parts)
 
@@ -388,7 +398,9 @@ class FeedbackLoop:
                     avg_rating=avg_rating,
                     common_feedback=common_feedback,
                     suggested_actions=self._generate_suggested_actions(events),
-                    confidence=min(len(events) / 10, 1.0)  # Simple confidence calculation
+                    confidence=min(
+                        len(events) / 10, 1.0
+                    ),  # Simple confidence calculation
                 )
 
                 patterns.append(pattern)
@@ -425,7 +437,9 @@ class FeedbackLoop:
                 words = text.lower().split()
                 common_words.update(words)
 
-            top_words = [word for word, count in common_words.most_common(5) if count > 1]
+            top_words = [
+                word for word, count in common_words.most_common(5) if count > 1
+            ]
             if "slow" in top_words:
                 actions.append("Optimize response generation speed")
             if "confusing" in top_words or "unclear" in top_words:
@@ -440,8 +454,10 @@ class FeedbackLoop:
 
         # Check for patterns that require immediate action
         urgent_patterns = [
-            pattern for pattern in self.feedback_patterns.values()
-            if pattern.avg_rating < 2.0 and pattern.frequency >= self.pattern_min_frequency
+            pattern
+            for pattern in self.feedback_patterns.values()
+            if pattern.avg_rating < 2.0
+            and pattern.frequency >= self.pattern_min_frequency
         ]
 
         for pattern in urgent_patterns:
@@ -451,14 +467,17 @@ class FeedbackLoop:
                 try:
                     await trigger_func(pattern)
                 except Exception as exc:
-                    logger.error("Learning trigger error for %s: %s", pattern.pattern_id, exc)
+                    logger.error(
+                        "Learning trigger error for %s: %s", pattern.pattern_id, exc
+                    )
 
     async def _periodic_pattern_analysis(self):
         """Periodic analysis of feedback patterns."""
         # Clean up old patterns
         cutoff_date = datetime.now() - timedelta(days=self.feedback_retention_days)
         expired_patterns = [
-            pid for pid, pattern in self.feedback_patterns.items()
+            pid
+            for pid, pattern in self.feedback_patterns.items()
             if pattern.last_updated < cutoff_date
         ]
 
@@ -469,7 +488,9 @@ class FeedbackLoop:
         for pattern in self.feedback_patterns.values():
             age_days = (datetime.now() - pattern.last_updated).days
             # Reduce confidence for old patterns
-            age_penalty = max(0, age_days - 30) * 0.01  # 1% penalty per day after 30 days
+            age_penalty = (
+                max(0, age_days - 30) * 0.01
+            )  # 1% penalty per day after 30 days
             pattern.confidence = max(0, pattern.confidence - age_penalty)
 
     def _update_user_behavior_models(self, feedback_events: List[FeedbackEvent]):
@@ -487,7 +508,7 @@ class FeedbackLoop:
                     "avg_rating": 0.0,
                     "preferred_modalities": {},
                     "common_feedback_themes": [],
-                    "last_updated": datetime.now()
+                    "last_updated": datetime.now(),
                 }
 
             model = self.user_behavior_models[user_id]
@@ -499,7 +520,9 @@ class FeedbackLoop:
             if ratings:
                 current_avg = model["avg_rating"]
                 new_avg = statistics.mean(ratings)
-                model["avg_rating"] = (current_avg + new_avg) / 2  # Simple moving average
+                model["avg_rating"] = (
+                    current_avg + new_avg
+                ) / 2  # Simple moving average
 
             # Update modality preferences
             for event in events:
@@ -528,7 +551,7 @@ class FeedbackLoop:
                 "event_type_distribution": dict(event_types),
                 "patterns_discovered": len(self.feedback_patterns),
                 "user_behavior_models": len(self.user_behavior_models),
-                "retention_days": self.feedback_retention_days
+                "retention_days": self.feedback_retention_days,
             }
 
     def get_performance_metrics(self) -> Dict[str, Any]:
@@ -541,10 +564,12 @@ class FeedbackLoop:
             "error_rate": self.performance_metrics.error_rate,
             "modality_success_rate": self.performance_metrics.modality_success_rate,
             "context_relevance_score": self.performance_metrics.context_relevance_score,
-            "conversation_coherence": self.performance_metrics.conversation_coherence
+            "conversation_coherence": self.performance_metrics.conversation_coherence,
         }
 
-    def get_feedback_patterns(self, min_frequency: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_feedback_patterns(
+        self, min_frequency: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """Get discovered feedback patterns."""
         patterns = list(self.feedback_patterns.values())
 
@@ -564,18 +589,22 @@ class FeedbackLoop:
             "common_feedback": pattern.common_feedback,
             "suggested_actions": pattern.suggested_actions,
             "confidence": pattern.confidence,
-            "last_updated": pattern.last_updated.isoformat()
+            "last_updated": pattern.last_updated.isoformat(),
         }
 
     def export_feedback_data(self) -> Dict[str, Any]:
         """Export all feedback data for analysis."""
         with self.feedback_lock:
             return {
-                "feedback_events": [e.to_dict() for e in self.feedback_events[-1000:]],  # Last 1000 events
-                "feedback_patterns": [self._pattern_to_dict(p) for p in self.feedback_patterns.values()],
+                "feedback_events": [
+                    e.to_dict() for e in self.feedback_events[-1000:]
+                ],  # Last 1000 events
+                "feedback_patterns": [
+                    self._pattern_to_dict(p) for p in self.feedback_patterns.values()
+                ],
                 "performance_metrics": self.get_performance_metrics(),
                 "user_behavior_models": dict(self.user_behavior_models),
-                "export_timestamp": datetime.now().isoformat()
+                "export_timestamp": datetime.now().isoformat(),
             }
 
     def add_learning_trigger(self, feedback_type: str, trigger_func: Callable):
@@ -596,7 +625,9 @@ def create_feedback_loop(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'feedback', 'loop',
-    'mia.adaptive_intelligence.feedback_loop', 'create_feedback_loop',
-    default=True
+    "feedback",
+    "loop",
+    "mia.adaptive_intelligence.feedback_loop",
+    "create_feedback_loop",
+    default=True,
 )

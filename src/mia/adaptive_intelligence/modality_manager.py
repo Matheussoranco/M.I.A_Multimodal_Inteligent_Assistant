@@ -3,12 +3,12 @@ Modality Manager
 """
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Dict, List, Any, Optional, Callable, Tuple
 from datetime import datetime, timedelta
-import threading
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..providers import provider_registry
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class ModalityType(Enum):
     """Enumeration of supported modalities."""
+
     TEXT = "text"
     VOICE = "voice"
     VISION = "vision"
@@ -25,6 +26,7 @@ class ModalityType(Enum):
 
 class ModalityState(Enum):
     """Enumeration of modality states."""
+
     AVAILABLE = "available"
     ACTIVE = "active"
     DEGRADED = "degraded"
@@ -35,6 +37,7 @@ class ModalityState(Enum):
 @dataclass
 class ModalityCapability:
     """Represents a modality capability with health monitoring."""
+
     modality: ModalityType
     state: ModalityState = ModalityState.AVAILABLE
     confidence: float = 1.0
@@ -48,6 +51,7 @@ class ModalityCapability:
 @dataclass
 class ModalitySwitch:
     """Represents a modality switching decision."""
+
     from_modality: ModalityType
     to_modality: ModalityType
     reason: str
@@ -59,6 +63,7 @@ class ModalitySwitch:
 @dataclass
 class ModalityContext:
     """Context for modality operations."""
+
     current_modality: ModalityType
     available_modalities: List[ModalityType]
     user_preferences: Dict[str, Any] = field(default_factory=dict)
@@ -86,7 +91,7 @@ class ModalityManager:
         health_check_interval: int = 30,
         max_error_threshold: int = 3,
         recovery_timeout: int = 60,
-        switching_enabled: bool = True
+        switching_enabled: bool = True,
     ):
         self.config_manager = config_manager
         self.health_check_interval = health_check_interval
@@ -116,7 +121,9 @@ class ModalityManager:
         # Start health monitoring
         self.start_health_monitoring()
 
-        logger.info("Modality Manager initialized with %d capabilities", len(self.capabilities))
+        logger.info(
+            "Modality Manager initialized with %d capabilities", len(self.capabilities)
+        )
 
     def _initialize_capabilities(self):
         """Initialize modality capabilities."""
@@ -126,7 +133,7 @@ class ModalityManager:
                 "output_methods": ["text_display", "file_output"],
                 "reliability": 0.99,
                 "speed": "fast",
-                "accessibility": "high"
+                "accessibility": "high",
             },
             ModalityType.VOICE: {
                 "input_methods": ["microphone", "audio_file"],
@@ -134,7 +141,7 @@ class ModalityManager:
                 "reliability": 0.85,
                 "speed": "medium",
                 "accessibility": "medium",
-                "requires_hardware": True
+                "requires_hardware": True,
             },
             ModalityType.VISION: {
                 "input_methods": ["camera", "image_file", "screen_capture"],
@@ -142,7 +149,7 @@ class ModalityManager:
                 "reliability": 0.90,
                 "speed": "medium",
                 "accessibility": "medium",
-                "requires_hardware": True
+                "requires_hardware": True,
             },
             ModalityType.MULTIMODAL: {
                 "input_methods": ["combined_input"],
@@ -150,14 +157,13 @@ class ModalityManager:
                 "reliability": 0.80,
                 "speed": "slow",
                 "accessibility": "low",
-                "requires_multiple": True
-            }
+                "requires_multiple": True,
+            },
         }
 
         for modality, caps in capabilities.items():
             self.capabilities[modality] = ModalityCapability(
-                modality=modality,
-                capabilities=caps
+                modality=modality, capabilities=caps
             )
 
     def _load_default_policies(self):
@@ -169,7 +175,7 @@ class ModalityManager:
             "multimodal_optimization": self._policy_multimodal_optimization,
             "accessibility_adaptation": self._policy_accessibility_adaptation,
             "performance_optimization": self._policy_performance_optimization,
-            "user_preference_switching": self._policy_user_preference_switching
+            "user_preference_switching": self._policy_user_preference_switching,
         }
 
     def start_health_monitoring(self):
@@ -181,7 +187,7 @@ class ModalityManager:
         self.health_thread = threading.Thread(
             target=self._health_monitoring_loop,
             daemon=True,
-            name="ModalityHealthMonitor"
+            name="ModalityHealthMonitor",
         )
         self.health_thread.start()
         logger.info("Started modality health monitoring")
@@ -243,6 +249,7 @@ class ModalityManager:
                 # Check if audio components are available
                 try:
                     import sounddevice  # type: ignore
+
                     devices = sounddevice.query_devices()
                     return 0.9 if devices else 0.1
                 except (ImportError, Exception):
@@ -252,6 +259,7 @@ class ModalityManager:
                 # Check if vision components are available
                 try:
                     import cv2  # type: ignore
+
                     return 0.9
                 except (ImportError, Exception):
                     return 0.0
@@ -297,7 +305,7 @@ class ModalityManager:
         self,
         current_modality: ModalityType,
         context: ModalityContext,
-        user_input: Optional[str] = None
+        user_input: Optional[str] = None,
     ) -> Optional[Tuple[ModalityType, str, float]]:
         """
         Determine if modality switching is recommended.
@@ -321,59 +329,60 @@ class ModalityManager:
             except Exception as exc:
                 logger.debug("Policy %s failed: %s", policy_name, exc)
 
-        return (best_switch.to_modality, best_switch.reason, best_switch.confidence) if best_switch else None
+        return (
+            (best_switch.to_modality, best_switch.reason, best_switch.confidence)
+            if best_switch
+            else None
+        )
 
     def _policy_voice_to_text_fallback(
-        self,
-        current: ModalityType,
-        context: ModalityContext,
-        user_input: Optional[str]
+        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch from voice to text if voice is degraded."""
         if current != ModalityType.VOICE:
             return None
 
         voice_cap = self.capabilities.get(ModalityType.VOICE)
-        if voice_cap and voice_cap.state in [ModalityState.DEGRADED, ModalityState.UNAVAILABLE]:
+        if voice_cap and voice_cap.state in [
+            ModalityState.DEGRADED,
+            ModalityState.UNAVAILABLE,
+        ]:
             text_cap = self.capabilities.get(ModalityType.TEXT)
             if text_cap and text_cap.state == ModalityState.AVAILABLE:
                 return ModalitySwitch(
                     from_modality=current,
                     to_modality=ModalityType.TEXT,
                     reason="Voice input degraded, switching to text fallback",
-                    confidence=0.8
+                    confidence=0.8,
                 )
 
         return None
 
     def _policy_vision_to_text_fallback(
-        self,
-        current: ModalityType,
-        context: ModalityContext,
-        user_input: Optional[str]
+        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch from vision to text if vision is degraded."""
         if current != ModalityType.VISION:
             return None
 
         vision_cap = self.capabilities.get(ModalityType.VISION)
-        if vision_cap and vision_cap.state in [ModalityState.DEGRADED, ModalityState.UNAVAILABLE]:
+        if vision_cap and vision_cap.state in [
+            ModalityState.DEGRADED,
+            ModalityState.UNAVAILABLE,
+        ]:
             text_cap = self.capabilities.get(ModalityType.TEXT)
             if text_cap and text_cap.state == ModalityState.AVAILABLE:
                 return ModalitySwitch(
                     from_modality=current,
                     to_modality=ModalityType.TEXT,
                     reason="Vision input degraded, switching to text fallback",
-                    confidence=0.7
+                    confidence=0.7,
                 )
 
         return None
 
     def _policy_text_to_voice_enhancement(
-        self,
-        current: ModalityType,
-        context: ModalityContext,
-        user_input: Optional[str]
+        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch from text to voice for better UX."""
         if current != ModalityType.TEXT:
@@ -387,16 +396,13 @@ class ModalityManager:
                     from_modality=current,
                     to_modality=ModalityType.VOICE,
                     reason="User prefers voice output",
-                    confidence=0.6
+                    confidence=0.6,
                 )
 
         return None
 
     def _policy_multimodal_optimization(
-        self,
-        current: ModalityType,
-        context: ModalityContext,
-        user_input: Optional[str]
+        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch to multimodal when multiple inputs are available."""
         if current == ModalityType.MULTIMODAL:
@@ -404,7 +410,8 @@ class ModalityManager:
 
         # Check if multiple modalities are available and would be beneficial
         available_modalities = [
-            mod for mod in context.available_modalities
+            mod
+            for mod in context.available_modalities
             if self.capabilities[mod].state == ModalityState.AVAILABLE
         ]
 
@@ -415,16 +422,13 @@ class ModalityManager:
                     from_modality=current,
                     to_modality=ModalityType.MULTIMODAL,
                     reason="Multiple modalities available, switching to multimodal",
-                    confidence=0.5
+                    confidence=0.5,
                 )
 
         return None
 
     def _policy_accessibility_adaptation(
-        self,
-        current: ModalityType,
-        context: ModalityContext,
-        user_input: Optional[str]
+        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch modalities based on accessibility needs."""
         # Check for accessibility preferences
@@ -437,7 +441,7 @@ class ModalityManager:
                     from_modality=current,
                     to_modality=ModalityType.VOICE,
                     reason="Accessibility preference for voice",
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
         elif accessibility_needs.get("text_preferred") and current != ModalityType.TEXT:
@@ -447,16 +451,13 @@ class ModalityManager:
                     from_modality=current,
                     to_modality=ModalityType.TEXT,
                     reason="Accessibility preference for text",
-                    confidence=0.9
+                    confidence=0.9,
                 )
 
         return None
 
     def _policy_performance_optimization(
-        self,
-        current: ModalityType,
-        context: ModalityContext,
-        user_input: Optional[str]
+        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch to faster/better performing modality."""
         current_cap = self.capabilities.get(current)
@@ -481,16 +482,13 @@ class ModalityManager:
                 from_modality=current,
                 to_modality=best_modality,
                 reason="Performance optimization",
-                confidence=0.4
+                confidence=0.4,
             )
 
         return None
 
     def _policy_user_preference_switching(
-        self,
-        current: ModalityType,
-        context: ModalityContext,
-        user_input: Optional[str]
+        self, current: ModalityType, context: ModalityContext, user_input: Optional[str]
     ) -> Optional[ModalitySwitch]:
         """Policy: Switch based on learned user preferences."""
         user_id = context.user_preferences.get("user_id")
@@ -508,7 +506,7 @@ class ModalityManager:
                     from_modality=current,
                     to_modality=ModalityType(preferred_modality),
                     reason="User preference",
-                    confidence=0.7
+                    confidence=0.7,
                 )
 
         return None
@@ -528,7 +526,9 @@ class ModalityManager:
 
         return base_score
 
-    def record_modality_switch(self, switch: ModalitySwitch, user_id: Optional[str] = None):
+    def record_modality_switch(
+        self, switch: ModalitySwitch, user_id: Optional[str] = None
+    ):
         """Record a modality switch for learning."""
         self.modality_history.append(switch)
 
@@ -545,12 +545,14 @@ class ModalityManager:
             if "modality_switches" not in pattern:
                 pattern["modality_switches"] = []
 
-            pattern["modality_switches"].append({
-                "from": switch.from_modality.value,
-                "to": switch.to_modality.value,
-                "reason": switch.reason,
-                "timestamp": switch.timestamp.isoformat()
-            })
+            pattern["modality_switches"].append(
+                {
+                    "from": switch.from_modality.value,
+                    "to": switch.to_modality.value,
+                    "reason": switch.reason,
+                    "timestamp": switch.timestamp.isoformat(),
+                }
+            )
 
             # Update preferred modality based on frequency
             switches = pattern["modality_switches"]
@@ -571,13 +573,17 @@ class ModalityManager:
                     "last_check": capability.last_check.isoformat(),
                     "error_count": capability.error_count,
                     "success_count": capability.success_count,
-                    "capabilities": capability.capabilities
+                    "capabilities": capability.capabilities,
                 }
 
             return status
 
-    def force_modality_switch(self, from_modality: ModalityType, to_modality: ModalityType,
-                            reason: str = "Manual override") -> bool:
+    def force_modality_switch(
+        self,
+        from_modality: ModalityType,
+        to_modality: ModalityType,
+        reason: str = "Manual override",
+    ) -> bool:
         """Force a modality switch (admin function)."""
         if to_modality not in self.capabilities:
             return False
@@ -590,12 +596,16 @@ class ModalityManager:
             from_modality=from_modality,
             to_modality=to_modality,
             reason=reason,
-            confidence=1.0
+            confidence=1.0,
         )
 
         self.record_modality_switch(switch)
-        logger.info("Forced modality switch: %s -> %s (%s)",
-                   from_modality.value, to_modality.value, reason)
+        logger.info(
+            "Forced modality switch: %s -> %s (%s)",
+            from_modality.value,
+            to_modality.value,
+            reason,
+        )
         return True
 
     def get_user_patterns(self, user_id: str) -> Dict[str, Any]:
@@ -615,7 +625,7 @@ class ModalityManager:
                 mod.value: {
                     "state": cap.state.value,
                     "confidence": cap.confidence,
-                    "capabilities": cap.capabilities
+                    "capabilities": cap.capabilities,
                 }
                 for mod, cap in self.capabilities.items()
             },
@@ -626,11 +636,11 @@ class ModalityManager:
                     "to_modality": s.to_modality.value,
                     "reason": s.reason,
                     "confidence": s.confidence,
-                    "timestamp": s.timestamp.isoformat()
+                    "timestamp": s.timestamp.isoformat(),
                 }
                 for s in self.modality_history[-100:]  # Last 100 switches
             ],
-            "switch_policies": list(self.switch_policies.keys())
+            "switch_policies": list(self.switch_policies.keys()),
         }
 
 
@@ -641,7 +651,9 @@ def create_modality_manager(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'modality', 'manager',
-    'mia.adaptive_intelligence.modality_manager', 'create_modality_manager',
-    default=True
+    "modality",
+    "manager",
+    "mia.adaptive_intelligence.modality_manager",
+    "create_modality_manager",
+    default=True,
 )

@@ -4,22 +4,23 @@ Advanced Dialog Manager
 
 import json
 import logging
-import time
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Dict, List, Any, Optional, Callable, Set
-from datetime import datetime, timedelta
 import threading
+import time
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
 
-from ..providers import provider_registry
 from ..memory.rag_pipeline import RAGPipeline
+from ..providers import provider_registry
 
 logger = logging.getLogger(__name__)
 
 
 class DialogState(Enum):
     """Enumeration of possible dialog states."""
+
     INITIAL = "initial"
     LISTENING = "listening"
     PROCESSING = "processing"
@@ -31,6 +32,7 @@ class DialogState(Enum):
 
 class IntentType(Enum):
     """Enumeration of recognized intent types."""
+
     QUESTION = "question"
     COMMAND = "command"
     STATEMENT = "statement"
@@ -44,6 +46,7 @@ class IntentType(Enum):
 
 class Modality(Enum):
     """Enumeration of interaction modalities."""
+
     TEXT = "text"
     VOICE = "voice"
     VISION = "vision"
@@ -53,6 +56,7 @@ class Modality(Enum):
 @dataclass
 class ConversationContext:
     """Represents the current conversation context."""
+
     session_id: str
     user_id: str
     current_state: DialogState = DialogState.INITIAL
@@ -72,6 +76,7 @@ class ConversationContext:
 @dataclass
 class DialogRule:
     """Represents a dialog management rule."""
+
     name: str
     conditions: Dict[str, Any]
     actions: List[Dict[str, Any]]
@@ -83,6 +88,7 @@ class DialogRule:
 @dataclass
 class IntentPattern:
     """Represents an intent recognition pattern."""
+
     intent: IntentType
     patterns: List[str]
     keywords: Set[str]
@@ -112,7 +118,7 @@ class DialogManager:
         *,
         max_history_length: int = 50,
         session_timeout_minutes: int = 30,
-        learning_enabled: bool = True
+        learning_enabled: bool = True,
     ):
         self.config_manager = config_manager
         self.rag_pipeline = rag_pipeline
@@ -145,8 +151,11 @@ class DialogManager:
         if not self.intent_classifier:
             self.intent_classifier = self._create_default_intent_classifier()
 
-        logger.info("Dialog Manager initialized with %d rules and %d intent patterns",
-                   len(self.dialog_rules), len(self.intent_patterns))
+        logger.info(
+            "Dialog Manager initialized with %d rules and %d intent patterns",
+            len(self.dialog_rules),
+            len(self.intent_patterns),
+        )
 
     def _load_default_intent_patterns(self):
         """Load default intent recognition patterns."""
@@ -156,59 +165,131 @@ class DialogManager:
                 patterns=[
                     r"(?i)^(what|who|where|when|why|how|which|whose|whom)",
                     r"(?i)\?$",
-                    r"(?i)(can you|could you|would you|do you know)"
+                    r"(?i)(can you|could you|would you|do you know)",
                 ],
-                keywords={"what", "who", "where", "when", "why", "how", "which", "whose", "whom",
-                         "can", "could", "would", "know", "tell", "explain"},
-                examples=["What is the weather?", "How do I do this?", "Can you help me?"]
+                keywords={
+                    "what",
+                    "who",
+                    "where",
+                    "when",
+                    "why",
+                    "how",
+                    "which",
+                    "whose",
+                    "whom",
+                    "can",
+                    "could",
+                    "would",
+                    "know",
+                    "tell",
+                    "explain",
+                },
+                examples=[
+                    "What is the weather?",
+                    "How do I do this?",
+                    "Can you help me?",
+                ],
             ),
             IntentType.COMMAND: IntentPattern(
                 intent=IntentType.COMMAND,
                 patterns=[
                     r"(?i)^(please |can you |could you |would you )?(open|close|start|stop|create|delete|send|show|display)",
-                    r"(?i)(do this|do that|make it|run|execute|perform)"
+                    r"(?i)(do this|do that|make it|run|execute|perform)",
                 ],
-                keywords={"open", "close", "start", "stop", "create", "delete", "send", "show",
-                         "display", "run", "execute", "perform", "do", "make"},
-                examples=["Open the browser", "Create a new file", "Send an email"]
+                keywords={
+                    "open",
+                    "close",
+                    "start",
+                    "stop",
+                    "create",
+                    "delete",
+                    "send",
+                    "show",
+                    "display",
+                    "run",
+                    "execute",
+                    "perform",
+                    "do",
+                    "make",
+                },
+                examples=["Open the browser", "Create a new file", "Send an email"],
             ),
             IntentType.CLARIFICATION: IntentPattern(
                 intent=IntentType.CLARIFICATION,
                 patterns=[
                     r"(?i)(what do you mean|clarify|explain|elaborate|i don't understand)",
-                    r"(?i)(can you rephrase|say again|repeat that)"
+                    r"(?i)(can you rephrase|say again|repeat that)",
                 ],
-                keywords={"clarify", "explain", "elaborate", "understand", "rephrase", "repeat"},
-                examples=["What do you mean?", "Can you clarify that?", "I don't understand"]
+                keywords={
+                    "clarify",
+                    "explain",
+                    "elaborate",
+                    "understand",
+                    "rephrase",
+                    "repeat",
+                },
+                examples=[
+                    "What do you mean?",
+                    "Can you clarify that?",
+                    "I don't understand",
+                ],
             ),
             IntentType.CONFIRMATION: IntentPattern(
                 intent=IntentType.CONFIRMATION,
                 patterns=[
                     r"(?i)^(yes|no|correct|wrong|right|sure|okay|ok|confirm|deny)",
-                    r"(?i)(that's right|that's wrong|you're right|you're wrong)"
+                    r"(?i)(that's right|that's wrong|you're right|you're wrong)",
                 ],
-                keywords={"yes", "no", "correct", "wrong", "right", "sure", "okay", "ok",
-                         "confirm", "deny", "that's"},
-                examples=["Yes, that's correct", "No, that's wrong", "Sure, go ahead"]
+                keywords={
+                    "yes",
+                    "no",
+                    "correct",
+                    "wrong",
+                    "right",
+                    "sure",
+                    "okay",
+                    "ok",
+                    "confirm",
+                    "deny",
+                    "that's",
+                },
+                examples=["Yes, that's correct", "No, that's wrong", "Sure, go ahead"],
             ),
             IntentType.GREETING: IntentPattern(
                 intent=IntentType.GREETING,
                 patterns=[
                     r"(?i)^(hi|hello|hey|greetings|good morning|good afternoon|good evening)",
-                    r"(?i)(how are you|how's it going|what's up)"
+                    r"(?i)(how are you|how's it going|what's up)",
                 ],
-                keywords={"hi", "hello", "hey", "greetings", "morning", "afternoon", "evening"},
-                examples=["Hello!", "Good morning", "How are you?"]
+                keywords={
+                    "hi",
+                    "hello",
+                    "hey",
+                    "greetings",
+                    "morning",
+                    "afternoon",
+                    "evening",
+                },
+                examples=["Hello!", "Good morning", "How are you?"],
             ),
             IntentType.GOODBYE: IntentPattern(
                 intent=IntentType.GOODBYE,
                 patterns=[
                     r"(?i)^(bye|goodbye|see you|farewell|take care|good night)",
-                    r"(?i)(i'm leaving|got to go|have to go)"
+                    r"(?i)(i'm leaving|got to go|have to go)",
                 ],
-                keywords={"bye", "goodbye", "see", "farewell", "care", "night", "leaving", "go"},
-                examples=["Goodbye!", "See you later", "Take care"]
-            )
+                keywords={
+                    "bye",
+                    "goodbye",
+                    "see",
+                    "farewell",
+                    "care",
+                    "night",
+                    "leaving",
+                    "go",
+                },
+                examples=["Goodbye!", "See you later", "Take care"],
+            ),
         }
 
         self.intent_patterns.update(patterns)
@@ -220,84 +301,91 @@ class DialogManager:
                 name="greeting_response",
                 conditions={
                     "intent": IntentType.GREETING,
-                    "state": DialogState.INITIAL
+                    "state": DialogState.INITIAL,
                 },
                 actions=[
                     {"type": "set_state", "state": DialogState.LISTENING},
                     {"type": "respond", "template": "greeting_response"},
-                    {"type": "update_context", "key": "greeted", "value": True}
+                    {"type": "update_context", "key": "greeted", "value": True},
                 ],
-                priority=10
+                priority=10,
             ),
             DialogRule(
                 name="question_routing",
                 conditions={
                     "intent": IntentType.QUESTION,
-                    "state": [DialogState.LISTENING, DialogState.RESPONDING]
+                    "state": [DialogState.LISTENING, DialogState.RESPONDING],
                 },
                 actions=[
                     {"type": "set_state", "state": DialogState.PROCESSING},
                     {"type": "route_to_llm", "use_rag": True},
-                    {"type": "set_state", "state": DialogState.RESPONDING}
+                    {"type": "set_state", "state": DialogState.RESPONDING},
                 ],
-                priority=5
+                priority=5,
             ),
             DialogRule(
                 name="command_execution",
                 conditions={
                     "intent": IntentType.COMMAND,
-                    "state": DialogState.LISTENING
+                    "state": DialogState.LISTENING,
                 },
                 actions=[
                     {"type": "set_state", "state": DialogState.PROCESSING},
                     {"type": "route_to_action_executor"},
-                    {"type": "set_state", "state": DialogState.RESPONDING}
+                    {"type": "set_state", "state": DialogState.RESPONDING},
                 ],
-                priority=8
+                priority=8,
             ),
             DialogRule(
                 name="clarification_request",
                 conditions={
                     "intent": IntentType.CLARIFICATION,
-                    "state": DialogState.RESPONDING
+                    "state": DialogState.RESPONDING,
                 },
                 actions=[
                     {"type": "set_state", "state": DialogState.ERROR_RECOVERY},
                     {"type": "respond", "template": "clarification_response"},
-                    {"type": "request_rephrase"}
+                    {"type": "request_rephrase"},
                 ],
-                priority=9
+                priority=9,
             ),
             DialogRule(
                 name="confirmation_handling",
                 conditions={
                     "intent": IntentType.CONFIRMATION,
-                    "state": DialogState.WAITING_CONFIRMATION
+                    "state": DialogState.WAITING_CONFIRMATION,
                 },
                 actions=[
                     {"type": "process_confirmation"},
-                    {"type": "set_state", "state": DialogState.LISTENING}
+                    {"type": "set_state", "state": DialogState.LISTENING},
                 ],
-                priority=7
+                priority=7,
             ),
             DialogRule(
                 name="session_timeout",
                 conditions={
-                    "inactive_minutes": lambda ctx: (datetime.now() - ctx.last_activity).total_seconds() / 60 > self.session_timeout_minutes
+                    "inactive_minutes": lambda ctx: (
+                        datetime.now() - ctx.last_activity
+                    ).total_seconds()
+                    / 60
+                    > self.session_timeout_minutes
                 },
                 actions=[
                     {"type": "set_state", "state": DialogState.COMPLETED},
-                    {"type": "cleanup_session"}
+                    {"type": "cleanup_session"},
                 ],
-                priority=1
-            )
+                priority=1,
+            ),
         ]
 
         self.dialog_rules.extend(rules)
 
     def _create_default_intent_classifier(self):
         """Create a default intent classifier using pattern matching."""
-        def classify_intent(text: str, context: ConversationContext) -> tuple[IntentType, float]:
+
+        def classify_intent(
+            text: str, context: ConversationContext
+        ) -> tuple[IntentType, float]:
             """Classify intent using pattern matching and context."""
             text_lower = text.lower()
             best_match = IntentType.UNKNOWN
@@ -308,7 +396,9 @@ class DialogManager:
                 matches = 0
 
                 # Check keywords
-                keyword_matches = sum(1 for keyword in pattern.keywords if keyword in text_lower)
+                keyword_matches = sum(
+                    1 for keyword in pattern.keywords if keyword in text_lower
+                )
                 if keyword_matches > 0:
                     confidence += min(keyword_matches / len(pattern.keywords), 0.5)
 
@@ -325,7 +415,10 @@ class DialogManager:
                 if context.intent == intent and context.confidence > 0.8:
                     confidence += 0.2  # Continuity bonus
 
-                if confidence > best_confidence and confidence >= pattern.confidence_threshold:
+                if (
+                    confidence > best_confidence
+                    and confidence >= pattern.confidence_threshold
+                ):
                     best_match = intent
                     best_confidence = confidence
 
@@ -333,7 +426,9 @@ class DialogManager:
 
         return classify_intent
 
-    def start_conversation(self, user_id: str, modality: Modality = Modality.TEXT) -> str:
+    def start_conversation(
+        self, user_id: str, modality: Modality = Modality.TEXT
+    ) -> str:
         """Start a new conversation session."""
         session_id = str(uuid.uuid4())
 
@@ -341,15 +436,17 @@ class DialogManager:
             session_id=session_id,
             user_id=user_id,
             modality=modality,
-            current_state=DialogState.INITIAL
+            current_state=DialogState.INITIAL,
         )
 
         # Load user profile if available
         if self.config_manager:
             try:
                 # Load user preferences and history
-                context.user_profile = getattr(self.config_manager, 'get_user_profile', lambda uid: {})(user_id)
-                context.preferences = context.user_profile.get('preferences', {})
+                context.user_profile = getattr(
+                    self.config_manager, "get_user_profile", lambda uid: {}
+                )(user_id)
+                context.preferences = context.user_profile.get("preferences", {})
             except Exception as exc:
                 logger.debug("Failed to load user profile: %s", exc)
 
@@ -359,8 +456,13 @@ class DialogManager:
         logger.info("Started conversation session %s for user %s", session_id, user_id)
         return session_id
 
-    def process_input(self, session_id: str, user_input: str, modality: Optional[Modality] = None,
-                     metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def process_input(
+        self,
+        session_id: str,
+        user_input: str,
+        modality: Optional[Modality] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Process user input and return dialog response."""
         with self.session_lock:
             if session_id not in self.active_sessions:
@@ -379,16 +481,20 @@ class DialogManager:
             context.metadata.update(metadata)
 
         # Add to conversation history
-        context.conversation_history.append({
-            "turn": context.turn_count,
-            "timestamp": context.last_activity.isoformat(),
-            "user_input": user_input,
-            "modality": modality.value if modality else context.modality.value
-        })
+        context.conversation_history.append(
+            {
+                "turn": context.turn_count,
+                "timestamp": context.last_activity.isoformat(),
+                "user_input": user_input,
+                "modality": modality.value if modality else context.modality.value,
+            }
+        )
 
         # Trim history if too long
         if len(context.conversation_history) > self.max_history_length:
-            context.conversation_history = context.conversation_history[-self.max_history_length:]
+            context.conversation_history = context.conversation_history[
+                -self.max_history_length :
+            ]
 
         # Classify intent
         if self.intent_classifier is None:
@@ -443,7 +549,9 @@ class DialogManager:
 
         return entities
 
-    def _apply_dialog_rules(self, context: ConversationContext, user_input: str) -> Dict[str, Any]:
+    def _apply_dialog_rules(
+        self, context: ConversationContext, user_input: str
+    ) -> Dict[str, Any]:
         """Apply dialog rules based on current context."""
         applicable_rules = []
 
@@ -462,7 +570,7 @@ class DialogManager:
             "actions": [],
             "state": context.current_state.value,
             "intent": context.intent.value,
-            "confidence": context.confidence
+            "confidence": context.confidence,
         }
 
         # Execute highest priority rule
@@ -479,7 +587,9 @@ class DialogManager:
 
         return response
 
-    def _rule_matches(self, rule: DialogRule, context: ConversationContext, user_input: str) -> bool:
+    def _rule_matches(
+        self, rule: DialogRule, context: ConversationContext, user_input: str
+    ) -> bool:
         """Check if a dialog rule matches the current context."""
         conditions = rule.conditions
 
@@ -521,8 +631,13 @@ class DialogManager:
 
         return True
 
-    def _execute_action(self, action: Dict[str, Any], context: ConversationContext,
-                       response: Dict[str, Any], user_input: str):
+    def _execute_action(
+        self,
+        action: Dict[str, Any],
+        context: ConversationContext,
+        response: Dict[str, Any],
+        user_input: str,
+    ):
         """Execute a dialog action."""
         action_type = action.get("type")
 
@@ -544,14 +659,18 @@ class DialogManager:
         elif action_type == "route_to_action_executor":
             action_result = self._route_to_action_executor(user_input, context)
             response["text"] = action_result.get("message", "Action executed")
-            response["actions"].append({"type": "action_execution", "result": action_result})
+            response["actions"].append(
+                {"type": "action_execution", "result": action_result}
+            )
 
         elif action_type == "update_context":
             key, value = action["key"], action["value"]
             context.metadata[key] = value
 
         elif action_type == "request_rephrase":
-            response["text"] = "I didn't understand that clearly. Could you please rephrase your request?"
+            response["text"] = (
+                "I didn't understand that clearly. Could you please rephrase your request?"
+            )
             response["actions"].append({"type": "clarification_requested"})
 
         elif action_type == "process_confirmation":
@@ -561,24 +680,26 @@ class DialogManager:
         elif action_type == "cleanup_session":
             self._cleanup_session(context.session_id)
 
-    def _generate_response(self, template: str, context: ConversationContext, user_input: str) -> str:
+    def _generate_response(
+        self, template: str, context: ConversationContext, user_input: str
+    ) -> str:
         """Generate response text based on template."""
         responses = {
             "greeting_response": [
                 "Hello! How can I help you today?",
                 "Hi there! What can I do for you?",
-                "Greetings! How may I assist you?"
+                "Greetings! How may I assist you?",
             ],
             "clarification_response": [
                 "I need a bit more clarification on that.",
                 "Could you provide more details?",
-                "I'm not sure I understood correctly."
+                "I'm not sure I understood correctly.",
             ],
             "confirmation_request": [
                 "Are you sure you want to proceed?",
                 "Should I go ahead with this?",
-                "Please confirm your request."
-            ]
+                "Please confirm your request.",
+            ],
         }
 
         if template in responses:
@@ -591,14 +712,16 @@ class DialogManager:
 
         return "I'm processing your request..."
 
-    def _route_to_llm(self, user_input: str, context: ConversationContext, use_rag: bool = False) -> str:
+    def _route_to_llm(
+        self, user_input: str, context: ConversationContext, use_rag: bool = False
+    ) -> str:
         """Route request to LLM with optional RAG augmentation."""
         try:
             # Build enhanced prompt with context
             enhanced_prompt = self._build_enhanced_prompt(user_input, context, use_rag)
 
             # Get LLM response
-            llm_manager = provider_registry.create('llm')
+            llm_manager = provider_registry.create("llm")
             response = llm_manager.query(enhanced_prompt)
 
             return response
@@ -607,19 +730,25 @@ class DialogManager:
             logger.error("LLM routing failed: %s", exc)
             return "I'm having trouble processing your request right now."
 
-    def _route_to_action_executor(self, user_input: str, context: ConversationContext) -> Dict[str, Any]:
+    def _route_to_action_executor(
+        self, user_input: str, context: ConversationContext
+    ) -> Dict[str, Any]:
         """Route command to action executor."""
         try:
-            action_executor = provider_registry.create('actions', 'default')
+            action_executor = provider_registry.create("actions", "default")
             # Parse command from user input (simplified)
             command = self._parse_command(user_input, context)
-            result = action_executor.execute(command["action"], command.get("params", {}))
+            result = action_executor.execute(
+                command["action"], command.get("params", {})
+            )
             return {"success": True, "message": str(result), "command": command}
         except Exception as exc:
             logger.error("Action execution failed: %s", exc)
             return {"success": False, "message": f"Failed to execute action: {exc}"}
 
-    def _parse_command(self, user_input: str, context: ConversationContext) -> Dict[str, Any]:
+    def _parse_command(
+        self, user_input: str, context: ConversationContext
+    ) -> Dict[str, Any]:
         """Parse command from user input (simplified implementation)."""
         # This would be more sophisticated in a real implementation
         text_lower = user_input.lower()
@@ -629,25 +758,34 @@ class DialogManager:
         elif "create" in text_lower and "file" in text_lower:
             return {"action": "create_file", "params": {"filename": "new_file.txt"}}
         elif "send" in text_lower and "email" in text_lower:
-            return {"action": "send_email", "params": {"to": "example@example.com", "subject": "Test"}}
+            return {
+                "action": "send_email",
+                "params": {"to": "example@example.com", "subject": "Test"},
+            }
 
         return {"action": "unknown", "params": {}}
 
-    def _build_enhanced_prompt(self, user_input: str, context: ConversationContext, use_rag: bool = False) -> str:
+    def _build_enhanced_prompt(
+        self, user_input: str, context: ConversationContext, use_rag: bool = False
+    ) -> str:
         """Build enhanced prompt with context and RAG if available."""
         prompt_parts = []
 
         # Add user context
         if context.user_profile:
-            prompt_parts.append(f"User Profile: {json.dumps(context.user_profile, indent=2)}")
+            prompt_parts.append(
+                f"User Profile: {json.dumps(context.user_profile, indent=2)}"
+            )
 
         # Add conversation history (recent turns)
         recent_history = context.conversation_history[-3:]  # Last 3 turns
         if recent_history:
-            history_text = "\n".join([
-                f"Turn {h['turn']}: User: {h['user_input']}\nAssistant: {h.get('response', '')}"
-                for h in recent_history
-            ])
+            history_text = "\n".join(
+                [
+                    f"Turn {h['turn']}: User: {h['user_input']}\nAssistant: {h.get('response', '')}"
+                    for h in recent_history
+                ]
+            )
             prompt_parts.append(f"Recent Conversation:\n{history_text}")
 
         # Add RAG context if requested
@@ -655,9 +793,12 @@ class DialogManager:
             try:
                 context_chunks = self.rag_pipeline.query(user_input, top_k=3)
                 if context_chunks:
-                    context_text = "\n".join([
-                        f"[{i+1}] {chunk.text}" for i, chunk in enumerate(context_chunks)
-                    ])
+                    context_text = "\n".join(
+                        [
+                            f"[{i+1}] {chunk.text}"
+                            for i, chunk in enumerate(context_chunks)
+                        ]
+                    )
                     prompt_parts.append(f"Relevant Context:\n{context_text}")
             except Exception as exc:
                 logger.debug("RAG context building failed: %s", exc)
@@ -666,16 +807,29 @@ class DialogManager:
         prompt_parts.append(f"Current Request: {user_input}")
 
         # Add response guidelines
-        prompt_parts.append("""
+        prompt_parts.append(
+            """
 Please respond naturally and helpfully. Consider the user's preferences and conversation history.
-If you need clarification, ask specific questions. Be concise but informative.""")
+If you need clarification, ask specific questions. Be concise but informative."""
+        )
 
         return "\n\n".join(prompt_parts)
 
-    def _process_confirmation(self, user_input: str, context: ConversationContext) -> bool:
+    def _process_confirmation(
+        self, user_input: str, context: ConversationContext
+    ) -> bool:
         """Process user confirmation response."""
         text_lower = user_input.lower()
-        positive_words = {"yes", "sure", "okay", "ok", "correct", "right", "confirm", "yes please"}
+        positive_words = {
+            "yes",
+            "sure",
+            "okay",
+            "ok",
+            "correct",
+            "right",
+            "confirm",
+            "yes please",
+        }
         negative_words = {"no", "nope", "cancel", "stop", "wrong", "incorrect", "deny"}
 
         positive_count = sum(1 for word in positive_words if word in text_lower)
@@ -689,8 +843,13 @@ If you need clarification, ask specific questions. Be concise but informative.""
             # Ambiguous - could ask for clarification
             return False
 
-    def _record_intent_classification(self, user_input: str, intent: IntentType,
-                                    confidence: float, context: ConversationContext):
+    def _record_intent_classification(
+        self,
+        user_input: str,
+        intent: IntentType,
+        confidence: float,
+        context: ConversationContext,
+    ):
         """Record intent classification for learning."""
         record = {
             "timestamp": datetime.now().isoformat(),
@@ -700,8 +859,10 @@ If you need clarification, ask specific questions. Be concise but informative.""
             "context": {
                 "modality": context.modality.value,
                 "turn_count": context.turn_count,
-                "previous_intent": context.intent.value if context.turn_count > 1 else None
-            }
+                "previous_intent": (
+                    context.intent.value if context.turn_count > 1 else None
+                ),
+            },
         }
 
         self.intent_history.append(record)
@@ -710,14 +871,16 @@ If you need clarification, ask specific questions. Be concise but informative.""
         if len(self.intent_history) > 1000:
             self.intent_history = self.intent_history[-1000:]
 
-    def _record_rule_performance(self, rule_name: str, success: bool, context: ConversationContext):
+    def _record_rule_performance(
+        self, rule_name: str, success: bool, context: ConversationContext
+    ):
         """Record rule performance for learning."""
         if rule_name not in self.rule_performance:
             self.rule_performance[rule_name] = {
                 "total_uses": 0,
                 "successful_uses": 0,
                 "avg_confidence": 0.0,
-                "context_patterns": []
+                "context_patterns": [],
             }
 
         perf = self.rule_performance[rule_name]
@@ -758,7 +921,7 @@ If you need clarification, ask specific questions. Be concise but informative.""
     def load_rules_from_file(self, file_path: str):
         """Load dialog rules from JSON file."""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 rules_data = json.load(f)
 
             for rule_data in rules_data.get("rules", []):
@@ -768,7 +931,7 @@ If you need clarification, ask specific questions. Be concise but informative.""
                     actions=rule_data["actions"],
                     priority=rule_data.get("priority", 0),
                     enabled=rule_data.get("enabled", True),
-                    metadata=rule_data.get("metadata", {})
+                    metadata=rule_data.get("metadata", {}),
                 )
                 self.dialog_rules.append(rule)
 
@@ -788,13 +951,13 @@ If you need clarification, ask specific questions. Be concise but informative.""
                         "actions": rule.actions,
                         "priority": rule.priority,
                         "enabled": rule.enabled,
-                        "metadata": rule.metadata
+                        "metadata": rule.metadata,
                     }
                     for rule in self.dialog_rules
                 ]
             }
 
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(rules_data, f, indent=2, ensure_ascii=False)
 
             logger.info("Saved %d rules to %s", len(self.dialog_rules), file_path)
@@ -812,7 +975,7 @@ If you need clarification, ask specific questions. Be concise but informative.""
             "total_rules": len(self.dialog_rules),
             "intent_patterns": len(self.intent_patterns),
             "intent_history_size": len(self.intent_history),
-            "rule_performance": dict(self.rule_performance)
+            "rule_performance": dict(self.rule_performance),
         }
 
 
@@ -823,7 +986,9 @@ def create_dialog_manager(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'dialog', 'manager',
-    'mia.adaptive_intelligence.dialog_manager', 'create_dialog_manager',
-    default=True
+    "dialog",
+    "manager",
+    "mia.adaptive_intelligence.dialog_manager",
+    "create_dialog_manager",
+    default=True,
 )

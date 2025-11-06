@@ -1,4 +1,5 @@
 """Headless/interactive Selenium web agent that executes structured plans."""
+
 from __future__ import annotations
 
 import json
@@ -14,8 +15,11 @@ from selenium.webdriver.support.ui import WebDriverWait  # type: ignore
 
 try:
     from selenium import webdriver  # type: ignore
-    from selenium.webdriver.chrome.service import Service as ChromeService  # type: ignore
+    from selenium.webdriver.chrome.service import (
+        Service as ChromeService,  # type: ignore
+    )
     from webdriver_manager.chrome import ChromeDriverManager  # type: ignore
+
     _HAS_SELENIUM = True
 except ImportError:  # pragma: no cover - optional dependency
     webdriver = None  # type: ignore
@@ -67,7 +71,9 @@ class WebAgent:
         wait_timeout: float = 15.0,
     ) -> None:
         if not _HAS_SELENIUM:
-            raise RuntimeError("Selenium and webdriver-manager are required for WebAgent. Install with 'pip install selenium webdriver-manager'.")
+            raise RuntimeError(
+                "Selenium and webdriver-manager are required for WebAgent. Install with 'pip install selenium webdriver-manager'."
+            )
 
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
@@ -81,10 +87,18 @@ class WebAgent:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def run_plan(self, plan: Any, *, headless: Optional[bool] = None, viewport: Optional[tuple[int, int]] = None) -> List[WebAgentStepResult]:
+    def run_plan(
+        self,
+        plan: Any,
+        *,
+        headless: Optional[bool] = None,
+        viewport: Optional[tuple[int, int]] = None,
+    ) -> List[WebAgentStepResult]:
         if not _HAS_SELENIUM:
-            raise WebAgentError("Selenium not available. Install selenium and webdriver-manager to use web agent.")
-        
+            raise WebAgentError(
+                "Selenium not available. Install selenium and webdriver-manager to use web agent."
+            )
+
         steps = self._normalise_plan(plan)
         if not steps:
             raise WebAgentError("Plan is empty or malformed")
@@ -130,10 +144,18 @@ class WebAgent:
                         payload = self._step_scrape(driver, step)
                     else:
                         raise WebAgentError(f"Unsupported action '{action}'")
-                    results.append(WebAgentStepResult(action=action, success=True, message="ok", payload=payload))
+                    results.append(
+                        WebAgentStepResult(
+                            action=action, success=True, message="ok", payload=payload
+                        )
+                    )
                 except Exception as exc:  # pragma: no cover - headless runtime failure
                     logger.exception("WebAgent step %s failed: %s", idx, exc)
-                    results.append(WebAgentStepResult(action=action, success=False, message=str(exc)))
+                    results.append(
+                        WebAgentStepResult(
+                            action=action, success=False, message=str(exc)
+                        )
+                    )
                     if step.get("halt_on_error", True):
                         break
             return results
@@ -193,7 +215,9 @@ class WebAgent:
             driver.execute_script("window.scrollTo(0, arguments[0]);", int(position))
         return {"scroll": position}
 
-    def _step_screenshot(self, driver, index: int, step: Dict[str, Any]) -> Dict[str, Any]:
+    def _step_screenshot(
+        self, driver, index: int, step: Dict[str, Any]
+    ) -> Dict[str, Any]:
         filename = step.get("path") or self.screenshot_dir / f"step_{index:02d}.png"
         filename = Path(filename)
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -237,129 +261,148 @@ class WebAgent:
     # ------------------------------------------------------------------
     # Unified search + scraping + summarization workflow
     # ------------------------------------------------------------------
-    def unified_web_workflow(self, query: str, max_results: int = 5, summarize: bool = True) -> List[WebAgentStepResult]:
+    def unified_web_workflow(
+        self, query: str, max_results: int = 5, summarize: bool = True
+    ) -> List[WebAgentStepResult]:
         """
         Unified workflow: search web, scrape results, and optionally summarize.
-        
+
         Args:
             query: Search query
             max_results: Maximum number of results to process
             summarize: Whether to generate summaries
-            
+
         Returns:
             List of step results from the workflow
         """
         results = []
-        
+
         # Step 1: Search for the query
         search_plan = [
-            {"action": "open", "url": f"https://www.google.com/search?q={query.replace(' ', '+')}"},
+            {
+                "action": "open",
+                "url": f"https://www.google.com/search?q={query.replace(' ', '+')}",
+            },
             {"action": "wait", "seconds": 2},
-            {"action": "scrape", "extract_tables": False}
+            {"action": "scrape", "extract_tables": False},
         ]
-        
+
         search_results = self.run_plan(search_plan)
         results.extend(search_results)
-        
+
         if not search_results or not any(r.success for r in search_results):
             return results
-        
+
         # Extract search result URLs from the scraped content
         scraped_data = None
         for result in reversed(search_results):
             if result.success and result.payload and "text" in result.payload:
                 scraped_data = result.payload
                 break
-        
+
         if not scraped_data:
             return results
-        
+
         # Parse search results to extract URLs
         urls = self._extract_search_result_urls(scraped_data["text"])
         urls = urls[:max_results]  # Limit results
-        
+
         # Step 2: Scrape each URL
         for i, url in enumerate(urls, 1):
             scrape_plan = [
                 {"action": "open", "url": url},
                 {"action": "wait", "seconds": 1},
-                {"action": "scrape", "extract_tables": True}
+                {"action": "scrape", "extract_tables": True},
             ]
-            
+
             scrape_results = self.run_plan(scrape_plan)
             results.extend(scrape_results)
-            
+
             # Step 3: Summarize if requested
             if summarize and scrape_results:
                 last_result = scrape_results[-1]
                 if last_result.success and last_result.payload:
                     summary = self._generate_content_summary(last_result.payload, query)
                     if summary:
-                        results.append(WebAgentStepResult(
-                            action="summarize",
-                            success=True,
-                            message=f"Summary for {url}",
-                            payload={"summary": summary, "url": url, "query": query}
-                        ))
-        
+                        results.append(
+                            WebAgentStepResult(
+                                action="summarize",
+                                success=True,
+                                message=f"Summary for {url}",
+                                payload={
+                                    "summary": summary,
+                                    "url": url,
+                                    "query": query,
+                                },
+                            )
+                        )
+
         return results
 
     def _extract_search_result_urls(self, search_text: str) -> List[str]:
         """Extract URLs from Google search results text."""
         import re
-        
+
         # Simple regex to find URLs in search results
         url_pattern = r'https?://[^\s<>"\'{}|\\^`\[\]]+'
         urls = re.findall(url_pattern, search_text)
-        
+
         # Filter out Google-specific URLs and duplicates
         filtered_urls = []
         seen = set()
         for url in urls:
-            if not any(domain in url for domain in ['google.com', 'googleusercontent.com', 'gstatic.com']):
+            if not any(
+                domain in url
+                for domain in ["google.com", "googleusercontent.com", "gstatic.com"]
+            ):
                 if url not in seen:
                     filtered_urls.append(url)
                     seen.add(url)
-        
+
         return filtered_urls[:10]  # Return top 10 unique URLs
 
-    def _generate_content_summary(self, content: Dict[str, Any], query: str) -> Optional[str]:
+    def _generate_content_summary(
+        self, content: Dict[str, Any], query: str
+    ) -> Optional[str]:
         """Generate a summary of scraped content related to the query."""
         if not content or "text" not in content:
             return None
-        
+
         text = content["text"]
         if len(text) < 100:
             return text  # Too short to summarize
-        
+
         # Simple extractive summarization
-        sentences = [s.strip() for s in text.split('.') if s.strip()]
-        
+        sentences = [s.strip() for s in text.split(".") if s.strip()]
+
         # Score sentences based on query terms
         query_terms = set(query.lower().split())
         scored_sentences = []
-        
+
         for sentence in sentences:
             words = set(sentence.lower().split())
             score = len(words.intersection(query_terms))
             scored_sentences.append((score, sentence))
-        
+
         # Select top sentences
         scored_sentences.sort(reverse=True, key=lambda x: x[0])
         top_sentences = [s[1] for s in scored_sentences[:3] if s[0] > 0]
-        
+
         if top_sentences:
-            return '. '.join(top_sentences) + '.'
-        
+            return ". ".join(top_sentences) + "."
+
         # Fallback: return first few sentences
-        return '. '.join(sentences[:2]) + '.' if sentences else None
+        return ". ".join(sentences[:2]) + "." if sentences else None
+
     def _normalise_plan(self, plan: Any) -> List[Dict[str, Any]]:
         if isinstance(plan, str):
             plan = json.loads(plan)
         if isinstance(plan, dict) and "steps" in plan:
             plan = plan["steps"]
         if not isinstance(plan, Iterable):
-            raise WebAgentError("Plan must be a list of steps or an object with 'steps'")
+            raise WebAgentError(
+                "Plan must be a list of steps or an object with 'steps'"
+            )
         steps = []
         for step in plan:
             if isinstance(step, dict):

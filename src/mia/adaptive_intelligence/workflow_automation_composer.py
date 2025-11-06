@@ -2,16 +2,16 @@
 Workflow Automation Composer
 """
 
-import logging
 import asyncio
 import json
+import logging
+import queue
+import threading
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable, Union, Set
 from datetime import datetime, timedelta
 from enum import Enum
-import threading
-import queue
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from ..providers import provider_registry
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class WorkflowStatus(Enum):
     """Workflow execution status."""
+
     CREATED = "created"
     RUNNING = "running"
     PAUSED = "paused"
@@ -31,6 +32,7 @@ class WorkflowStatus(Enum):
 
 class TaskStatus(Enum):
     """Task execution status."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -42,6 +44,7 @@ class TaskStatus(Enum):
 
 class ApprovalStatus(Enum):
     """Approval status."""
+
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
@@ -51,13 +54,18 @@ class ApprovalStatus(Enum):
 @dataclass
 class WorkflowTask:
     """Represents a task in a workflow."""
+
     id: str
     name: str
     description: str = ""
     task_type: str = "action"
     config: Dict[str, Any] = field(default_factory=dict)
-    dependencies: List[str] = field(default_factory=list)  # Task IDs this task depends on
-    conditions: List[Dict[str, Any]] = field(default_factory=list)  # Execution conditions
+    dependencies: List[str] = field(
+        default_factory=list
+    )  # Task IDs this task depends on
+    conditions: List[Dict[str, Any]] = field(
+        default_factory=list
+    )  # Execution conditions
     timeout: Optional[int] = None  # Timeout in seconds
     retry_count: int = 0
     retry_delay: int = 1  # Delay between retries in seconds
@@ -72,6 +80,7 @@ class WorkflowTask:
 @dataclass
 class TaskExecution:
     """Represents the execution state of a task."""
+
     task_id: str
     status: TaskStatus = TaskStatus.PENDING
     start_time: Optional[datetime] = None
@@ -88,6 +97,7 @@ class TaskExecution:
 @dataclass
 class WorkflowExecution:
     """Represents the execution of a workflow."""
+
     workflow_id: str
     execution_id: str
     status: WorkflowStatus = WorkflowStatus.CREATED
@@ -101,6 +111,7 @@ class WorkflowExecution:
 @dataclass
 class WorkflowDefinition:
     """Complete workflow definition."""
+
     id: str
     name: str
     description: str = ""
@@ -190,14 +201,16 @@ class HttpExecutor(TaskExecutor):
             raise ValueError("URL not specified in HTTP task config")
 
         async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, headers=headers, data=data, timeout=timeout) as response:
+            async with session.request(
+                method, url, headers=headers, data=data, timeout=timeout
+            ) as response:
                 result = {
                     "status_code": response.status,
                     "headers": dict(response.headers),
-                    "url": str(response.url)
+                    "url": str(response.url),
                 }
 
-                if response.content_type and 'json' in response.content_type:
+                if response.content_type and "json" in response.content_type:
                     result["json"] = await response.json()
                 else:
                     result["text"] = await response.text()
@@ -222,7 +235,7 @@ class ApprovalExecutor(TaskExecutor):
             "status": "approval_required",
             "approvers": approvers,
             "timeout": timeout,
-            "message": task.config.get("message", "Approval required")
+            "message": task.config.get("message", "Approval required"),
         }
 
 
@@ -237,7 +250,7 @@ class WorkflowAutomationComposer:
         *,
         max_concurrent_executions: int = 10,
         default_timeout: int = 3600,
-        enable_parallel_execution: bool = True
+        enable_parallel_execution: bool = True,
     ):
         self.config_manager = config_manager
         self.max_concurrent_executions = max_concurrent_executions
@@ -267,7 +280,7 @@ class WorkflowAutomationComposer:
             "total_executions": 0,
             "successful_executions": 0,
             "failed_executions": 0,
-            "average_execution_time": 0.0
+            "average_execution_time": 0.0,
         }
 
         logger.info("Workflow Automation Composer initialized")
@@ -288,7 +301,7 @@ class WorkflowAutomationComposer:
         name: str,
         description: str = "",
         tasks: Optional[Dict[str, WorkflowTask]] = None,
-        entry_points: Optional[List[str]] = None
+        entry_points: Optional[List[str]] = None,
     ) -> str:
         """
         Create a new workflow definition.
@@ -309,7 +322,7 @@ class WorkflowAutomationComposer:
             name=name,
             description=description,
             tasks=tasks or {},
-            entry_points=entry_points or []
+            entry_points=entry_points or [],
         )
 
         self.workflows[workflow_id] = workflow
@@ -358,7 +371,7 @@ class WorkflowAutomationComposer:
         self,
         workflow_id: str,
         context: Optional[Dict[str, Any]] = None,
-        execution_id: Optional[str] = None
+        execution_id: Optional[str] = None,
     ) -> str:
         """
         Execute a workflow.
@@ -382,7 +395,7 @@ class WorkflowAutomationComposer:
                 workflow_id=workflow_id,
                 execution_id=exec_id,
                 context=context or {},
-                start_time=datetime.now()
+                start_time=datetime.now(),
             )
 
             # Initialize task executions
@@ -423,10 +436,16 @@ class WorkflowAutomationComposer:
         """Update execution time metrics."""
         if execution.start_time and execution.end_time:
             execution_time = (execution.end_time - execution.start_time).total_seconds()
-            total_time = self.metrics["average_execution_time"] * (self.metrics["total_executions"] - 1)
-            self.metrics["average_execution_time"] = (total_time + execution_time) / self.metrics["total_executions"]
+            total_time = self.metrics["average_execution_time"] * (
+                self.metrics["total_executions"] - 1
+            )
+            self.metrics["average_execution_time"] = (
+                total_time + execution_time
+            ) / self.metrics["total_executions"]
 
-    async def _execute_workflow_tasks(self, execution: WorkflowExecution, workflow: WorkflowDefinition):
+    async def _execute_workflow_tasks(
+        self, execution: WorkflowExecution, workflow: WorkflowDefinition
+    ):
         """Execute workflow tasks with dependency management."""
         # Build dependency graph
         dependency_graph = self._build_dependency_graph(workflow)
@@ -451,7 +470,11 @@ class WorkflowAutomationComposer:
                     task = workflow.tasks[task_id]
                     if task.parallel_group:
                         # Group parallel tasks
-                        group_tasks = [t for t in startable_tasks if workflow.tasks[t].parallel_group == task.parallel_group]
+                        group_tasks = [
+                            t
+                            for t in startable_tasks
+                            if workflow.tasks[t].parallel_group == task.parallel_group
+                        ]
                         if task_id == min(group_tasks):  # Start only one from group
                             tasks_to_start.extend(group_tasks)
                     else:
@@ -464,26 +487,40 @@ class WorkflowAutomationComposer:
                 for task_id in tasks_to_start:
                     pending_tasks.discard(task_id)
                     running_tasks.add(task_id)
-                    asyncio.create_task(self._execute_task(task_id, workflow, execution, completed_tasks, running_tasks))
+                    asyncio.create_task(
+                        self._execute_task(
+                            task_id, workflow, execution, completed_tasks, running_tasks
+                        )
+                    )
             else:
                 # Sequential execution
                 if startable_tasks:
                     task_id = startable_tasks[0]
                     pending_tasks.discard(task_id)
                     running_tasks.add(task_id)
-                    await self._execute_task(task_id, workflow, execution, completed_tasks, running_tasks)
+                    await self._execute_task(
+                        task_id, workflow, execution, completed_tasks, running_tasks
+                    )
 
             # Wait a bit before checking again
             await asyncio.sleep(0.1)
 
-    def _build_dependency_graph(self, workflow: WorkflowDefinition) -> Dict[str, Set[str]]:
+    def _build_dependency_graph(
+        self, workflow: WorkflowDefinition
+    ) -> Dict[str, Set[str]]:
         """Build dependency graph for tasks."""
         graph = {}
         for task_id, task in workflow.tasks.items():
             graph[task_id] = set(task.dependencies)
         return graph
 
-    def _can_start_task(self, task_id: str, workflow: WorkflowDefinition, completed_tasks: Set[str], execution: WorkflowExecution) -> bool:
+    def _can_start_task(
+        self,
+        task_id: str,
+        workflow: WorkflowDefinition,
+        completed_tasks: Set[str],
+        execution: WorkflowExecution,
+    ) -> bool:
         """Check if a task can be started."""
         task = workflow.tasks[task_id]
         task_exec = execution.tasks[task_id]
@@ -499,7 +536,10 @@ class WorkflowAutomationComposer:
                 return False
 
         # Check approval if required
-        if task.requires_approval and task_exec.approval_status != ApprovalStatus.APPROVED:
+        if (
+            task.requires_approval
+            and task_exec.approval_status != ApprovalStatus.APPROVED
+        ):
             return False
 
         return True
@@ -510,7 +550,7 @@ class WorkflowAutomationComposer:
         workflow: WorkflowDefinition,
         execution: WorkflowExecution,
         completed_tasks: Set[str],
-        running_tasks: Set[str]
+        running_tasks: Set[str],
     ):
         """Execute a single task."""
         task = workflow.tasks[task_id]
@@ -528,8 +568,7 @@ class WorkflowAutomationComposer:
             # Execute with timeout
             if task.timeout:
                 result = await asyncio.wait_for(
-                    executor.execute(task, execution.context),
-                    timeout=task.timeout
+                    executor.execute(task, execution.context), timeout=task.timeout
                 )
             else:
                 result = await executor.execute(task, execution.context)
@@ -557,12 +596,18 @@ class WorkflowAutomationComposer:
             if task_exec.status == TaskStatus.COMPLETED:
                 completed_tasks.add(task_id)
                 # Trigger next tasks
-                await self._trigger_next_tasks(task, workflow, execution, completed_tasks, running_tasks)
+                await self._trigger_next_tasks(
+                    task, workflow, execution, completed_tasks, running_tasks
+                )
             elif task_exec.status == TaskStatus.FAILED:
                 # Handle failure
-                await self._handle_task_failure(task, workflow, execution, completed_tasks, running_tasks)
+                await self._handle_task_failure(
+                    task, workflow, execution, completed_tasks, running_tasks
+                )
 
-    async def _wait_for_approval(self, task_id: str, execution: WorkflowExecution, task: WorkflowTask):
+    async def _wait_for_approval(
+        self, task_id: str, execution: WorkflowExecution, task: WorkflowTask
+    ):
         """Wait for approval on a task."""
         # Create approval request
         approval_request = {
@@ -571,7 +616,7 @@ class WorkflowAutomationComposer:
             "approvers": task.approvers,
             "message": task.config.get("message", "Approval required"),
             "timeout": task.config.get("timeout", 3600),
-            "created_at": datetime.now()
+            "created_at": datetime.now(),
         }
 
         self.pending_approvals[f"{execution.execution_id}_{task_id}"] = approval_request
@@ -588,16 +633,34 @@ class WorkflowAutomationComposer:
         workflow: WorkflowDefinition,
         execution: WorkflowExecution,
         completed_tasks: Set[str],
-        running_tasks: Set[str]
+        running_tasks: Set[str],
     ):
         """Trigger next tasks based on task outcome."""
-        next_tasks = task.on_success if execution.tasks[task.id].status == TaskStatus.COMPLETED else task.on_failure
+        next_tasks = (
+            task.on_success
+            if execution.tasks[task.id].status == TaskStatus.COMPLETED
+            else task.on_failure
+        )
 
         for next_task_id in next_tasks:
-            if next_task_id in workflow.tasks and next_task_id not in completed_tasks and next_task_id not in running_tasks:
-                if self._can_start_task(next_task_id, workflow, completed_tasks, execution):
+            if (
+                next_task_id in workflow.tasks
+                and next_task_id not in completed_tasks
+                and next_task_id not in running_tasks
+            ):
+                if self._can_start_task(
+                    next_task_id, workflow, completed_tasks, execution
+                ):
                     running_tasks.add(next_task_id)
-                    asyncio.create_task(self._execute_task(next_task_id, workflow, execution, completed_tasks, running_tasks))
+                    asyncio.create_task(
+                        self._execute_task(
+                            next_task_id,
+                            workflow,
+                            execution,
+                            completed_tasks,
+                            running_tasks,
+                        )
+                    )
 
     async def _handle_task_failure(
         self,
@@ -605,7 +668,7 @@ class WorkflowAutomationComposer:
         workflow: WorkflowDefinition,
         execution: WorkflowExecution,
         completed_tasks: Set[str],
-        running_tasks: Set[str]
+        running_tasks: Set[str],
     ):
         """Handle task failure."""
         task_exec = execution.tasks[task.id]
@@ -616,13 +679,19 @@ class WorkflowAutomationComposer:
             logger.info(f"Retrying task {task.id} (attempt {task_exec.attempts})")
             await asyncio.sleep(task.retry_delay)
             running_tasks.add(task.id)
-            asyncio.create_task(self._execute_task(task.id, workflow, execution, completed_tasks, running_tasks))
+            asyncio.create_task(
+                self._execute_task(
+                    task.id, workflow, execution, completed_tasks, running_tasks
+                )
+            )
         else:
             # Mark workflow as failed if critical task
             if task.config.get("critical", False):
                 execution.status = WorkflowStatus.FAILED
 
-    def _evaluate_condition(self, condition: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    def _evaluate_condition(
+        self, condition: Dict[str, Any], context: Dict[str, Any]
+    ) -> bool:
         """Evaluate a task condition."""
         condition_type = condition.get("type")
         if condition_type == "variable_exists":
@@ -639,7 +708,9 @@ class WorkflowAutomationComposer:
         else:
             return True
 
-    async def approve_task(self, execution_id: str, task_id: str, approver: str) -> bool:
+    async def approve_task(
+        self, execution_id: str, task_id: str, approver: str
+    ) -> bool:
         """Approve a task requiring approval."""
         approval_key = f"{execution_id}_{task_id}"
 
@@ -667,7 +738,9 @@ class WorkflowAutomationComposer:
         logger.info(f"Task {task_id} approved by {approver}")
         return True
 
-    def reject_task(self, execution_id: str, task_id: str, approver: str, reason: str = "") -> bool:
+    def reject_task(
+        self, execution_id: str, task_id: str, approver: str, reason: str = ""
+    ) -> bool:
         """Reject a task requiring approval."""
         approval_key = f"{execution_id}_{task_id}"
 
@@ -717,7 +790,11 @@ class WorkflowAutomationComposer:
     def cancel_execution(self, execution_id: str) -> bool:
         """Cancel a workflow execution."""
         execution = self.executions.get(execution_id)
-        if execution and execution.status in [WorkflowStatus.RUNNING, WorkflowStatus.PAUSED, WorkflowStatus.WAITING_APPROVAL]:
+        if execution and execution.status in [
+            WorkflowStatus.RUNNING,
+            WorkflowStatus.PAUSED,
+            WorkflowStatus.WAITING_APPROVAL,
+        ]:
             execution.status = WorkflowStatus.CANCELLED
             execution.end_time = datetime.now()
             logger.info(f"Cancelled execution: {execution_id}")
@@ -746,12 +823,14 @@ class WorkflowAutomationComposer:
                 "version": wf.version,
                 "tasks_count": len(wf.tasks),
                 "created_at": wf.created_at.isoformat(),
-                "updated_at": wf.updated_at.isoformat()
+                "updated_at": wf.updated_at.isoformat(),
             }
             for wf in self.workflows.values()
         ]
 
-    def list_executions(self, workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_executions(
+        self, workflow_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """List workflow executions."""
         executions = self.executions.values()
         if workflow_id:
@@ -764,8 +843,10 @@ class WorkflowAutomationComposer:
                 "status": e.status.value,
                 "start_time": e.start_time.isoformat() if e.start_time else None,
                 "end_time": e.end_time.isoformat() if e.end_time else None,
-                "tasks_completed": sum(1 for t in e.tasks.values() if t.status == TaskStatus.COMPLETED),
-                "tasks_total": len(e.tasks)
+                "tasks_completed": sum(
+                    1 for t in e.tasks.values() if t.status == TaskStatus.COMPLETED
+                ),
+                "tasks_total": len(e.tasks),
             }
             for e in executions
         ]
@@ -778,7 +859,9 @@ def create_workflow_automation_composer(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'adaptive_intelligence', 'workflow_composer',
-    'mia.adaptive_intelligence.workflow_automation_composer', 'create_workflow_automation_composer',
-    default=True
+    "adaptive_intelligence",
+    "workflow_composer",
+    "mia.adaptive_intelligence.workflow_automation_composer",
+    "create_workflow_automation_composer",
+    default=True,
 )

@@ -18,7 +18,7 @@ __all__ = [
     "__version__",
     # Lazy accessors
     "get_main",
-    "get_llm_manager", 
+    "get_llm_manager",
     "get_agent_memory",
     "get_error_handler",
 ]
@@ -51,8 +51,8 @@ def get_error_handler():
     from .error_handler import (
         ErrorHandler,
         global_error_handler,
-        with_error_handling,
         safe_execute,
+        with_error_handling,
     )
 
     return ErrorHandler, global_error_handler, with_error_handling, safe_execute

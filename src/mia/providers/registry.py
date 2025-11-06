@@ -1,4 +1,5 @@
 """Lightweight provider registry for lazy component initialization."""
+
 from __future__ import annotations
 
 import importlib
@@ -26,7 +27,11 @@ class ProviderRegistry:
         singleton: bool = False,
     ) -> None:
         domain_map = self._providers.setdefault(domain, {})
-        domain_map[name] = {"factory": factory, "singleton": singleton, "instance": None}
+        domain_map[name] = {
+            "factory": factory,
+            "singleton": singleton,
+            "instance": None,
+        }
         if default or domain not in self._defaults:
             self._defaults[domain] = name
 
@@ -72,7 +77,9 @@ class ProviderRegistry:
             return entry["instance"]
         return entry["factory"](**kwargs)
 
-    def get_factory(self, domain: str, name: Optional[str] = None) -> Callable[..., Any]:
+    def get_factory(
+        self, domain: str, name: Optional[str] = None
+    ) -> Callable[..., Any]:
         entry = self._get_entry(domain, name)
         return entry["factory"]
 
@@ -93,7 +100,9 @@ class ProviderRegistry:
         if domain not in self._providers:
             raise ProviderLookupError(f"No providers registered for domain '{domain}'")
         if name not in self._providers[domain]:
-            raise ProviderLookupError(f"Provider '{name}' not registered in domain '{domain}'")
+            raise ProviderLookupError(
+                f"Provider '{name}' not registered in domain '{domain}'"
+            )
         self._defaults[domain] = name
 
 

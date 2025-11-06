@@ -4,40 +4,59 @@ Test suite for Adaptive Intelligence
 
 try:
     import pytest  # type: ignore
+
     HAS_PYTEST = True
 except ImportError:
     HAS_PYTEST = False
+
     # Create mock pytest for basic functionality
     class pytest:  # type: ignore
         @staticmethod
         def fixture(func):
             return func
+
         class mark:
             class asyncio:
                 def __init__(self, func):
                     self.func = func
+
                 def __call__(self, *args, **kwargs):
                     return self.func(*args, **kwargs)
 
+
 import asyncio
 import json
+import threading
 import time
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
-import threading
+from unittest.mock import MagicMock, Mock, patch
 
-from .knowledge_memory_graph import KnowledgeMemoryGraph, KnowledgeNode, KnowledgeEdge
+from .knowledge_memory_graph import KnowledgeEdge, KnowledgeMemoryGraph, KnowledgeNode
 from .multimodal_perception_suite import (
-    MultimodalPerceptionSuite, PerceptionInput, ModalityType,
-    TextProcessor, ImageProcessor, AudioProcessor, DocumentProcessor
-)
-from .workflow_automation_composer import (
-    WorkflowAutomationComposer, WorkflowDefinition, WorkflowTask,
-    TaskStatus, WorkflowStatus
+    AudioProcessor,
+    DocumentProcessor,
+    ImageProcessor,
+    ModalityType,
+    MultimodalPerceptionSuite,
+    PerceptionInput,
+    TextProcessor,
 )
 from .observability_admin_console import (
-    ObservabilityAdminConsole, MetricsCollector, AlertManager,
-    LogAggregator, LogLevel, MetricType, AlertSeverity, Metric
+    AlertManager,
+    AlertSeverity,
+    LogAggregator,
+    LogLevel,
+    Metric,
+    MetricsCollector,
+    MetricType,
+    ObservabilityAdminConsole,
+)
+from .workflow_automation_composer import (
+    TaskStatus,
+    WorkflowAutomationComposer,
+    WorkflowDefinition,
+    WorkflowStatus,
+    WorkflowTask,
 )
 
 
@@ -60,9 +79,7 @@ class TestKnowledgeMemoryGraph:
         """Test adding knowledge to the graph."""
         # Add a knowledge node
         node_id = kmg.add_knowledge(
-            content="Test knowledge",
-            knowledge_type="fact",
-            metadata={"source": "test"}
+            content="Test knowledge", knowledge_type="fact", metadata={"source": "test"}
         )
 
         assert node_id in kmg.nodes
@@ -80,7 +97,7 @@ class TestKnowledgeMemoryGraph:
         kmg.add_knowledge("Data analysis", "skill", {"level": "advanced"})
 
         # Test vector search (mocked)
-        with patch.object(kmg, '_generate_embedding', return_value=[0.1, 0.2, 0.3]):
+        with patch.object(kmg, "_generate_embedding", return_value=[0.1, 0.2, 0.3]):
             results = kmg.search_knowledge("programming", top_k=2)
             assert len(results) <= 2
 
@@ -161,8 +178,7 @@ class TestMultimodalPerceptionSuite:
     async def test_process_text_input(self, mps):
         """Test processing text input."""
         input_data = PerceptionInput(
-            modality=ModalityType.TEXT,
-            data="This is a test message for analysis."
+            modality=ModalityType.TEXT, data="This is a test message for analysis."
         )
 
         result = await mps.process_input(input_data)
@@ -176,8 +192,7 @@ class TestMultimodalPerceptionSuite:
     async def test_process_image_input_unavailable(self, mps):
         """Test processing image input when OpenCV is unavailable."""
         input_data = PerceptionInput(
-            modality=ModalityType.IMAGE,
-            data=b"fake_image_data"
+            modality=ModalityType.IMAGE, data=b"fake_image_data"
         )
 
         result = await mps.process_input(input_data)
@@ -190,7 +205,7 @@ class TestMultimodalPerceptionSuite:
         """Test processing multiple modalities."""
         inputs = [
             PerceptionInput(ModalityType.TEXT, "Test text"),
-            PerceptionInput(ModalityType.AUDIO, b"fake_audio_data")
+            PerceptionInput(ModalityType.AUDIO, b"fake_audio_data"),
         ]
 
         context = await mps.process_multimodal(inputs)
@@ -234,10 +249,10 @@ class TestWorkflowAutomationComposer:
                     id="task1",
                     name="Test Task",
                     task_type="action",
-                    config={"action": "log", "message": "Hello World"}
+                    config={"action": "log", "message": "Hello World"},
                 )
             },
-            entry_points=["task1"]
+            entry_points=["task1"],
         )
 
         assert workflow_id in wac.workflows
@@ -256,17 +271,21 @@ class TestWorkflowAutomationComposer:
                     id="start",
                     name="Start Task",
                     task_type="action",
-                    config={"action": "set_variable", "variable": "status", "value": "started"},
-                    on_success=["end"]
+                    config={
+                        "action": "set_variable",
+                        "variable": "status",
+                        "value": "started",
+                    },
+                    on_success=["end"],
                 ),
                 "end": WorkflowTask(
                     id="end",
                     name="End Task",
                     task_type="action",
-                    config={"action": "log", "message": "Workflow completed"}
-                )
+                    config={"action": "log", "message": "Workflow completed"},
+                ),
             },
-            entry_points=["start"]
+            entry_points=["start"],
         )
 
         # Execute workflow
@@ -307,10 +326,10 @@ class TestWorkflowAutomationComposer:
                     task_type="approval",
                     config={"message": "Please approve", "approvers": ["user1"]},
                     requires_approval=True,
-                    approvers=["user1"]
+                    approvers=["user1"],
                 )
             },
-            entry_points=["approval_task"]
+            entry_points=["approval_task"],
         )
 
         # Should have pending approvals
@@ -342,26 +361,34 @@ class TestObservabilityAdminConsole:
     def test_metrics_collection(self, oac):
         """Test metrics collection."""
         # Add some metrics
-        oac.add_metric(Metric(
-            name="test_counter",
-            type=MetricType.COUNTER,
-            value=5,
-            labels={"test": "true"}
-        ))
+        oac.add_metric(
+            Metric(
+                name="test_counter",
+                type=MetricType.COUNTER,
+                value=5,
+                labels={"test": "true"},
+            )
+        )
 
-        oac.add_metric(Metric(
-            name="test_gauge",
-            type=MetricType.GAUGE,
-            value=42.5,
-            labels={"unit": "percent"}
-        ))
+        oac.add_metric(
+            Metric(
+                name="test_gauge",
+                type=MetricType.GAUGE,
+                value=42.5,
+                labels={"unit": "percent"},
+            )
+        )
 
         # Check metrics
         metrics = oac.metrics_collector.get_all_metrics()
         assert len(metrics) >= 2
 
-        counter_found = any(m["name"] == "test_counter" and m["value"] == 5 for m in metrics)
-        gauge_found = any(m["name"] == "test_gauge" and m["value"] == 42.5 for m in metrics)
+        counter_found = any(
+            m["name"] == "test_counter" and m["value"] == 5 for m in metrics
+        )
+        gauge_found = any(
+            m["name"] == "test_gauge" and m["value"] == 42.5 for m in metrics
+        )
 
         assert counter_found
         assert gauge_found
@@ -369,20 +396,22 @@ class TestObservabilityAdminConsole:
     def test_alert_management(self, oac):
         """Test alert management."""
         # Add alert rule
-        oac.add_alert_rule({
-            "metric": "test_gauge",
-            "condition": "gt",
-            "threshold": 50,
-            "severity": "high",
-            "name": "High Value Alert"
-        })
+        oac.add_alert_rule(
+            {
+                "metric": "test_gauge",
+                "condition": "gt",
+                "threshold": 50,
+                "severity": "high",
+                "name": "High Value Alert",
+            }
+        )
 
         # Add metric that should trigger alert
-        oac.add_metric(Metric(
-            name="test_gauge",
-            type=MetricType.GAUGE,
-            value=75  # Above threshold
-        ))
+        oac.add_metric(
+            Metric(
+                name="test_gauge", type=MetricType.GAUGE, value=75  # Above threshold
+            )
+        )
 
         # Check alerts
         oac.alert_manager.check_alerts(oac.metrics_collector)
@@ -398,13 +427,13 @@ class TestObservabilityAdminConsole:
             level=LogLevel.INFO,
             component="test_component",
             message="Test log message",
-            metadata={"test": True}
+            metadata={"test": True},
         )
 
         oac.log_event(
             level=LogLevel.ERROR,
             component="test_component",
-            message="Test error message"
+            message="Test error message",
         )
 
         # Get logs
@@ -470,12 +499,7 @@ class TestIntegration:
         wac = WorkflowAutomationComposer()
         oac = ObservabilityAdminConsole()
 
-        return {
-            "kmg": kmg,
-            "mps": mps,
-            "wac": wac,
-            "oac": oac
-        }
+        return {"kmg": kmg, "mps": mps, "wac": wac, "oac": oac}
 
     @pytest.mark.asyncio
     async def test_knowledge_driven_workflow(self, full_system):
@@ -488,7 +512,7 @@ class TestIntegration:
         process_knowledge = kmg.add_knowledge(
             content="Standard approval process requires 2 approvers",
             knowledge_type="process",
-            metadata={"domain": "approvals"}
+            metadata={"domain": "approvals"},
         )
 
         # Create workflow that uses this knowledge
@@ -502,20 +526,23 @@ class TestIntegration:
                     config={
                         "action": "set_variable",
                         "variable": "approvers_required",
-                        "value": 2  # From knowledge
+                        "value": 2,  # From knowledge
                     },
-                    on_success=["approval"]
+                    on_success=["approval"],
                 ),
                 "approval": WorkflowTask(
                     id="approval",
                     name="Approval Task",
                     task_type="approval",
-                    config={"message": "Please approve", "approvers": ["user1", "user2"]},
+                    config={
+                        "message": "Please approve",
+                        "approvers": ["user1", "user2"],
+                    },
                     requires_approval=True,
-                    approvers=["user1", "user2"]
-                )
+                    approvers=["user1", "user2"],
+                ),
             },
-            entry_points=["check_knowledge"]
+            entry_points=["check_knowledge"],
         )
 
         # Execute workflow
@@ -525,13 +552,16 @@ class TestIntegration:
         oac.log_event(
             level=LogLevel.INFO,
             component="test_integration",
-            message=f"Executed knowledge-driven workflow: {execution_id}"
+            message=f"Executed knowledge-driven workflow: {execution_id}",
         )
 
         # Verify execution
         execution = wac.get_execution_status(execution_id)
         assert execution is not None
-        assert execution.status in [WorkflowStatus.COMPLETED, WorkflowStatus.WAITING_APPROVAL]
+        assert execution.status in [
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.WAITING_APPROVAL,
+        ]
 
     @pytest.mark.asyncio
     async def test_multimodal_workflow_with_monitoring(self, full_system):
@@ -551,9 +581,9 @@ class TestIntegration:
                     config={
                         "action": "set_variable",
                         "variable": "text_processed",
-                        "value": True
+                        "value": True,
                     },
-                    on_success=["process_image"]
+                    on_success=["process_image"],
                 ),
                 "process_image": WorkflowTask(
                     id="process_image",
@@ -562,17 +592,17 @@ class TestIntegration:
                     config={
                         "action": "set_variable",
                         "variable": "image_processed",
-                        "value": True
-                    }
-                )
+                        "value": True,
+                    },
+                ),
             },
-            entry_points=["process_text"]
+            entry_points=["process_text"],
         )
 
         # Process multimodal input
         inputs = [
             PerceptionInput(ModalityType.TEXT, "Analyze this text"),
-            PerceptionInput(ModalityType.IMAGE, b"fake_image_data")
+            PerceptionInput(ModalityType.IMAGE, b"fake_image_data"),
         ]
 
         multimodal_result = await mps.process_multimodal(inputs)
@@ -582,19 +612,23 @@ class TestIntegration:
             level=LogLevel.INFO,
             component="multimodal_processor",
             message=f"Processed {len(multimodal_result.inputs)} modalities",
-            metadata={"modalities": [inp.modality.value for inp in multimodal_result.inputs]}
+            metadata={
+                "modalities": [inp.modality.value for inp in multimodal_result.inputs]
+            },
         )
 
         # Execute workflow
         execution_id = await wac.execute_workflow(workflow_id)
 
         # Add metrics
-        oac.add_metric(Metric(
-            name="multimodal_processing_completed",
-            type=MetricType.COUNTER,
-            value=1,
-            labels={"workflow_id": execution_id}
-        ))
+        oac.add_metric(
+            Metric(
+                name="multimodal_processing_completed",
+                type=MetricType.COUNTER,
+                value=1,
+                labels={"workflow_id": execution_id},
+            )
+        )
 
         # Verify everything worked
         execution = wac.get_execution_status(execution_id)
@@ -602,7 +636,9 @@ class TestIntegration:
         assert execution.status == WorkflowStatus.COMPLETED
 
         metrics = oac.metrics_collector.get_all_metrics()
-        processing_metrics = [m for m in metrics if m["name"] == "multimodal_processing_completed"]
+        processing_metrics = [
+            m for m in metrics if m["name"] == "multimodal_processing_completed"
+        ]
         assert len(processing_metrics) > 0
 
 

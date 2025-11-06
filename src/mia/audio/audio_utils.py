@@ -8,6 +8,7 @@ import numpy as np
 # Optional imports with error handling
 try:
     import sounddevice as sd
+
     HAS_SOUNDDEVICE = True
 except ImportError:
     sd = None
@@ -15,6 +16,7 @@ except ImportError:
 
 try:
     import keyboard  # type: ignore
+
     HAS_KEYBOARD = True
 except ImportError:  # pragma: no cover - optional dependency
     keyboard = None  # type: ignore
@@ -22,6 +24,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 try:
     import soundfile as sf
+
     HAS_SOUNDFILE = True
 except ImportError:
     sf = None
@@ -29,6 +32,7 @@ except ImportError:
 
 try:
     import warnings
+
     # Suppress pydub ffmpeg warning
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Couldn't find ffmpeg or avconv")
@@ -42,9 +46,10 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class AudioUtils:
     """Utility class for audio recording and playback."""
-    
+
     def __init__(self):
         self.sample_rate = 16000
         self.channels = 1
@@ -68,8 +73,10 @@ class AudioUtils:
             self.device_id = int(device_id)
         if input_threshold is not None:
             self.input_threshold = float(input_threshold)
-        
-    def record_audio(self, transcriber, chunk_length_s=2.0, stream_chunk_s=0.25, save_to_file=None) -> Generator[np.ndarray, None, None]:
+
+    def record_audio(
+        self, transcriber, chunk_length_s=2.0, stream_chunk_s=0.25, save_to_file=None
+    ) -> Generator[np.ndarray, None, None]:
         """
         Record audio using a live microphone stream.
 
@@ -82,12 +89,14 @@ class AudioUtils:
         if not HAS_SOUNDDEVICE:
             logger.error("sounddevice not available - audio recording disabled")
             logger.error("Install sounddevice: pip install sounddevice")
-            raise RuntimeError("Audio recording not available - sounddevice not installed")
-            
+            raise RuntimeError(
+                "Audio recording not available - sounddevice not installed"
+            )
+
         try:
             logger.info("Starting audio recording...")
             chunk_samples = int(chunk_length_s * self.sample_rate)
-            
+
             # Record audio
             if sd is not None:
                 audio_data = sd.rec(  # type: ignore
@@ -101,14 +110,14 @@ class AudioUtils:
             else:
                 # Fallback simulation
                 audio_data = self._create_simulated_audio(chunk_length_s).reshape(-1, 1)
-            
+
             # Flatten if multi-channel
             if audio_data.ndim > 1:
                 audio_data = audio_data.flatten()
-                
+
             logger.info(f"Recorded {len(audio_data)} samples")
             yield audio_data
-            
+
         except Exception as e:
             logger.error(f"Error recording audio: {e}")
             raise RuntimeError(f"Audio recording failed: {e}")
@@ -148,13 +157,13 @@ class AudioUtils:
     def play_audio(self, audio_data: np.ndarray, sample_rate: Optional[int] = None):
         """
         Play audio data.
-        
+
         :param audio_data: Audio data as numpy array
         :param sample_rate: Sample rate for playback
         """
         if sample_rate is None:
             sample_rate = self.sample_rate
-            
+
         try:
             if HAS_SOUNDDEVICE and sd is not None:
                 logger.info("Playing audio with sounddevice...")
@@ -170,36 +179,40 @@ class AudioUtils:
                 )
                 play(segment)
             else:
-                logger.warning("Audio playback not available (sounddevice/pydub not installed)")
-                
+                logger.warning(
+                    "Audio playback not available (sounddevice/pydub not installed)"
+                )
+
         except Exception as e:
             logger.error(f"Error playing audio: {e}")
 
-    def save_audio(self, audio_data: np.ndarray, filename: str, sample_rate: Optional[int] = None):
+    def save_audio(
+        self, audio_data: np.ndarray, filename: str, sample_rate: Optional[int] = None
+    ):
         """
         Save audio data to file.
-        
+
         :param audio_data: Audio data as numpy array
         :param filename: Output filename
         :param sample_rate: Sample rate
         """
         if sample_rate is None:
             sample_rate = self.sample_rate
-            
+
         try:
             if HAS_SOUNDFILE and sf is not None:
                 sf.write(filename, audio_data, sample_rate)  # type: ignore
                 logger.info(f"Audio saved to {filename}")
             else:
                 logger.warning("Cannot save audio (soundfile not installed)")
-                
+
         except Exception as e:
             logger.error(f"Error saving audio: {e}")
 
     def load_audio(self, filename: str) -> tuple[np.ndarray, int]:
         """
         Load audio from file.
-        
+
         :param filename: Input filename
         :return: Tuple of (audio_data, sample_rate)
         """
@@ -211,7 +224,7 @@ class AudioUtils:
             else:
                 logger.warning("Cannot load audio (soundfile not installed)")
                 return self._create_simulated_audio(2.0), self.sample_rate
-                
+
         except Exception as e:
             logger.error(f"Error loading audio: {e}")
             return self._create_simulated_audio(2.0), self.sample_rate
@@ -223,7 +236,7 @@ class AudioUtils:
             "has_soundfile": HAS_SOUNDFILE,
             "has_pydub": HAS_PYDUB,
             "sample_rate": self.sample_rate,
-            "channels": self.channels
+            "channels": self.channels,
         }
 
     def play_tts_payload(self, payload: Optional[dict]) -> bool:
@@ -233,8 +246,8 @@ class AudioUtils:
 
         audio_bytes: Optional[bytes] = None
         if isinstance(payload, dict):
-            audio_bytes = payload.get('audio_bytes') or payload.get('data')
-            if audio_bytes is None and 'audio_url' in payload:
+            audio_bytes = payload.get("audio_bytes") or payload.get("data")
+            if audio_bytes is None and "audio_url" in payload:
                 logger.info("TTS response returned URL; download not implemented")
                 return False
 
@@ -258,7 +271,9 @@ class AudioUtils:
                 if isinstance(audio_array, np.ndarray):
                     if audio_array.ndim > 1:
                         audio_array = audio_array[:, 0]
-                    self.play_audio(audio_array.astype(np.float32), sample_rate=sample_rate)
+                    self.play_audio(
+                        audio_array.astype(np.float32), sample_rate=sample_rate
+                    )
                     return True
             except Exception as exc:
                 logger.error("Failed to play TTS payload via soundfile: %s", exc)
@@ -301,17 +316,41 @@ class AudioUtils:
     ) -> Optional[np.ndarray]:
         """Capture audio chunks until silence is detected using simple VAD heuristics."""
         if audio_config is not None:
-            max_duration = float(getattr(audio_config, 'max_phrase_duration', max_duration) or max_duration)
+            max_duration = float(
+                getattr(audio_config, "max_phrase_duration", max_duration)
+                or max_duration
+            )
 
-        window_s = max(0.2, getattr(audio_config, 'vad_frame_duration_ms', 300) / 1000.0 if audio_config else 0.3)
-        silence_limit = max(0.4, getattr(audio_config, 'vad_silence_duration_ms', 600) / 1000.0 if audio_config else 0.8)
-        energy_floor = float(getattr(audio_config, 'input_threshold', self.input_threshold) or self.input_threshold)
+        window_s = max(
+            0.2,
+            (
+                getattr(audio_config, "vad_frame_duration_ms", 300) / 1000.0
+                if audio_config
+                else 0.3
+            ),
+        )
+        silence_limit = max(
+            0.4,
+            (
+                getattr(audio_config, "vad_silence_duration_ms", 600) / 1000.0
+                if audio_config
+                else 0.8
+            ),
+        )
+        energy_floor = float(
+            getattr(audio_config, "input_threshold", self.input_threshold)
+            or self.input_threshold
+        )
 
         chunks: List[np.ndarray] = []
         silence_time = 0.0
         start_time = time.time()
 
-        vad_detector = getattr(speech_processor, "_vad_detector", None) if speech_processor else None
+        vad_detector = (
+            getattr(speech_processor, "_vad_detector", None)
+            if speech_processor
+            else None
+        )
 
         while time.time() - start_time < max_duration:
             chunk = self.capture_chunk(duration_s=window_s)
@@ -321,7 +360,11 @@ class AudioUtils:
             energy = self.compute_energy(chunk)
             has_speech = energy >= energy_floor
 
-            if vad_detector and hasattr(vad_detector, "is_available") and vad_detector.is_available():
+            if (
+                vad_detector
+                and hasattr(vad_detector, "is_available")
+                and vad_detector.is_available()
+            ):
                 try:
                     has_speech = has_speech or vad_detector.has_speech(
                         self._to_pcm16(chunk),

@@ -2,20 +2,22 @@
 Performance and load testing for M.I.A components.
 Tests system behavior under various load conditions.
 """
+
 import sys
 from pathlib import Path
 
 # Add src directory to Python path for imports
 project_root = Path(__file__).parent.parent.parent
-src_dir = project_root / 'src'
+src_dir = project_root / "src"
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
-import pytest
-import time
-import threading
 import concurrent.futures
+import threading
+import time
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestPerformanceScenarios:
@@ -54,7 +56,7 @@ class TestPerformanceScenarios:
 
         # Check cache stats after load
         stats = cache_manager.get_stats()
-        assert stats['memory_cache']['size'] >= num_threads * operations_per_thread
+        assert stats["memory_cache"]["size"] >= num_threads * operations_per_thread
 
     def test_memory_scaling(self, cache_manager, performance_monitor):
         """Test how memory usage scales with data size."""
@@ -146,7 +148,9 @@ class TestPerformanceScenarios:
         summary = performance_monitor.get_performance_summary()
         assert summary["metrics_count"] >= 1
 
-    def test_cache_eviction_under_memory_pressure(self, cache_manager, performance_monitor):
+    def test_cache_eviction_under_memory_pressure(
+        self, cache_manager, performance_monitor
+    ):
         """Test cache behavior under memory pressure."""
         performance_monitor.start_monitoring()
 
@@ -160,7 +164,7 @@ class TestPerformanceScenarios:
 
         # Check initial cache size
         initial_stats = cache_manager.get_stats()
-        initial_size = initial_stats['memory_cache']['size']
+        initial_size = initial_stats["memory_cache"]["size"]
 
         # Add more entries to trigger eviction
         for i in range(num_entries, num_entries + 50):
@@ -169,7 +173,7 @@ class TestPerformanceScenarios:
 
         # Check cache size after potential eviction
         final_stats = cache_manager.get_stats()
-        final_size = final_stats['memory_cache']['size']
+        final_size = final_stats["memory_cache"]["size"]
 
         # Cache should have evicted some entries if under memory pressure
         # (This depends on LRU cache implementation)
@@ -190,7 +194,9 @@ class TestPerformanceScenarios:
         assert summary["metrics_count"] >= 1
 
     @pytest.mark.slow
-    def test_sustained_load_simulation(self, cache_manager, performance_monitor, resource_manager):
+    def test_sustained_load_simulation(
+        self, cache_manager, performance_monitor, resource_manager
+    ):
         """Test sustained load over an extended period."""
         performance_monitor.start_monitoring()
 
@@ -222,7 +228,7 @@ class TestPerformanceScenarios:
 
         # Verify cache has content
         stats = cache_manager.get_stats()
-        assert stats['memory_cache']['size'] > 0
+        assert stats["memory_cache"]["size"] > 0
 
         # Verify resource manager is still functional
         assert resource_manager.max_memory_bytes > 0
@@ -259,7 +265,7 @@ class TestPerformanceScenarios:
 
         # Some cleanup should have occurred
         # (Exact behavior depends on cache implementation)
-        assert stats['memory_cache']['size'] >= 0
+        assert stats["memory_cache"]["size"] >= 0
 
         performance_monitor.stop_monitoring()
 

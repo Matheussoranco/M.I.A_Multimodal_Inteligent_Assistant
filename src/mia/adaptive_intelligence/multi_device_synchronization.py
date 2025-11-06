@@ -1,14 +1,14 @@
-import logging
 import asyncio
-import json
+import base64
 import hashlib
+import json
+import logging
 import threading
+import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable, Set, Tuple, Union
 from datetime import datetime, timedelta
 from enum import Enum
-import uuid
-import base64
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from ..providers import provider_registry
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class SyncDirection(Enum):
     """Directions for data synchronization."""
+
     UPLOAD = "upload"  # Device to cloud
     DOWNLOAD = "download"  # Cloud to device
     BIDIRECTIONAL = "bidirectional"  # Both ways
@@ -24,6 +25,7 @@ class SyncDirection(Enum):
 
 class SyncPriority(Enum):
     """Priority levels for synchronization."""
+
     CRITICAL = "critical"
     HIGH = "high"
     NORMAL = "normal"
@@ -33,6 +35,7 @@ class SyncPriority(Enum):
 
 class DeviceType(Enum):
     """Types of devices that can be synchronized."""
+
     DESKTOP = "desktop"
     MOBILE = "mobile"
     TABLET = "tablet"
@@ -43,6 +46,7 @@ class DeviceType(Enum):
 
 class SyncStatus(Enum):
     """Status of synchronization operations."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -53,6 +57,7 @@ class SyncStatus(Enum):
 @dataclass
 class Device:
     """Represents a synchronized device."""
+
     id: str
     user_id: str
     device_type: DeviceType
@@ -69,6 +74,7 @@ class Device:
 @dataclass
 class SyncData:
     """Represents data to be synchronized."""
+
     id: str
     user_id: str
     data_type: str  # Type of data (profile, memory, settings, etc.)
@@ -86,6 +92,7 @@ class SyncData:
 @dataclass
 class SyncOperation:
     """Represents a synchronization operation."""
+
     id: str
     user_id: str
     source_device_id: str
@@ -106,6 +113,7 @@ class SyncOperation:
 @dataclass
 class SyncConflict:
     """Represents a synchronization conflict."""
+
     id: str
     user_id: str
     data_id: str
@@ -150,10 +158,14 @@ class DeviceManager:
 
             self.online_devices.add(device_id)
 
-            logger.info(f"Registered device: {device_id} ({device.device_name}) for user {device.user_id}")
+            logger.info(
+                f"Registered device: {device_id} ({device.device_name}) for user {device.user_id}"
+            )
             return device_id
 
-    def update_device_status(self, device_id: str, is_online: bool, metadata: Optional[Dict[str, Any]] = None):
+    def update_device_status(
+        self, device_id: str, is_online: bool, metadata: Optional[Dict[str, Any]] = None
+    ):
         """Update device status."""
         with self._lock:
             if device_id in self.devices:
@@ -169,7 +181,9 @@ class DeviceManager:
                 else:
                     self.online_devices.discard(device_id)
 
-                logger.debug(f"Updated device status: {device_id} - online: {is_online}")
+                logger.debug(
+                    f"Updated device status: {device_id} - online: {is_online}"
+                )
 
     def get_device(self, device_id: str) -> Optional[Device]:
         """Get device information."""
@@ -214,13 +228,18 @@ class DeviceManager:
             offline_devices = []
 
             for device_id, device in self.devices.items():
-                if device.is_online and current_time - device.last_seen > self.heartbeat_timeout:
+                if (
+                    device.is_online
+                    and current_time - device.last_seen > self.heartbeat_timeout
+                ):
                     device.is_online = False
                     self.online_devices.discard(device_id)
                     offline_devices.append(device_id)
 
             if offline_devices:
-                logger.info(f"Marked {len(offline_devices)} devices as offline due to heartbeat timeout")
+                logger.info(
+                    f"Marked {len(offline_devices)} devices as offline due to heartbeat timeout"
+                )
 
             return offline_devices
 
@@ -234,7 +253,9 @@ class DeviceManager:
             platforms = {}
 
             for device in self.devices.values():
-                device_types[device.device_type.value] = device_types.get(device.device_type.value, 0) + 1
+                device_types[device.device_type.value] = (
+                    device_types.get(device.device_type.value, 0) + 1
+                )
                 platforms[device.platform] = platforms.get(device.platform, 0) + 1
 
             return {
@@ -242,7 +263,7 @@ class DeviceManager:
                 "online_devices": online_devices,
                 "offline_devices": total_devices - online_devices,
                 "device_types": device_types,
-                "platforms": platforms
+                "platforms": platforms,
             }
 
 
@@ -254,8 +275,12 @@ class SyncDataStore:
     """
 
     def __init__(self):
-        self.data_store: Dict[str, Dict[str, SyncData]] = {}  # user_id -> data_id -> data
-        self.data_versions: Dict[str, Dict[str, List[SyncData]]] = {}  # user_id -> data_id -> versions
+        self.data_store: Dict[str, Dict[str, SyncData]] = (
+            {}
+        )  # user_id -> data_id -> data
+        self.data_versions: Dict[str, Dict[str, List[SyncData]]] = (
+            {}
+        )  # user_id -> data_id -> versions
         self.data_checksums: Dict[str, str] = {}  # data_id -> checksum
         self._lock = threading.RLock()
 
@@ -287,8 +312,13 @@ class SyncDataStore:
             self.data_versions[data.user_id][data_id].append(data)
 
             # Keep only recent versions
-            if len(self.data_versions[data.user_id][data_id]) > self.max_versions_per_data:
-                self.data_versions[data.user_id][data_id] = self.data_versions[data.user_id][data_id][-self.max_versions_per_data:]
+            if (
+                len(self.data_versions[data.user_id][data_id])
+                > self.max_versions_per_data
+            ):
+                self.data_versions[data.user_id][data_id] = self.data_versions[
+                    data.user_id
+                ][data_id][-self.max_versions_per_data :]
 
             # Update checksum cache
             self.data_checksums[data_id] = data.checksum
@@ -302,7 +332,9 @@ class SyncDataStore:
             user_data = self.data_store.get(user_id, {})
             return user_data.get(data_id)
 
-    def get_user_data(self, user_id: str, data_type: Optional[str] = None) -> List[SyncData]:
+    def get_user_data(
+        self, user_id: str, data_type: Optional[str] = None
+    ) -> List[SyncData]:
         """Get all data for a user."""
         with self._lock:
             user_data = self.data_store.get(user_id, {})
@@ -314,7 +346,13 @@ class SyncDataStore:
 
             return data_list
 
-    def update_data(self, user_id: str, data_id: str, new_content: Any, source_device_id: Optional[str] = None) -> Optional[SyncData]:
+    def update_data(
+        self,
+        user_id: str,
+        data_id: str,
+        new_content: Any,
+        source_device_id: Optional[str] = None,
+    ) -> Optional[SyncData]:
         """Update synchronized data."""
         with self._lock:
             existing_data = self.get_data(user_id, data_id)
@@ -331,7 +369,7 @@ class SyncDataStore:
                 source_device_id=source_device_id,
                 tags=existing_data.tags.copy(),
                 priority=existing_data.priority,
-                ttl=existing_data.ttl
+                ttl=existing_data.ttl,
             )
 
             self.store_data(new_version)
@@ -340,7 +378,10 @@ class SyncDataStore:
     def delete_data(self, user_id: str, data_id: str) -> bool:
         """Delete synchronized data."""
         with self._lock:
-            if user_id not in self.data_store or data_id not in self.data_store[user_id]:
+            if (
+                user_id not in self.data_store
+                or data_id not in self.data_store[user_id]
+            ):
                 return False
 
             del self.data_store[user_id][data_id]
@@ -356,7 +397,9 @@ class SyncDataStore:
             logger.debug(f"Deleted sync data: {data_id} for user {user_id}")
             return True
 
-    def detect_conflicts(self, user_id: str, data_id: str, new_data: SyncData) -> Optional[SyncConflict]:
+    def detect_conflicts(
+        self, user_id: str, data_id: str, new_data: SyncData
+    ) -> Optional[SyncConflict]:
         """Detect conflicts in data synchronization."""
         with self._lock:
             existing_data = self.get_data(user_id, data_id)
@@ -375,15 +418,19 @@ class SyncDataStore:
                         id=str(uuid.uuid4()),
                         user_id=user_id,
                         data_id=data_id,
-                        conflicting_versions=[existing_data, new_data]
+                        conflicting_versions=[existing_data, new_data],
                     )
 
-                    logger.warning(f"Sync conflict detected: {data_id} for user {user_id}")
+                    logger.warning(
+                        f"Sync conflict detected: {data_id} for user {user_id}"
+                    )
                     return conflict
 
             return None
 
-    def resolve_conflict(self, conflict: SyncConflict, resolution_strategy: str, resolved_content: Any) -> SyncData:
+    def resolve_conflict(
+        self, conflict: SyncConflict, resolution_strategy: str, resolved_content: Any
+    ) -> SyncData:
         """Resolve a synchronization conflict."""
         with self._lock:
             # Create resolved version
@@ -393,7 +440,7 @@ class SyncDataStore:
                 data_type=conflict.conflicting_versions[0].data_type,
                 content=resolved_content,
                 version=max(v.version for v in conflict.conflicting_versions) + 1,
-                tags=conflict.conflicting_versions[0].tags.copy()
+                tags=conflict.conflicting_versions[0].tags.copy(),
             )
 
             # Store resolved data
@@ -404,13 +451,18 @@ class SyncDataStore:
             conflict.resolution_strategy = resolution_strategy
             conflict.resolved_version = resolved_data
 
-            logger.info(f"Resolved sync conflict: {conflict.id} using strategy {resolution_strategy}")
+            logger.info(
+                f"Resolved sync conflict: {conflict.id} using strategy {resolution_strategy}"
+            )
             return resolved_data
 
     def get_data_versions(self, user_id: str, data_id: str) -> List[SyncData]:
         """Get version history for data."""
         with self._lock:
-            if user_id not in self.data_versions or data_id not in self.data_versions[user_id]:
+            if (
+                user_id not in self.data_versions
+                or data_id not in self.data_versions[user_id]
+            ):
                 return []
 
             return self.data_versions[user_id][data_id].copy()
@@ -441,9 +493,12 @@ class SyncDataStore:
         """Get storage statistics."""
         with self._lock:
             total_users = len(self.data_store)
-            total_data_items = sum(len(user_data) for user_data in self.data_store.values())
+            total_data_items = sum(
+                len(user_data) for user_data in self.data_store.values()
+            )
             total_versions = sum(
-                len(versions) for user_versions in self.data_versions.values()
+                len(versions)
+                for user_versions in self.data_versions.values()
                 for versions in user_versions.values()
             )
 
@@ -457,7 +512,7 @@ class SyncDataStore:
                 "total_data_items": total_data_items,
                 "total_versions": total_versions,
                 "data_types": data_types,
-                "avg_versions_per_item": total_versions / max(total_data_items, 1)
+                "avg_versions_per_item": total_versions / max(total_data_items, 1),
             }
 
 
@@ -496,7 +551,9 @@ class SyncCoordinator:
             # Add to async queue
             asyncio.create_task(self.pending_operations.put(operation))
 
-            logger.info(f"Queued sync operation: {operation_id} for user {operation.user_id}")
+            logger.info(
+                f"Queued sync operation: {operation_id} for user {operation.user_id}"
+            )
             return operation_id
 
     async def process_sync_operations(self):
@@ -534,9 +591,13 @@ class SyncCoordinator:
                         operation.retry_count += 1
                         operation.status = SyncStatus.PENDING
                         await self.pending_operations.put(operation)
-                        logger.warning(f"Retrying sync operation {operation.id} (attempt {operation.retry_count})")
+                        logger.warning(
+                            f"Retrying sync operation {operation.id} (attempt {operation.retry_count})"
+                        )
                     else:
-                        logger.error(f"Sync operation failed permanently: {operation.id} - {exc}")
+                        logger.error(
+                            f"Sync operation failed permanently: {operation.id} - {exc}"
+                        )
 
                 finally:
                     self.active_operations.discard(operation.id)
@@ -549,7 +610,9 @@ class SyncCoordinator:
 
     async def _execute_sync_operation(self, operation: SyncOperation):
         """Execute a synchronization operation."""
-        logger.info(f"Executing sync operation: {operation.id} ({operation.direction.value})")
+        logger.info(
+            f"Executing sync operation: {operation.id} ({operation.direction.value})"
+        )
 
         if operation.direction == SyncDirection.UPLOAD:
             await self._execute_upload_sync(operation)
@@ -591,7 +654,9 @@ class SyncCoordinator:
         await self._execute_upload_sync(operation)
         await self._execute_download_sync(operation)
 
-    async def _handle_sync_conflict(self, conflict: SyncConflict, operation: SyncOperation):
+    async def _handle_sync_conflict(
+        self, conflict: SyncConflict, operation: SyncOperation
+    ):
         """Handle a synchronization conflict."""
         # Store conflict for resolution
         self.conflicts[conflict.id] = conflict
@@ -615,12 +680,15 @@ class SyncCoordinator:
         """Get pending conflicts for a user."""
         with self._lock:
             user_conflicts = [
-                conflict for conflict in self.conflicts.values()
+                conflict
+                for conflict in self.conflicts.values()
                 if conflict.user_id == user_id and not conflict.resolved
             ]
             return user_conflicts
 
-    def resolve_conflict_manual(self, conflict_id: str, resolution_strategy: str, resolved_content: Any) -> bool:
+    def resolve_conflict_manual(
+        self, conflict_id: str, resolution_strategy: str, resolved_content: Any
+    ) -> bool:
         """Manually resolve a conflict."""
         with self._lock:
             if conflict_id not in self.conflicts:
@@ -628,7 +696,9 @@ class SyncCoordinator:
 
             conflict = self.conflicts[conflict_id]
 
-            self.data_store.resolve_conflict(conflict, resolution_strategy, resolved_content)
+            self.data_store.resolve_conflict(
+                conflict, resolution_strategy, resolved_content
+            )
 
             return True
 
@@ -636,14 +706,20 @@ class SyncCoordinator:
         """Get synchronization statistics."""
         with self._lock:
             total_operations = len(self.sync_operations)
-            completed_operations = len([
-                op for op in self.sync_operations.values()
-                if op.status == SyncStatus.COMPLETED
-            ])
-            failed_operations = len([
-                op for op in self.sync_operations.values()
-                if op.status == SyncStatus.FAILED
-            ])
+            completed_operations = len(
+                [
+                    op
+                    for op in self.sync_operations.values()
+                    if op.status == SyncStatus.COMPLETED
+                ]
+            )
+            failed_operations = len(
+                [
+                    op
+                    for op in self.sync_operations.values()
+                    if op.status == SyncStatus.FAILED
+                ]
+            )
             pending_operations = self.pending_operations.qsize()
             active_operations = len(self.active_operations)
 
@@ -653,7 +729,9 @@ class SyncCoordinator:
                 "failed_operations": failed_operations,
                 "pending_operations": pending_operations,
                 "active_operations": active_operations,
-                "pending_conflicts": len([c for c in self.conflicts.values() if not c.resolved])
+                "pending_conflicts": len(
+                    [c for c in self.conflicts.values() if not c.resolved]
+                ),
             }
 
 
@@ -688,7 +766,9 @@ class SyncConnectors:
         # Return generic connector
         return GenericSyncConnector(device)
 
-    async def sync_device(self, device: Device, operation: SyncOperation) -> Dict[str, Any]:
+    async def sync_device(
+        self, device: Device, operation: SyncOperation
+    ) -> Dict[str, Any]:
         """Synchronize data with a specific device."""
         connector = self.get_connector(device)
 
@@ -719,7 +799,7 @@ class GenericSyncConnector:
             "operation_id": operation.id,
             "status": "completed",
             "bytes_transferred": 1024,  # Simulated
-            "items_synced": len(operation.data_items)
+            "items_synced": len(operation.data_items),
         }
 
 
@@ -730,7 +810,12 @@ class SyncDashboard:
     Provides insights and controls for sync operations.
     """
 
-    def __init__(self, device_manager: DeviceManager, coordinator: SyncCoordinator, data_store: SyncDataStore):
+    def __init__(
+        self,
+        device_manager: DeviceManager,
+        coordinator: SyncCoordinator,
+        data_store: SyncDataStore,
+    ):
         self.device_manager = device_manager
         self.coordinator = coordinator
         self.data_store = data_store
@@ -755,31 +840,30 @@ class SyncDashboard:
                         "name": d.device_name,
                         "type": d.device_type.value,
                         "online": d.is_online,
-                        "last_seen": d.last_seen.isoformat()
-                    } for d in user_devices
+                        "last_seen": d.last_seen.isoformat(),
+                    }
+                    for d in user_devices
                 ],
                 "data_items": len(user_sync_data),
                 "pending_conflicts": len(pending_conflicts),
-                "storage_used": len(user_sync_data) * 1024  # Rough estimate
+                "storage_used": len(user_sync_data) * 1024,  # Rough estimate
             }
 
         return {
-            "global_stats": {
-                **device_stats,
-                **sync_stats,
-                **storage_stats
-            },
+            "global_stats": {**device_stats, **sync_stats, **storage_stats},
             "user_data": user_data,
             "recent_activity": self._get_recent_activity(),
-            "health_status": self._get_health_status()
+            "health_status": self._get_health_status(),
         }
 
     def _get_recent_activity(self) -> List[Dict[str, Any]]:
         """Get recent synchronization activity."""
         # Get recent operations
         recent_ops = [
-            op for op in self.coordinator.sync_operations.values()
-            if op.completed_at and datetime.now() - op.completed_at < timedelta(hours=24)
+            op
+            for op in self.coordinator.sync_operations.values()
+            if op.completed_at
+            and datetime.now() - op.completed_at < timedelta(hours=24)
         ]
 
         recent_ops.sort(key=lambda op: op.completed_at or datetime.min, reverse=True)
@@ -790,9 +874,12 @@ class SyncDashboard:
                 "user_id": op.user_id,
                 "direction": op.direction.value,
                 "status": op.status.value,
-                "completed_at": op.completed_at.isoformat() if op.completed_at else None,
-                "items_synced": len(op.data_items)
-            } for op in recent_ops[:10]
+                "completed_at": (
+                    op.completed_at.isoformat() if op.completed_at else None
+                ),
+                "items_synced": len(op.data_items),
+            }
+            for op in recent_ops[:10]
         ]
 
     def _get_health_status(self) -> Dict[str, Any]:
@@ -800,8 +887,12 @@ class SyncDashboard:
         sync_stats = self.coordinator.get_sync_stats()
 
         # Calculate health score
-        success_rate = sync_stats["completed_operations"] / max(sync_stats["total_operations"], 1)
-        failure_rate = sync_stats["failed_operations"] / max(sync_stats["total_operations"], 1)
+        success_rate = sync_stats["completed_operations"] / max(
+            sync_stats["total_operations"], 1
+        )
+        failure_rate = sync_stats["failed_operations"] / max(
+            sync_stats["total_operations"], 1
+        )
 
         health_score = (success_rate * 0.7 + (1 - failure_rate) * 0.3) * 100
 
@@ -817,7 +908,7 @@ class SyncDashboard:
             "success_rate": success_rate,
             "failure_rate": failure_rate,
             "pending_operations": sync_stats["pending_operations"],
-            "active_operations": sync_stats["active_operations"]
+            "active_operations": sync_stats["active_operations"],
         }
 
 
@@ -834,7 +925,9 @@ class MultiDeviceSynchronizationSystem:
         self.data_store = SyncDataStore()
         self.coordinator = SyncCoordinator(self.device_manager, self.data_store)
         self.connectors = SyncConnectors()
-        self.dashboard = SyncDashboard(self.device_manager, self.coordinator, self.data_store)
+        self.dashboard = SyncDashboard(
+            self.device_manager, self.coordinator, self.data_store
+        )
 
         # Background tasks
         self.sync_processing_task: Optional[asyncio.Task] = None
@@ -846,7 +939,9 @@ class MultiDeviceSynchronizationSystem:
     async def start(self):
         """Start the synchronization system."""
         # Start background tasks
-        self.sync_processing_task = asyncio.create_task(self.coordinator.process_sync_operations())
+        self.sync_processing_task = asyncio.create_task(
+            self.coordinator.process_sync_operations()
+        )
         self.device_cleanup_task = asyncio.create_task(self._device_cleanup_loop())
         self.data_cleanup_task = asyncio.create_task(self._data_cleanup_loop())
 
@@ -904,12 +999,17 @@ class MultiDeviceSynchronizationSystem:
             device_name=device_info.get("device_name", "Unknown Device"),
             platform=device_info.get("platform", "unknown"),
             app_version=device_info.get("app_version", "1.0.0"),
-            capabilities=set(device_info.get("capabilities", []))
+            capabilities=set(device_info.get("capabilities", [])),
         )
 
         return self.device_manager.register_device(device)
 
-    def sync_data(self, user_id: str, data: Dict[str, Any], direction: SyncDirection = SyncDirection.BIDIRECTIONAL) -> str:
+    def sync_data(
+        self,
+        user_id: str,
+        data: Dict[str, Any],
+        direction: SyncDirection = SyncDirection.BIDIRECTIONAL,
+    ) -> str:
         """Synchronize data across devices."""
         # Create sync data
         sync_data = SyncData(
@@ -920,7 +1020,7 @@ class MultiDeviceSynchronizationSystem:
             source_device_id=data.get("source_device_id"),
             tags=set(data.get("tags", [])),
             priority=SyncPriority(data.get("priority", "normal")),
-            ttl=data.get("ttl")  # Should be timedelta if provided
+            ttl=data.get("ttl"),  # Should be timedelta if provided
         )
 
         # Get user's devices
@@ -935,7 +1035,7 @@ class MultiDeviceSynchronizationSystem:
             target_device_ids=target_device_ids,
             data_items=[sync_data],
             direction=direction,
-            priority=sync_data.priority
+            priority=sync_data.priority,
         )
 
         return self.coordinator.queue_sync_operation(operation)
@@ -950,9 +1050,13 @@ class MultiDeviceSynchronizationSystem:
             "id": operation.id,
             "status": operation.status.value,
             "progress": operation.progress,
-            "started_at": operation.started_at.isoformat() if operation.started_at else None,
-            "completed_at": operation.completed_at.isoformat() if operation.completed_at else None,
-            "error_message": operation.error_message
+            "started_at": (
+                operation.started_at.isoformat() if operation.started_at else None
+            ),
+            "completed_at": (
+                operation.completed_at.isoformat() if operation.completed_at else None
+            ),
+            "error_message": operation.error_message,
         }
 
     def get_user_devices(self, user_id: str) -> List[Dict[str, Any]]:
@@ -967,11 +1071,14 @@ class MultiDeviceSynchronizationSystem:
                 "platform": d.platform,
                 "online": d.is_online,
                 "last_seen": d.last_seen.isoformat(),
-                "capabilities": list(d.capabilities)
-            } for d in devices
+                "capabilities": list(d.capabilities),
+            }
+            for d in devices
         ]
 
-    def get_user_data(self, user_id: str, data_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_user_data(
+        self, user_id: str, data_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get synchronized data for a user."""
         data_items = self.data_store.get_user_data(user_id, data_type)
 
@@ -983,16 +1090,15 @@ class MultiDeviceSynchronizationSystem:
                 "version": d.version,
                 "modified_at": d.modified_at.isoformat(),
                 "source_device": d.source_device_id,
-                "tags": list(d.tags)
-            } for d in data_items
+                "tags": list(d.tags),
+            }
+            for d in data_items
         ]
 
     def resolve_conflict(self, conflict_id: str, resolution: Dict[str, Any]) -> bool:
         """Resolve a synchronization conflict."""
         return self.coordinator.resolve_conflict_manual(
-            conflict_id,
-            resolution.get("strategy", "manual"),
-            resolution.get("content")
+            conflict_id, resolution.get("strategy", "manual"), resolution.get("content")
         )
 
     def get_dashboard(self, user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -1002,9 +1108,7 @@ class MultiDeviceSynchronizationSystem:
     def update_device_status(self, device_id: str, status: Dict[str, Any]):
         """Update device status."""
         self.device_manager.update_device_status(
-            device_id,
-            status.get("online", True),
-            status.get("metadata", {})
+            device_id, status.get("online", True), status.get("metadata", {})
         )
 
     def unregister_device(self, device_id: str) -> bool:
@@ -1021,7 +1125,7 @@ class MultiDeviceSynchronizationSystem:
             "devices": device_stats,
             "sync_operations": sync_stats,
             "storage": storage_stats,
-            "system_health": self.dashboard._get_health_status()
+            "system_health": self.dashboard._get_health_status(),
         }
 
 
@@ -1032,7 +1136,9 @@ def create_multi_device_sync_system(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'adaptive_intelligence', 'multi_device_sync',
-    'mia.adaptive_intelligence.multi_device_synchronization', 'create_multi_device_sync_system',
-    default=True
+    "adaptive_intelligence",
+    "multi_device_sync",
+    "mia.adaptive_intelligence.multi_device_synchronization",
+    "create_multi_device_sync_system",
+    default=True,
 )

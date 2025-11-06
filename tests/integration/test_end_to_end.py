@@ -2,17 +2,20 @@
 End-to-end tests for complete M.I.A user workflows.
 Tests full integration scenarios with minimal mocking.
 """
-import pytest
-import time
+
 import os
+import time
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestEndToEndWorkflows:
     """Test complete end-to-end user workflows."""
 
-    def test_basic_assistant_workflow(self, config_manager, cache_manager,
-                                     performance_monitor, resource_manager):
+    def test_basic_assistant_workflow(
+        self, config_manager, cache_manager, performance_monitor, resource_manager
+    ):
         """Test a basic assistant workflow from start to finish."""
         performance_monitor.start_monitoring()
 
@@ -21,7 +24,7 @@ class TestEndToEndWorkflows:
 
         # 1. Configuration is loaded
         assert config_manager.config is not None
-        assert config_manager.config.llm.provider == 'openai'
+        assert config_manager.config.llm.provider == "openai"
 
         # 2. Cache is checked for previous similar queries
         cache_key = f"query_{hash(user_query)}"
@@ -34,7 +37,7 @@ class TestEndToEndWorkflows:
         # 4. Simulate processing the query (mock the LLM call)
         mock_response = "The capital of France is Paris."
 
-        with patch('mia.llm.llm_manager.LLMManager') as MockLLM:
+        with patch("mia.llm.llm_manager.LLMManager") as MockLLM:
             mock_llm = MockLLM.return_value
             mock_llm.generate.return_value = mock_response
 
@@ -59,8 +62,9 @@ class TestEndToEndWorkflows:
         summary = performance_monitor.get_performance_summary()
         assert summary["metrics_count"] >= 1
 
-    def test_multimodal_workflow(self, config_manager, cache_manager,
-                                performance_monitor):
+    def test_multimodal_workflow(
+        self, config_manager, cache_manager, performance_monitor
+    ):
         """Test multimodal processing workflow."""
         performance_monitor.start_monitoring()
 
@@ -78,21 +82,21 @@ class TestEndToEndWorkflows:
         assert cached_result is None
 
         # 3. Simulate multimodal processing
-        with patch('mia.multimodal.processor.MultimodalProcessor') as MockProcessor:
+        with patch("mia.multimodal.processor.MultimodalProcessor") as MockProcessor:
             mock_processor = MockProcessor.return_value
 
             # Mock image processing
             mock_processor.process_image.return_value = {
-                'description': 'A beautiful landscape with mountains',
-                'objects': ['mountain', 'sky', 'trees'],
-                'dominant_color': 'blue'
+                "description": "A beautiful landscape with mountains",
+                "objects": ["mountain", "sky", "trees"],
+                "dominant_color": "blue",
             }
 
             # Mock text processing
             mock_processor.process_text.return_value = {
-                'sentiment': 'neutral',
-                'entities': ['image'],
-                'language': 'en'
+                "sentiment": "neutral",
+                "entities": ["image"],
+                "language": "en",
             }
 
             # Simulate processing
@@ -101,18 +105,18 @@ class TestEndToEndWorkflows:
 
             # 4. Combine results
             combined_result = {
-                'image_analysis': image_result,
-                'text_analysis': text_result,
-                'integrated_response': f"Based on the image analysis: {image_result['description']}"
+                "image_analysis": image_result,
+                "text_analysis": text_result,
+                "integrated_response": f"Based on the image analysis: {image_result['description']}",
             }
 
             # 5. Cache the combined result
             cache_manager.put(multimodal_key, combined_result, ttl=1800)
 
             # 6. Verify results
-            assert 'mountain' in image_result['objects']
-            assert text_result['language'] == 'en'
-            assert 'image analysis' in combined_result['integrated_response'].lower()
+            assert "mountain" in image_result["objects"]
+            assert text_result["language"] == "en"
+            assert "image analysis" in combined_result["integrated_response"].lower()
 
         # 7. Verify caching
         cached_result = cache_manager.get(multimodal_key)
@@ -157,16 +161,16 @@ class TestEndToEndWorkflows:
         # 4. Test conversation summary caching
         summary_key = f"{conversation_id}_summary"
         summary = {
-            'message_count': len(messages),
-            'topics': ['greeting', 'weather'],
-            'last_updated': time.time()
+            "message_count": len(messages),
+            "topics": ["greeting", "weather"],
+            "last_updated": time.time(),
         }
         cache_manager.put(summary_key, summary, ttl=3600)
 
         # 5. Retrieve and verify summary
         cached_summary = cache_manager.get(summary_key)
         assert cached_summary == summary
-        assert cached_summary['message_count'] == 3
+        assert cached_summary["message_count"] == 3
 
         performance_monitor.stop_monitoring()
 
@@ -174,8 +178,9 @@ class TestEndToEndWorkflows:
         summary_stats = performance_monitor.get_performance_summary()
         assert summary_stats["metrics_count"] >= 1
 
-    def test_error_recovery_workflow(self, config_manager, cache_manager,
-                                   performance_monitor):
+    def test_error_recovery_workflow(
+        self, config_manager, cache_manager, performance_monitor
+    ):
         """Test error recovery and fallback workflows."""
         performance_monitor.start_monitoring()
 
@@ -186,7 +191,7 @@ class TestEndToEndWorkflows:
         primary_success = False
         try:
             # Simulate primary LLM failure
-            with patch('mia.llm.llm_manager.LLMManager') as MockLLM:
+            with patch("mia.llm.llm_manager.LLMManager") as MockLLM:
                 mock_llm = MockLLM.return_value
                 mock_llm.generate.side_effect = Exception("API rate limit exceeded")
 
@@ -247,7 +252,7 @@ class TestEndToEndWorkflows:
 
         # 4. Verify cache performance under load
         stats = cache_manager.get_stats()
-        assert stats['memory_cache']['size'] > 0
+        assert stats["memory_cache"]["size"] > 0
 
         performance_monitor.stop_monitoring()
 

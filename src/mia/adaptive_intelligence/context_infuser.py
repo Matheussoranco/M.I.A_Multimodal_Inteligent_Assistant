@@ -2,14 +2,14 @@
 Context Infusion Pipeline
 """
 
-import logging
-import json
 import hashlib
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Tuple, Set
-from datetime import datetime, timedelta
-from collections import defaultdict, deque
+import json
+import logging
 import threading
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..providers import provider_registry
 
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ContextElement:
     """Represents a single context element."""
+
     id: str
     content: Any
     source: str
@@ -40,13 +41,14 @@ class ContextElement:
             "timestamp": self.timestamp.isoformat(),
             "relevance_score": self.relevance_score,
             "metadata": self.metadata,
-            "expires_at": self.expires_at.isoformat() if self.expires_at else None
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
 
 
 @dataclass
 class UserProfile:
     """User profile with preferences and history."""
+
     user_id: str
     preferences: Dict[str, Any] = field(default_factory=dict)
     behavior_patterns: Dict[str, Any] = field(default_factory=dict)
@@ -71,6 +73,7 @@ class UserProfile:
 @dataclass
 class ConversationContext:
     """Conversation-specific context."""
+
     conversation_id: str
     messages: List[Dict[str, Any]] = field(default_factory=list)
     topics: Set[str] = field(default_factory=set)
@@ -104,6 +107,7 @@ class ConversationContext:
 @dataclass
 class EnvironmentalContext:
     """Environmental factors affecting context."""
+
     location: Optional[Dict[str, Any]] = None
     time_of_day: str = ""
     day_of_week: str = ""
@@ -135,7 +139,7 @@ class ContextInfuser:
         max_context_elements: int = 50,
         context_ttl_hours: int = 24,
         relevance_threshold: float = 0.3,
-        enable_learning: bool = True
+        enable_learning: bool = True,
     ):
         self.config_manager = config_manager
         self.max_context_elements = max_context_elements
@@ -160,7 +164,7 @@ class ContextInfuser:
             "conversation_history": 0.4,
             "user_profile": 0.3,
             "environmental": 0.1,
-            "knowledge_graph": 0.2
+            "knowledge_graph": 0.2,
         }
 
         # Initialize context sources
@@ -168,17 +172,20 @@ class ContextInfuser:
             "conversation": self._extract_conversation_context,
             "user_profile": self._extract_user_profile_context,
             "environmental": self._extract_environmental_context,
-            "knowledge": self._extract_knowledge_context
+            "knowledge": self._extract_knowledge_context,
         }
 
-        logger.info("Context Infuser initialized with %d context sources", len(self.context_sources))
+        logger.info(
+            "Context Infuser initialized with %d context sources",
+            len(self.context_sources),
+        )
 
     def infuse_context(
         self,
         query: str,
         user_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
-        modality_context: Optional[Dict[str, Any]] = None
+        modality_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Infuse context into a query for enhanced AI processing.
@@ -205,7 +212,9 @@ class ContextInfuser:
                         query, user_id, conversation_id, modality_context
                     )
                 except Exception as exc:
-                    logger.debug("Context extraction failed for %s: %s", source_name, exc)
+                    logger.debug(
+                        "Context extraction failed for %s: %s", source_name, exc
+                    )
                     context_components[source_name] = {}
 
             # Fuse contexts with adaptive weighting
@@ -223,7 +232,9 @@ class ContextInfuser:
 
             return {
                 "original_query": query,
-                "enhanced_query": self._enhance_query_with_context(query, relevant_context),
+                "enhanced_query": self._enhance_query_with_context(
+                    query, relevant_context
+                ),
                 "context_components": context_components,
                 "fused_context": fused_context,
                 "relevant_context": relevant_context,
@@ -231,8 +242,8 @@ class ContextInfuser:
                     "sources_used": list(context_components.keys()),
                     "total_elements": len(relevant_context.get("elements", [])),
                     "relevance_threshold": self.relevance_threshold,
-                    "timestamp": datetime.now().isoformat()
-                }
+                    "timestamp": datetime.now().isoformat(),
+                },
             }
 
     def _extract_conversation_context(
@@ -240,7 +251,7 @@ class ContextInfuser:
         query: str,
         user_id: Optional[str],
         conversation_id: Optional[str],
-        modality_context: Optional[Dict[str, Any]]
+        modality_context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Extract context from conversation history."""
         if not conversation_id:
@@ -266,7 +277,7 @@ class ContextInfuser:
             "entities": entities,
             "conversation_flow": conversation_flow,
             "message_count": len(conv_ctx.messages),
-            "last_activity": conv_ctx.last_activity.isoformat()
+            "last_activity": conv_ctx.last_activity.isoformat(),
         }
 
     def _extract_user_profile_context(
@@ -274,7 +285,7 @@ class ContextInfuser:
         query: str,
         user_id: Optional[str],
         conversation_id: Optional[str],
-        modality_context: Optional[Dict[str, Any]]
+        modality_context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Extract context from user profile."""
         if not user_id:
@@ -298,7 +309,7 @@ class ContextInfuser:
             "behavior_patterns": patterns,
             "recent_interactions": recent_interactions,
             "context_weights": profile.context_weights,
-            "profile_age_days": (datetime.now() - profile.last_updated).days
+            "profile_age_days": (datetime.now() - profile.last_updated).days,
         }
 
     def _extract_environmental_context(
@@ -306,7 +317,7 @@ class ContextInfuser:
         query: str,
         user_id: Optional[str],
         conversation_id: Optional[str],
-        modality_context: Optional[Dict[str, Any]]
+        modality_context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Extract environmental context."""
         env_ctx = self.environmental_context
@@ -321,7 +332,7 @@ class ContextInfuser:
             "season": env_ctx.season,
             "device_info": env_ctx.device_info,
             "network_info": env_ctx.network_info,
-            "ambient_conditions": env_ctx.ambient_conditions
+            "ambient_conditions": env_ctx.ambient_conditions,
         }
 
     def _extract_knowledge_context(
@@ -329,7 +340,7 @@ class ContextInfuser:
         query: str,
         user_id: Optional[str],
         conversation_id: Optional[str],
-        modality_context: Optional[Dict[str, Any]]
+        modality_context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Extract context from knowledge graph."""
         # This would integrate with the knowledge graph system
@@ -338,10 +349,12 @@ class ContextInfuser:
             "related_concepts": [],
             "knowledge_links": [],
             "domain_context": {},
-            "confidence_scores": {}
+            "confidence_scores": {},
         }
 
-    def _fuse_contexts(self, context_components: Dict[str, Any], query: str) -> Dict[str, Any]:
+    def _fuse_contexts(
+        self, context_components: Dict[str, Any], query: str
+    ) -> Dict[str, Any]:
         """Fuse multiple context sources with adaptive weighting."""
         fused_elements = []
 
@@ -356,19 +369,16 @@ class ContextInfuser:
         fused_elements.sort(key=lambda x: x.relevance_score, reverse=True)
 
         # Limit to max elements
-        fused_elements = fused_elements[:self.max_context_elements]
+        fused_elements = fused_elements[: self.max_context_elements]
 
         return {
             "elements": fused_elements,
             "source_weights": self.adaptive_weights.copy(),
-            "total_sources": len(context_components)
+            "total_sources": len(context_components),
         }
 
     def _context_data_to_elements(
-        self,
-        context_data: Dict[str, Any],
-        source: str,
-        base_weight: float
+        self, context_data: Dict[str, Any], source: str, base_weight: float
     ) -> List[ContextElement]:
         """Convert context data to ContextElement objects."""
         elements = []
@@ -379,7 +389,9 @@ class ContextInfuser:
 
             # Create element ID
             content_str = json.dumps(value, sort_keys=True, default=str)
-            element_id = hashlib.md5(f"{source}:{key}:{content_str}".encode()).hexdigest()[:16]
+            element_id = hashlib.md5(
+                f"{source}:{key}:{content_str}".encode()
+            ).hexdigest()[:16]
 
             # Calculate relevance score
             relevance = self._calculate_relevance_score(value, base_weight)
@@ -390,7 +402,7 @@ class ContextInfuser:
                 source=source,
                 relevance_score=relevance,
                 metadata={"key": key, "data_type": type(value).__name__},
-                expires_at=datetime.now() + timedelta(hours=self.context_ttl_hours)
+                expires_at=datetime.now() + timedelta(hours=self.context_ttl_hours),
             )
 
             elements.append(element)
@@ -404,21 +416,24 @@ class ContextInfuser:
 
         # Boost score based on content characteristics
         if isinstance(content, dict):
-            score *= (1 + len(content) * 0.1)  # More fields = more relevant
+            score *= 1 + len(content) * 0.1  # More fields = more relevant
         elif isinstance(content, list):
-            score *= (1 + len(content) * 0.05)  # More items = more relevant
+            score *= 1 + len(content) * 0.05  # More items = more relevant
         elif isinstance(content, str) and len(content) > 10:
             score *= 1.2  # Longer strings are more relevant
 
         return min(score, 1.0)  # Cap at 1.0
 
-    def _filter_relevant_context(self, fused_context: Dict[str, Any], query: str) -> Dict[str, Any]:
+    def _filter_relevant_context(
+        self, fused_context: Dict[str, Any], query: str
+    ) -> Dict[str, Any]:
         """Filter context elements based on relevance to query."""
         elements = fused_context.get("elements", [])
 
         # Filter by relevance threshold
         relevant_elements = [
-            elem for elem in elements
+            elem
+            for elem in elements
             if elem.relevance_score >= self.relevance_threshold
         ]
 
@@ -429,10 +444,17 @@ class ContextInfuser:
             "elements": relevant_elements,
             "filtered_count": len(relevant_elements),
             "total_count": len(elements),
-            "avg_relevance": sum(e.relevance_score for e in relevant_elements) / len(relevant_elements) if relevant_elements else 0
+            "avg_relevance": (
+                sum(e.relevance_score for e in relevant_elements)
+                / len(relevant_elements)
+                if relevant_elements
+                else 0
+            ),
         }
 
-    def _enhance_query_with_context(self, query: str, relevant_context: Dict[str, Any]) -> str:
+    def _enhance_query_with_context(
+        self, query: str, relevant_context: Dict[str, Any]
+    ) -> str:
         """Enhance the original query with relevant context."""
         elements = relevant_context.get("elements", [])
 
@@ -444,10 +466,14 @@ class ContextInfuser:
 
         for element in elements[:5]:  # Use top 5 most relevant
             if isinstance(element.content, str):
-                context_parts.append(f"{element.metadata.get('key', 'context')}: {element.content}")
+                context_parts.append(
+                    f"{element.metadata.get('key', 'context')}: {element.content}"
+                )
             elif isinstance(element.content, (list, dict)):
                 context_str = json.dumps(element.content, indent=2)
-                context_parts.append(f"{element.metadata.get('key', 'context')}:\n{context_str}")
+                context_parts.append(
+                    f"{element.metadata.get('key', 'context')}:\n{context_str}"
+                )
 
         if context_parts:
             enhanced_query = f"Context:\n" + "\n\n".join(context_parts)
@@ -456,7 +482,9 @@ class ContextInfuser:
 
         return query
 
-    def _analyze_conversation_flow(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _analyze_conversation_flow(
+        self, messages: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Analyze the flow of conversation."""
         if not messages:
             return {}
@@ -469,11 +497,20 @@ class ContextInfuser:
             "total_messages": len(messages),
             "user_messages": len(user_messages),
             "assistant_messages": len(assistant_messages),
-            "avg_user_message_length": sum(len(str(m.get("content", ""))) for m in user_messages) / len(user_messages) if user_messages else 0,
-            "conversation_depth": len(set(str(m.get("content", ""))[:50] for m in messages))  # Unique message starts
+            "avg_user_message_length": (
+                sum(len(str(m.get("content", ""))) for m in user_messages)
+                / len(user_messages)
+                if user_messages
+                else 0
+            ),
+            "conversation_depth": len(
+                set(str(m.get("content", ""))[:50] for m in messages)
+            ),  # Unique message starts
         }
 
-    def _get_relevant_preferences(self, preferences: Dict[str, Any], query: str) -> Dict[str, Any]:
+    def _get_relevant_preferences(
+        self, preferences: Dict[str, Any], query: str
+    ) -> Dict[str, Any]:
         """Get preferences relevant to the current query."""
         # Simple keyword matching - in real implementation would use semantic matching
         relevant_prefs = {}
@@ -516,7 +553,9 @@ class ContextInfuser:
 
         self.environmental_context.timestamp = now
 
-    def _update_learning_patterns(self, query: str, context: Dict[str, Any], user_id: str):
+    def _update_learning_patterns(
+        self, query: str, context: Dict[str, Any], user_id: str
+    ):
         """Update learning patterns based on context usage."""
         if not self.enable_learning:
             return
@@ -535,7 +574,9 @@ class ContextInfuser:
                 # Gradually adjust weights based on usage
                 current_weight = self.adaptive_weights.get(source, 0.25)
                 usage_ratio = usage / total_usage
-                new_weight = current_weight * 0.9 + usage_ratio * 0.1  # Smooth adjustment
+                new_weight = (
+                    current_weight * 0.9 + usage_ratio * 0.1
+                )  # Smooth adjustment
                 self.adaptive_weights[source] = new_weight
 
     def _record_context_usage(self, query: str, context: Dict[str, Any]):
@@ -544,7 +585,7 @@ class ContextInfuser:
             "query_hash": hashlib.md5(query.encode()).hexdigest()[:16],
             "timestamp": datetime.now().isoformat(),
             "context_elements_used": len(context.get("elements", [])),
-            "sources_used": list(set(e.source for e in context.get("elements", [])))
+            "sources_used": list(set(e.source for e in context.get("elements", []))),
         }
 
         self.context_queue.append(usage_record)
@@ -564,7 +605,9 @@ class ContextInfuser:
         if expired_ids:
             logger.debug("Cleaned %d expired context elements", len(expired_ids))
 
-    def add_user_profile(self, user_id: str, initial_preferences: Optional[Dict[str, Any]] = None):
+    def add_user_profile(
+        self, user_id: str, initial_preferences: Optional[Dict[str, Any]] = None
+    ):
         """Add or update a user profile."""
         if user_id not in self.user_profiles:
             self.user_profiles[user_id] = UserProfile(user_id=user_id)
@@ -575,10 +618,14 @@ class ContextInfuser:
 
         logger.info("Added/updated profile for user %s", user_id)
 
-    def update_conversation_context(self, conversation_id: str, message: Dict[str, Any]):
+    def update_conversation_context(
+        self, conversation_id: str, message: Dict[str, Any]
+    ):
         """Update conversation context with a new message."""
         if conversation_id not in self.conversation_contexts:
-            self.conversation_contexts[conversation_id] = ConversationContext(conversation_id=conversation_id)
+            self.conversation_contexts[conversation_id] = ConversationContext(
+                conversation_id=conversation_id
+            )
 
         ctx = self.conversation_contexts[conversation_id]
         ctx.add_message(message)
@@ -601,7 +648,7 @@ class ContextInfuser:
                 "conversation_contexts": len(self.conversation_contexts),
                 "context_queue_size": len(self.context_queue),
                 "adaptive_weights": self.adaptive_weights.copy(),
-                "relevance_cache_size": len(self.relevance_cache)
+                "relevance_cache_size": len(self.relevance_cache),
             }
 
     def export_context_data(self) -> Dict[str, Any]:
@@ -613,7 +660,7 @@ class ContextInfuser:
                         "preferences": profile.preferences,
                         "behavior_patterns": profile.behavior_patterns,
                         "context_weights": profile.context_weights,
-                        "last_updated": profile.last_updated.isoformat()
+                        "last_updated": profile.last_updated.isoformat(),
                     }
                     for uid, profile in self.user_profiles.items()
                 },
@@ -623,13 +670,13 @@ class ContextInfuser:
                         "entities": ctx.entities,
                         "message_count": len(ctx.messages),
                         "created_at": ctx.created_at.isoformat(),
-                        "last_activity": ctx.last_activity.isoformat()
+                        "last_activity": ctx.last_activity.isoformat(),
                     }
                     for cid, ctx in self.conversation_contexts.items()
                 },
                 "adaptive_weights": self.adaptive_weights.copy(),
                 "context_patterns": self.context_patterns.copy(),
-                "export_timestamp": datetime.now().isoformat()
+                "export_timestamp": datetime.now().isoformat(),
             }
 
 
@@ -640,7 +687,9 @@ def create_context_infuser(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'context', 'infuser',
-    'mia.adaptive_intelligence.context_infuser', 'create_context_infuser',
-    default=True
+    "context",
+    "infuser",
+    "mia.adaptive_intelligence.context_infuser",
+    "create_context_infuser",
+    default=True,
 )

@@ -1,8 +1,11 @@
 import requests
 
+
 class MessageUtil:
     @staticmethod
-    def send_message(api_url: str, api_key: str, recipient_id: str, message: str, platform: str) -> str:
+    def send_message(
+        api_url: str, api_key: str, recipient_id: str, message: str, platform: str
+    ) -> str:
         """
         Send a message on any platform using a specified API.
 
@@ -15,13 +18,13 @@ class MessageUtil:
         """
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         payload = {
             "recipient_id": recipient_id,
             "message": message,
-            "platform": platform
+            "platform": platform,
         }
 
         try:
@@ -31,6 +34,7 @@ class MessageUtil:
             return f"Message to {recipient_id} on {platform} sent successfully."
         except requests.exceptions.RequestException as e:
             return f"Failed to send message: {e}"
+
 
 # Example usage:
 # MessageUtil.send_message(

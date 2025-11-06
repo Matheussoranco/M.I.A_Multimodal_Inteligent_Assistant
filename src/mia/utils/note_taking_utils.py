@@ -1,8 +1,11 @@
 import requests
 
+
 class NoteUtil:
     @staticmethod
-    def create_note(api_url: str, api_key: str, note_title: str, note_content: str, app: str) -> str:
+    def create_note(
+        api_url: str, api_key: str, note_title: str, note_content: str, app: str
+    ) -> str:
         """
         Create a note in any note-taking application using its API.
 
@@ -15,14 +18,10 @@ class NoteUtil:
         """
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
-        payload = {
-            "title": note_title,
-            "content": note_content,
-            "app": app
-        }
+        payload = {"title": note_title, "content": note_content, "app": app}
 
         try:
             response = requests.post(api_url, headers=headers, json=payload)
@@ -31,6 +30,7 @@ class NoteUtil:
             return f"Note titled '{note_title}' created in {app} successfully."
         except requests.exceptions.RequestException as e:
             return f"Failed to create note: {e}"
+
 
 # Example usage:
 # NoteUtil.create_note(

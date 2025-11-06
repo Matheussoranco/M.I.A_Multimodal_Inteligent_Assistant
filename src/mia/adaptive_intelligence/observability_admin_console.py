@@ -2,19 +2,20 @@
 Observability & Admin Console
 """
 
-import logging
 import asyncio
 import json
+import logging
+import statistics
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable, Union
 from datetime import datetime, timedelta
 from enum import Enum
-import statistics
+from typing import Any, Callable, Dict, List, Optional, Union
 
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     psutil = None
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class LogLevel(Enum):
     """Log levels for observability."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -38,6 +40,7 @@ class LogLevel(Enum):
 
 class MetricType(Enum):
     """Types of metrics."""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
@@ -46,6 +49,7 @@ class MetricType(Enum):
 
 class AlertSeverity(Enum):
     """Alert severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -55,6 +59,7 @@ class AlertSeverity(Enum):
 @dataclass
 class LogEntry:
     """Represents a log entry."""
+
     timestamp: datetime
     level: LogLevel
     component: str
@@ -67,6 +72,7 @@ class LogEntry:
 @dataclass
 class Metric:
     """Represents a metric."""
+
     name: str
     type: MetricType
     value: Union[int, float]
@@ -78,6 +84,7 @@ class Metric:
 @dataclass
 class Alert:
     """Represents an alert."""
+
     id: str
     name: str
     severity: AlertSeverity
@@ -94,6 +101,7 @@ class Alert:
 @dataclass
 class SystemHealth:
     """System health information."""
+
     cpu_usage: float
     memory_usage: float
     disk_usage: float
@@ -106,6 +114,7 @@ class SystemHealth:
 @dataclass
 class ComponentStatus:
     """Status of a system component."""
+
     name: str
     status: str  # "healthy", "degraded", "unhealthy"
     response_time: float
@@ -126,7 +135,9 @@ class MetricsCollector:
         self.histograms: Dict[str, List[Union[int, float]]] = {}
         self.lock = threading.Lock()
 
-    def increment_counter(self, name: str, value: int = 1, labels: Optional[Dict[str, str]] = None):
+    def increment_counter(
+        self, name: str, value: int = 1, labels: Optional[Dict[str, str]] = None
+    ):
         """Increment a counter metric."""
         with self.lock:
             key = f"{name}_{json.dumps(labels or {}, sort_keys=True)}"
@@ -136,25 +147,32 @@ class MetricsCollector:
                 name=name,
                 type=MetricType.COUNTER,
                 value=self.counters[key],
-                labels=labels or {}
+                labels=labels or {},
             )
             self._store_metric(metric)
 
-    def set_gauge(self, name: str, value: Union[int, float], labels: Optional[Dict[str, str]] = None):
+    def set_gauge(
+        self,
+        name: str,
+        value: Union[int, float],
+        labels: Optional[Dict[str, str]] = None,
+    ):
         """Set a gauge metric."""
         with self.lock:
             key = f"{name}_{json.dumps(labels or {}, sort_keys=True)}"
             self.gauges[key] = value
 
             metric = Metric(
-                name=name,
-                type=MetricType.GAUGE,
-                value=value,
-                labels=labels or {}
+                name=name, type=MetricType.GAUGE, value=value, labels=labels or {}
             )
             self._store_metric(metric)
 
-    def record_histogram(self, name: str, value: Union[int, float], labels: Optional[Dict[str, str]] = None):
+    def record_histogram(
+        self,
+        name: str,
+        value: Union[int, float],
+        labels: Optional[Dict[str, str]] = None,
+    ):
         """Record a histogram value."""
         with self.lock:
             key = f"{name}_{json.dumps(labels or {}, sort_keys=True)}"
@@ -167,10 +185,7 @@ class MetricsCollector:
                 self.histograms[key] = self.histograms[key][-1000:]
 
             metric = Metric(
-                name=name,
-                type=MetricType.HISTOGRAM,
-                value=value,
-                labels=labels or {}
+                name=name, type=MetricType.HISTOGRAM, value=value, labels=labels or {}
             )
             self._store_metric(metric)
 
@@ -206,7 +221,7 @@ class MetricsCollector:
                 "median": statistics.median(values),
                 "stddev": statistics.stdev(values) if len(values) > 1 else 0,
                 "latest": values[-1],
-                "latest_timestamp": recent_metrics[-1].timestamp.isoformat()
+                "latest_timestamp": recent_metrics[-1].timestamp.isoformat(),
             }
 
     def get_all_metrics(self) -> List[Dict[str, Any]]:
@@ -216,53 +231,49 @@ class MetricsCollector:
         with self.lock:
             # Counters
             for key, value in self.counters.items():
-                name = key.split('_', 1)[0]
-                labels_str = key.split('_', 1)[1] if '_' in key else '{}'
+                name = key.split("_", 1)[0]
+                labels_str = key.split("_", 1)[1] if "_" in key else "{}"
                 try:
                     labels = json.loads(labels_str)
                 except:
                     labels = {}
 
-                result.append({
-                    "name": name,
-                    "type": "counter",
-                    "value": value,
-                    "labels": labels
-                })
+                result.append(
+                    {"name": name, "type": "counter", "value": value, "labels": labels}
+                )
 
             # Gauges
             for key, value in self.gauges.items():
-                name = key.split('_', 1)[0]
-                labels_str = key.split('_', 1)[1] if '_' in key else '{}'
+                name = key.split("_", 1)[0]
+                labels_str = key.split("_", 1)[1] if "_" in key else "{}"
                 try:
                     labels = json.loads(labels_str)
                 except:
                     labels = {}
 
-                result.append({
-                    "name": name,
-                    "type": "gauge",
-                    "value": value,
-                    "labels": labels
-                })
+                result.append(
+                    {"name": name, "type": "gauge", "value": value, "labels": labels}
+                )
 
             # Histograms
             for key, values in self.histograms.items():
-                name = key.split('_', 1)[0]
-                labels_str = key.split('_', 1)[1] if '_' in key else '{}'
+                name = key.split("_", 1)[0]
+                labels_str = key.split("_", 1)[1] if "_" in key else "{}"
                 try:
                     labels = json.loads(labels_str)
                 except:
                     labels = {}
 
                 if values:
-                    result.append({
-                        "name": name,
-                        "type": "histogram",
-                        "value": values[-1],
-                        "count": len(values),
-                        "labels": labels
-                    })
+                    result.append(
+                        {
+                            "name": name,
+                            "type": "histogram",
+                            "value": values[-1],
+                            "count": len(values),
+                            "labels": labels,
+                        }
+                    )
 
         return result
 
@@ -327,7 +338,7 @@ class AlertManager:
                     message=f"{metric_name} {condition} {threshold} (current: {current_value})",
                     condition=f"{metric_name} {condition} {threshold}",
                     value=current_value,
-                    threshold=threshold
+                    threshold=threshold,
                 )
 
                 self.alerts[alert_key] = alert
@@ -386,21 +397,22 @@ class LogAggregator:
 
             # Maintain max entries
             if len(self.logs) > self.max_entries:
-                self.logs = self.logs[-self.max_entries:]
+                self.logs = self.logs[-self.max_entries :]
 
     def get_logs(
         self,
         component: Optional[str] = None,
         level: Optional[LogLevel] = None,
         hours: int = 24,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[LogEntry]:
         """Get filtered logs."""
         cutoff = datetime.now() - timedelta(hours=hours)
 
         with self.lock:
             filtered_logs = [
-                log for log in self.logs
+                log
+                for log in self.logs
                 if log.timestamp > cutoff
                 and (component is None or log.component == component)
                 and (level is None or log.level == level)
@@ -418,8 +430,8 @@ class LogAggregator:
             "by_component": {},
             "time_range": {
                 "start": logs[0].timestamp.isoformat() if logs else None,
-                "end": logs[-1].timestamp.isoformat() if logs else None
-            }
+                "end": logs[-1].timestamp.isoformat() if logs else None,
+            },
         }
 
         for log in logs:
@@ -427,7 +439,9 @@ class LogAggregator:
             component_str = log.component
 
             stats["by_level"][level_str] = stats["by_level"].get(level_str, 0) + 1
-            stats["by_component"][component_str] = stats["by_component"].get(component_str, 0) + 1
+            stats["by_component"][component_str] = (
+                stats["by_component"].get(component_str, 0) + 1
+            )
 
         return stats
 
@@ -443,7 +457,7 @@ class ObservabilityAdminConsole:
         *,
         metrics_interval: int = 60,
         health_check_interval: int = 30,
-        log_retention_hours: int = 168  # 7 days
+        log_retention_hours: int = 168,  # 7 days
     ):
         self.config_manager = config_manager
         self.metrics_interval = metrics_interval
@@ -480,7 +494,7 @@ class ObservabilityAdminConsole:
             "components": self._cmd_components,
             "config": self._cmd_config,
             "restart": self._cmd_restart,
-            "shutdown": self._cmd_shutdown
+            "shutdown": self._cmd_shutdown,
         }
 
     def start_monitoring(self):
@@ -489,7 +503,9 @@ class ObservabilityAdminConsole:
             return
 
         self.running = True
-        self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+        self.monitoring_thread = threading.Thread(
+            target=self._monitoring_loop, daemon=True
+        )
         self.monitoring_thread.start()
         logger.info("Started monitoring thread")
 
@@ -545,10 +561,12 @@ class ObservabilityAdminConsole:
             # Memory usage
             memory = psutil.virtual_memory()  # type: ignore
             self.metrics_collector.set_gauge("system_memory_percent", memory.percent)
-            self.metrics_collector.set_gauge("system_memory_used_mb", memory.used / 1024 / 1024)
+            self.metrics_collector.set_gauge(
+                "system_memory_used_mb", memory.used / 1024 / 1024
+            )
 
             # Disk usage
-            disk = psutil.disk_usage('/')  # type: ignore
+            disk = psutil.disk_usage("/")  # type: ignore
             self.metrics_collector.set_gauge("system_disk_percent", disk.percent)
 
             # Network connections
@@ -566,7 +584,7 @@ class ObservabilityAdminConsole:
                 disk_usage=disk.percent,
                 network_connections=net_connections,
                 active_threads=thread_count,
-                uptime=time.time() - psutil.boot_time()  # type: ignore
+                uptime=time.time() - psutil.boot_time(),  # type: ignore
             )
             self.system_health_history.append(health)
 
@@ -584,7 +602,7 @@ class ObservabilityAdminConsole:
             "metrics_collector",
             "alert_manager",
             "log_aggregator",
-            "provider_registry"
+            "provider_registry",
         ]
 
         for component_name in components_to_check:
@@ -615,7 +633,7 @@ class ObservabilityAdminConsole:
                 # Check provider registry
                 try:
                     # Try to get providers info - adjust based on actual API
-                    providers = getattr(provider_registry, 'providers', {})
+                    providers = getattr(provider_registry, "providers", {})
                     status = "healthy"
                     error_count = 0
                 except Exception:
@@ -637,7 +655,7 @@ class ObservabilityAdminConsole:
             status=status,
             response_time=response_time,
             last_check=datetime.now(),
-            error_count=error_count
+            error_count=error_count,
         )
 
         self.component_statuses[component_name] = component_status
@@ -649,7 +667,7 @@ class ObservabilityAdminConsole:
         message: str,
         metadata: Optional[Dict[str, Any]] = None,
         trace_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
     ):
         """Log an event."""
         entry = LogEntry(
@@ -659,7 +677,7 @@ class ObservabilityAdminConsole:
             message=message,
             metadata=metadata or {},
             trace_id=trace_id,
-            user_id=user_id
+            user_id=user_id,
         )
 
         self.log_aggregator.add_log(entry)
@@ -672,21 +690,13 @@ class ObservabilityAdminConsole:
         """Add a custom metric."""
         if metric.type == MetricType.COUNTER:
             self.metrics_collector.increment_counter(
-                metric.name,
-                int(metric.value),
-                metric.labels
+                metric.name, int(metric.value), metric.labels
             )
         elif metric.type == MetricType.GAUGE:
-            self.metrics_collector.set_gauge(
-                metric.name,
-                metric.value,
-                metric.labels
-            )
+            self.metrics_collector.set_gauge(metric.name, metric.value, metric.labels)
         elif metric.type == MetricType.HISTOGRAM:
             self.metrics_collector.record_histogram(
-                metric.name,
-                metric.value,
-                metric.labels
+                metric.name, metric.value, metric.labels
             )
 
     def add_alert_rule(self, rule: Dict[str, Any]):
@@ -697,7 +707,9 @@ class ObservabilityAdminConsole:
         """Add a notification callback for alerts."""
         self.alert_manager.add_notification_callback(callback)
 
-    def execute_admin_command(self, command: str, args: Optional[List[str]] = None) -> Dict[str, Any]:
+    def execute_admin_command(
+        self, command: str, args: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """Execute an admin command."""
         args = args or []
 
@@ -715,7 +727,7 @@ class ObservabilityAdminConsole:
             "status": "running",
             "uptime": self._get_uptime(),
             "monitoring_active": self.running,
-            "components_checked": len(self.component_statuses)
+            "components_checked": len(self.component_statuses),
         }
 
     def _cmd_metrics(self, args: List[str]) -> Dict[str, Any]:
@@ -742,7 +754,7 @@ class ObservabilityAdminConsole:
                     "severity": alert.severity.value,
                     "message": alert.message,
                     "timestamp": alert.timestamp.isoformat(),
-                    "resolved": alert.resolved
+                    "resolved": alert.resolved,
                 }
                 for alert in alerts
             ]
@@ -781,7 +793,7 @@ class ObservabilityAdminConsole:
                     "level": log.level.value,
                     "component": log.component,
                     "message": log.message,
-                    "metadata": log.metadata
+                    "metadata": log.metadata,
                 }
                 for log in logs
             ]
@@ -796,10 +808,10 @@ class ObservabilityAdminConsole:
                     "status": status.status,
                     "response_time": status.response_time,
                     "last_check": status.last_check.isoformat(),
-                    "error_count": status.error_count
+                    "error_count": status.error_count,
                 }
                 for name, status in self.component_statuses.items()
-            }
+            },
         }
 
     def _cmd_components(self, args: List[str]) -> Dict[str, Any]:
@@ -807,9 +819,8 @@ class ObservabilityAdminConsole:
         return {
             "components": list(self.component_statuses.keys()),
             "statuses": {
-                name: status.status
-                for name, status in self.component_statuses.items()
-            }
+                name: status.status for name, status in self.component_statuses.items()
+            },
         }
 
     def _cmd_config(self, args: List[str]) -> Dict[str, Any]:
@@ -817,7 +828,7 @@ class ObservabilityAdminConsole:
         return {
             "metrics_interval": self.metrics_interval,
             "health_check_interval": self.health_check_interval,
-            "log_retention_hours": self.log_retention_hours
+            "log_retention_hours": self.log_retention_hours,
         }
 
     def _cmd_restart(self, args: List[str]) -> Dict[str, Any]:
@@ -853,7 +864,7 @@ class ObservabilityAdminConsole:
             "network_connections": latest.network_connections,
             "active_threads": latest.active_threads,
             "uptime": latest.uptime,
-            "timestamp": latest.timestamp.isoformat()
+            "timestamp": latest.timestamp.isoformat(),
         }
 
     def get_dashboard_data(self) -> Dict[str, Any]:
@@ -868,8 +879,8 @@ class ObservabilityAdminConsole:
                 "platform": platform.platform(),
                 "python_version": platform.python_version(),
                 "cpu_count": psutil.cpu_count() if HAS_PSUTIL else None,  # type: ignore
-                "memory_total": (psutil.virtual_memory().total / 1024 / 1024 / 1024) if HAS_PSUTIL else None  # type: ignore
-            }
+                "memory_total": (psutil.virtual_memory().total / 1024 / 1024 / 1024) if HAS_PSUTIL else None,  # type: ignore
+            },
         }
 
 
@@ -882,7 +893,9 @@ def create_observability_admin_console(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'adaptive_intelligence', 'observability_console',
-    'mia.adaptive_intelligence.observability_admin_console', 'create_observability_admin_console',
-    default=True
+    "adaptive_intelligence",
+    "observability_console",
+    "mia.adaptive_intelligence.observability_admin_console",
+    "create_observability_admin_console",
+    default=True,
 )

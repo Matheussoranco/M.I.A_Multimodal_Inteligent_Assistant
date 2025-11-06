@@ -1,22 +1,24 @@
 """
-Action Executor: Comprehensive tool for executing external APIs, device control, system commands, 
+Action Executor: Comprehensive tool for executing external APIs, device control, system commands,
 web automation, email, messaging, smart home, file operations, research, and more.
 """
+
+import csv
+import json
+import logging
 import os
-import subprocess
 import shutil
 import smtplib
-import json
-import csv
-import requests
-import logging
+import subprocess
 import sys
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Callable
 from email.message import EmailMessage
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
-from ..providers import provider_registry, ProviderLookupError
+import requests
+
+from ..providers import ProviderLookupError, provider_registry
 
 DEFAULT_SENSITIVE_ACTIONS = {
     "send_email",
@@ -32,6 +34,7 @@ DEFAULT_SENSITIVE_ACTIONS = {
     "add_presentation_slide",
 }
 
+
 class ActionExecutor:
     ACTION_SCOPES: Dict[str, set[str]] = {
         "open_file": {"files.read"},
@@ -42,19 +45,19 @@ class ActionExecutor:
         "delete_file": {"files.write"},
         "move_file": {"files.write"},
         "create_directory": {"files.write"},
-    "open_directory": {"files.read"},
+        "open_directory": {"files.read"},
         "run_command": {"system"},
         "run_sandboxed": {"system"},
         "open_application": {"system"},
         "launch_app": {"system"},
         "close_app": {"system"},
-    "clipboard_copy": {"system"},
-    "clipboard_paste": {"system"},
-    "clipboard": {"system"},
-    "show_notification": {"system"},
-    "notify": {"system"},
-    "system_setting": {"system"},
-    "get_system_info": {"system"},
+        "clipboard_copy": {"system"},
+        "clipboard_paste": {"system"},
+        "clipboard": {"system"},
+        "show_notification": {"system"},
+        "notify": {"system"},
+        "system_setting": {"system"},
+        "get_system_info": {"system"},
         "send_email": {"messaging"},
         "send_whatsapp": {"messaging"},
         "send_message": {"messaging"},
@@ -111,47 +114,93 @@ class ActionExecutor:
         self.allowed_scopes = set(allowed_scopes or [])
 
         self.config = self._load_config()
-        if self._config_manager and getattr(self._config_manager, 'config', None):
+        if self._config_manager and getattr(self._config_manager, "config", None):
             try:
                 cfg = self._config_manager.config
-                if getattr(cfg, 'documents', None):
-                    self.config.setdefault('documents', {})
-                    self.config['documents'].update(
+                if getattr(cfg, "documents", None):
+                    self.config.setdefault("documents", {})
+                    self.config["documents"].update(
                         {
-                            'template_dir': getattr(cfg.documents, 'template_dir', self.config['documents'].get('template_dir')),
-                            'output_dir': getattr(cfg.documents, 'output_dir', self.config['documents'].get('output_dir')),
-                            'default_template': getattr(cfg.documents, 'default_template', self.config['documents'].get('default_template')),
+                            "template_dir": getattr(
+                                cfg.documents,
+                                "template_dir",
+                                self.config["documents"].get("template_dir"),
+                            ),
+                            "output_dir": getattr(
+                                cfg.documents,
+                                "output_dir",
+                                self.config["documents"].get("output_dir"),
+                            ),
+                            "default_template": getattr(
+                                cfg.documents,
+                                "default_template",
+                                self.config["documents"].get("default_template"),
+                            ),
                         }
                     )
-                if getattr(cfg, 'memory', None):
-                    self.config.setdefault('memory', {})
-                    self.config['memory'].update(
+                if getattr(cfg, "memory", None):
+                    self.config.setdefault("memory", {})
+                    self.config["memory"].update(
                         {
-                            'persist_dir': getattr(cfg.memory, 'vector_db_path', self.config['memory'].get('persist_dir')),
-                            'vector_enabled': getattr(cfg.memory, 'vector_enabled', self.config['memory'].get('vector_enabled', True)),
-                            'graph_enabled': getattr(cfg.memory, 'graph_enabled', self.config['memory'].get('graph_enabled', True)),
-                            'long_term_enabled': getattr(cfg.memory, 'long_term_enabled', self.config['memory'].get('long_term_enabled', True)),
-                            'max_entries': getattr(cfg.memory, 'max_memory_size', self.config['memory'].get('max_entries', 10_000)),
-                            'max_results': getattr(cfg.memory, 'max_results', self.config['memory'].get('max_results', 5)),
-                            'similarity_threshold': getattr(cfg.memory, 'similarity_threshold', self.config['memory'].get('similarity_threshold', 0.7)),
+                            "persist_dir": getattr(
+                                cfg.memory,
+                                "vector_db_path",
+                                self.config["memory"].get("persist_dir"),
+                            ),
+                            "vector_enabled": getattr(
+                                cfg.memory,
+                                "vector_enabled",
+                                self.config["memory"].get("vector_enabled", True),
+                            ),
+                            "graph_enabled": getattr(
+                                cfg.memory,
+                                "graph_enabled",
+                                self.config["memory"].get("graph_enabled", True),
+                            ),
+                            "long_term_enabled": getattr(
+                                cfg.memory,
+                                "long_term_enabled",
+                                self.config["memory"].get("long_term_enabled", True),
+                            ),
+                            "max_entries": getattr(
+                                cfg.memory,
+                                "max_memory_size",
+                                self.config["memory"].get("max_entries", 10_000),
+                            ),
+                            "max_results": getattr(
+                                cfg.memory,
+                                "max_results",
+                                self.config["memory"].get("max_results", 5),
+                            ),
+                            "similarity_threshold": getattr(
+                                cfg.memory,
+                                "similarity_threshold",
+                                self.config["memory"].get("similarity_threshold", 0.7),
+                            ),
                         }
                     )
             except Exception as exc:
-                self.logger.debug("Failed to merge config manager settings into ActionExecutor: %s", exc)
+                self.logger.debug(
+                    "Failed to merge config manager settings into ActionExecutor: %s",
+                    exc,
+                )
 
-        self._document_factory = self._load_provider_factory('documents')
-        self._sandbox_factory = self._load_provider_factory('sandbox')
-        self._telegram_factory = self._load_provider_factory('messaging', 'telegram')
-        self._memory_factory = self._load_provider_factory('memory', 'manager')
-        self._web_agent_factory = self._load_provider_factory('web', 'agent') if web_agent is None else None
+        self._document_factory = self._load_provider_factory("documents")
+        self._sandbox_factory = self._load_provider_factory("sandbox")
+        self._telegram_factory = self._load_provider_factory("messaging", "telegram")
+        self._memory_factory = self._load_provider_factory("memory", "manager")
+        self._web_agent_factory = (
+            self._load_provider_factory("web", "agent") if web_agent is None else None
+        )
         self._document_generator_instance: Optional[Any] = None
         self._sandbox_instance: Optional[Any] = None
         self._telegram_client: Optional[Any] = None
         self._memory_instance: Optional[Any] = None
         self._web_agent_instance: Optional[Any] = web_agent
-        
+
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config file or environment variables."""
+
         def _to_int(env_var: str, default: int) -> int:
             value = os.getenv(env_var)
             if value is None:
@@ -185,7 +234,9 @@ class ActionExecutor:
                 return default
             return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
-        def _to_float_env(*names: str, default: Optional[float] = None) -> Optional[float]:
+        def _to_float_env(
+            *names: str, default: Optional[float] = None
+        ) -> Optional[float]:
             raw = _env(*names)
             if raw in (None, ""):
                 return default
@@ -200,32 +251,50 @@ class ActionExecutor:
                 "smtp_server": os.getenv("SMTP_SERVER", "smtp.gmail.com"),
                 "smtp_port": int(os.getenv("SMTP_PORT", "587")),
                 "username": os.getenv("EMAIL_USERNAME", ""),
-                "password": os.getenv("EMAIL_PASSWORD", "")
+                "password": os.getenv("EMAIL_PASSWORD", ""),
             },
             "research": {
                 "google_api_key": os.getenv("GOOGLE_API_KEY", ""),
                 "google_cse_id": os.getenv("GOOGLE_CSE_ID", ""),
-                "default_search_engine": "duckduckgo"
+                "default_search_engine": "duckduckgo",
             },
             "smart_home": {
                 "home_assistant_url": os.getenv("HOME_ASSISTANT_URL", ""),
-                "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN", "")
+                "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN", ""),
             },
             "telegram": {
                 "enabled": _to_bool_env("MIA_TELEGRAM_ENABLED", "TELEGRAM_ENABLED"),
                 "api_id": _to_int_env("MIA_TELEGRAM_API_ID", "TELEGRAM_API_ID"),
-                "api_hash": _env("MIA_TELEGRAM_API_HASH", "TELEGRAM_API_HASH", default=""),
-                "bot_token": _env("MIA_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN", default=""),
+                "api_hash": _env(
+                    "MIA_TELEGRAM_API_HASH", "TELEGRAM_API_HASH", default=""
+                ),
+                "bot_token": _env(
+                    "MIA_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN", default=""
+                ),
                 "phone_number": _env("MIA_TELEGRAM_PHONE", "TELEGRAM_PHONE"),
-                "session_dir": _env("MIA_TELEGRAM_SESSION_DIR", "TELEGRAM_SESSION_DIR", default="sessions"),
-                "session_name": _env("MIA_TELEGRAM_SESSION_NAME", "TELEGRAM_SESSION_NAME", default="mia_telegram"),
-                "default_peer": _env("MIA_TELEGRAM_DEFAULT_PEER", "TELEGRAM_DEFAULT_PEER", default=""),
-                "parse_mode": _env("MIA_TELEGRAM_PARSE_MODE", "TELEGRAM_PARSE_MODE", default="markdown"),
-                "request_timeout": _to_int_env("MIA_TELEGRAM_REQUEST_TIMEOUT", "TELEGRAM_REQUEST_TIMEOUT", default=30),
+                "session_dir": _env(
+                    "MIA_TELEGRAM_SESSION_DIR",
+                    "TELEGRAM_SESSION_DIR",
+                    default="sessions",
+                ),
+                "session_name": _env(
+                    "MIA_TELEGRAM_SESSION_NAME",
+                    "TELEGRAM_SESSION_NAME",
+                    default="mia_telegram",
+                ),
+                "default_peer": _env(
+                    "MIA_TELEGRAM_DEFAULT_PEER", "TELEGRAM_DEFAULT_PEER", default=""
+                ),
+                "parse_mode": _env(
+                    "MIA_TELEGRAM_PARSE_MODE", "TELEGRAM_PARSE_MODE", default="markdown"
+                ),
+                "request_timeout": _to_int_env(
+                    "MIA_TELEGRAM_REQUEST_TIMEOUT",
+                    "TELEGRAM_REQUEST_TIMEOUT",
+                    default=30,
+                ),
             },
-            "whatsapp": {
-                "phone_number": os.getenv("WHATSAPP_PHONE", "")
-            },
+            "whatsapp": {"phone_number": os.getenv("WHATSAPP_PHONE", "")},
             "sandbox": {
                 "work_dir": os.getenv("MIA_SANDBOX_WORKDIR", "sandbox_runs"),
                 "log_dir": os.getenv("MIA_SANDBOX_LOGDIR", "logs/sandbox"),
@@ -234,18 +303,28 @@ class ActionExecutor:
                 "fuel": os.getenv("MIA_SANDBOX_FUEL"),
             },
             "documents": {
-                "template_dir": os.getenv("MIA_DOC_TEMPLATE_DIR", "templates/documents"),
+                "template_dir": os.getenv(
+                    "MIA_DOC_TEMPLATE_DIR", "templates/documents"
+                ),
                 "output_dir": os.getenv("MIA_DOC_OUTPUT_DIR", "output/documents"),
                 "default_template": os.getenv("MIA_DOC_DEFAULT_TEMPLATE", "proposal"),
             },
             "memory": {
                 "persist_dir": _env("MIA_MEMORY_PATH", default="memory"),
-                "vector_enabled": _to_bool_env("MIA_MEMORY_VECTOR_ENABLED", default=True),
+                "vector_enabled": _to_bool_env(
+                    "MIA_MEMORY_VECTOR_ENABLED", default=True
+                ),
                 "graph_enabled": _to_bool_env("MIA_MEMORY_GRAPH_ENABLED", default=True),
-                "long_term_enabled": _to_bool_env("MIA_MEMORY_LONG_TERM_ENABLED", default=True),
-                "max_entries": _to_int_env("MIA_MEMORY_MAX_ENTRIES", default=10_000) or 10_000,
+                "long_term_enabled": _to_bool_env(
+                    "MIA_MEMORY_LONG_TERM_ENABLED", default=True
+                ),
+                "max_entries": _to_int_env("MIA_MEMORY_MAX_ENTRIES", default=10_000)
+                or 10_000,
                 "max_results": _to_int_env("MIA_MEMORY_MAX_RESULTS", default=5) or 5,
-                "similarity_threshold": _to_float_env("MIA_MEMORY_SIMILARITY", default=0.7) or 0.7,
+                "similarity_threshold": _to_float_env(
+                    "MIA_MEMORY_SIMILARITY", default=0.7
+                )
+                or 0.7,
             },
         }
         return config
@@ -373,7 +452,9 @@ class ActionExecutor:
                         for scope in required
                     )
             except Exception as exc:  # pragma: no cover - defensive
-                self.logger.warning("Security scope check failed for %s: %s", action, exc)
+                self.logger.warning(
+                    "Security scope check failed for %s: %s", action, exc
+                )
                 return False
 
         return True
@@ -410,10 +491,10 @@ class ActionExecutor:
         """Execute an action with given parameters."""
         if not action:
             return "No action provided."
-        
+
         params = params or {}
         self.logger.info(f"Executing action: {action}")
-        
+
         consent_prompted = False
 
         if not self._is_scope_allowed(action):
@@ -427,10 +508,16 @@ class ActionExecutor:
                 elif hasattr(self.security_manager, "record_action"):
                     self.security_manager.record_action(action, params)
             except Exception as exc:  # pragma: no cover - defensive
-                self.logger.debug("Security action logging failed for %s: %s", action, exc)
+                self.logger.debug(
+                    "Security action logging failed for %s: %s", action, exc
+                )
 
         # Check permissions (allow all actions by default unless specifically restricted)
-        if self.permissions and action in self.permissions and not self.permissions[action]:
+        if (
+            self.permissions
+            and action in self.permissions
+            and not self.permissions[action]
+        ):
             consent_prompted = True
             if not self.consent_callback(action, params):
                 self.logger.warning(f"Permission denied for action: {action}")
@@ -440,27 +527,41 @@ class ActionExecutor:
             if not self.consent_callback(action, params):
                 self.logger.info("Action cancelled after consent prompt: %s", action)
                 return f"Action '{action}' cancelled by user consent."
-        
+
         try:
             # Use dispatch pattern for better maintainability
             action_dispatch = {
                 # File operations
                 "open_file": lambda: self.open_file(params.get("path") or ""),
-                "create_file": lambda: self.create_file(params.get("path") or "", params.get("content", "")),
+                "create_file": lambda: self.create_file(
+                    params.get("path") or "", params.get("content", "")
+                ),
                 "read_file": lambda: self.read_file(params.get("path") or ""),
-                "write_file": lambda: self.write_file(params.get("path") or "", params.get("content", "")),
-                "move_file": lambda: self.move_file(params.get("src"), params.get("dst")),
+                "write_file": lambda: self.write_file(
+                    params.get("path") or "", params.get("content", "")
+                ),
+                "move_file": lambda: self.move_file(
+                    params.get("src"), params.get("dst")
+                ),
                 "delete_file": lambda: self.delete_file(params.get("path") or ""),
-                "search_file": lambda: self.search_file(params.get("name") or "", params.get("directory", ".")),
+                "search_file": lambda: self.search_file(
+                    params.get("name") or "", params.get("directory", ".")
+                ),
                 "open_directory": lambda: self.open_directory(params.get("path") or ""),
-                "create_directory": lambda: self.create_directory(params.get("path") or ""),
-                
+                "create_directory": lambda: self.create_directory(
+                    params.get("path") or ""
+                ),
                 # Code generation
-                "create_code": lambda: self.create_code(params.get("language") or "", params.get("description") or "", params.get("filename")),
+                "create_code": lambda: self.create_code(
+                    params.get("language") or "",
+                    params.get("description") or "",
+                    params.get("filename"),
+                ),
                 "analyze_code": lambda: self.analyze_code(params.get("path") or ""),
-                
                 # Notes and documentation
-                "make_note": lambda: self.make_note(params.get("content") or "", params.get("title")),
+                "make_note": lambda: self.make_note(
+                    params.get("content") or "", params.get("title")
+                ),
                 "read_notes": lambda: self.read_notes(),
                 "search_notes": lambda: self.search_notes(params.get("query") or ""),
                 "create_docx": lambda: self.generate_docx(params),
@@ -468,34 +569,50 @@ class ActionExecutor:
                 "store_memory": lambda: self.store_memory(params),
                 "search_memory": lambda: self.search_memory(params),
                 "link_memory_nodes": lambda: self.link_memory_nodes(params),
-                
                 # Spreadsheet operations
-                "create_sheet": lambda: self.create_sheet(params.get("filename") or "", params.get("data")),
+                "create_sheet": lambda: self.create_sheet(
+                    params.get("filename") or "", params.get("data")
+                ),
                 "read_sheet": lambda: self.read_sheet(params.get("filename") or ""),
-                "write_sheet": lambda: self.write_sheet(params.get("filename") or "", params.get("data") or []),
+                "write_sheet": lambda: self.write_sheet(
+                    params.get("filename") or "", params.get("data") or []
+                ),
                 "open_sheet": lambda: self.open_file(params.get("filename") or ""),
-
                 # Presentation (PowerPoint)
-                "create_presentation": lambda: self.create_presentation(params.get("filename") or "", params.get("title"), params.get("content")),
-                "add_presentation_slide": lambda: self.add_presentation_slide(params.get("filename") or "", params.get("title"), params.get("bullets") or []),
-                "open_presentation": lambda: self.open_file(params.get("filename") or ""),
-                
+                "create_presentation": lambda: self.create_presentation(
+                    params.get("filename") or "",
+                    params.get("title"),
+                    params.get("content"),
+                ),
+                "add_presentation_slide": lambda: self.add_presentation_slide(
+                    params.get("filename") or "",
+                    params.get("title"),
+                    params.get("bullets") or [],
+                ),
+                "open_presentation": lambda: self.open_file(
+                    params.get("filename") or ""
+                ),
                 # Research and web operations
                 "web_search": lambda: self.web_search(params.get("query") or ""),
                 "web_scrape": lambda: self.web_scrape(params.get("url") or ""),
-                "research_topic": lambda: self.research_topic(params.get("topic") or ""),
-                "wikipedia_search": lambda: self.wikipedia_search(params.get("query") or ""),
-                
+                "research_topic": lambda: self.research_topic(
+                    params.get("topic") or ""
+                ),
+                "wikipedia_search": lambda: self.wikipedia_search(
+                    params.get("query") or ""
+                ),
                 # Smart home integration
                 "control_device": lambda: self._handle_control_device(params),
-                
                 # System integration
                 "clipboard_copy": lambda: self.clipboard_copy(params.get("text") or ""),
                 "clipboard_paste": lambda: self.clipboard_paste(),
-                "show_notification": lambda: self.show_notification(params.get("title") or "", params.get("message") or ""),
-                "open_application": lambda: self.open_application(params.get("app_name") or ""),
+                "show_notification": lambda: self.show_notification(
+                    params.get("title") or "", params.get("message") or ""
+                ),
+                "open_application": lambda: self.open_application(
+                    params.get("app_name") or ""
+                ),
                 "get_system_info": lambda: self.get_system_info(),
-                
                 # Application control
                 "launch_app": lambda: self.launch_app(params.get("app") or ""),
                 "close_app": lambda: self.close_app(params.get("app") or ""),
@@ -505,39 +622,40 @@ class ActionExecutor:
                 "run_command": lambda: self.run_command(params.get("command")),
                 "run_sandboxed": lambda: self.run_sandboxed(params),
                 "web_automation": lambda: self.web_automation(params),
-                
                 # Communication
                 "send_email": lambda: self.send_email(params),
                 "send_whatsapp": lambda: self.send_whatsapp(params),
                 "send_message": lambda: self.send_message(params),
-                "send_telegram": lambda: self._send_telegram(params.get("to", ""), params.get("message", "")),
-                
+                "send_telegram": lambda: self._send_telegram(
+                    params.get("to", ""), params.get("message", "")
+                ),
                 # Calendar and scheduling
                 "calendar_event": lambda: self.calendar_event(params),
-                
                 # Smart home
                 "smart_home": lambda: self.smart_home(params),
                 "control_lights": lambda: self.control_lights(params),
                 "control_temperature": lambda: self.control_temperature(params),
             }
-            
+
             # Execute the action if it exists
             if action in action_dispatch:
                 return action_dispatch[action]()
             else:
                 self.logger.error(f"Unknown action: {action}")
                 return f"Unknown action: {action}"
-                
+
         except Exception as e:
             self.logger.error(f"Error executing {action}: {e}")
             return f"Error: {e}"
-    
+
     def _handle_control_device(self, params):
         """Handle device control with parameter filtering."""
         device_type = params.get("device_type")
         device_action = params.get("action")
         # Remove these from params to avoid duplicate keyword arguments
-        filtered_params = {k: v for k, v in params.items() if k not in ["device_type", "action"]}
+        filtered_params = {
+            k: v for k, v in params.items() if k not in ["device_type", "action"]
+        }
         return self.control_device(device_type, device_action, **filtered_params)
 
     # Enhanced File Operations
@@ -547,7 +665,7 @@ class ActionExecutor:
             return "No file path provided."
         try:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
             return f"Created file: {path}"
         except (OSError, IOError) as e:
@@ -562,7 +680,7 @@ class ActionExecutor:
         if not path:
             return "No file path provided."
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
             return f"Content of {path}:\n{content}"
         except FileNotFoundError:
@@ -581,7 +699,7 @@ class ActionExecutor:
         if not path:
             return "No file path provided."
         try:
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
             return f"Written to file: {path}"
         except PermissionError:
@@ -598,10 +716,12 @@ class ActionExecutor:
         if not path:
             return "No directory path provided."
         try:
-            if os.name == 'nt':  # Windows
+            if os.name == "nt":  # Windows
                 os.startfile(path)
-            elif os.name == 'posix':  # macOS and Linux
-                subprocess.run(['open', path] if sys.platform == 'darwin' else ['xdg-open', path])
+            elif os.name == "posix":  # macOS and Linux
+                subprocess.run(
+                    ["open", path] if sys.platform == "darwin" else ["xdg-open", path]
+                )
             return f"Opened directory: {path}"
         except FileNotFoundError:
             return f"Directory not found: {path}"
@@ -639,7 +759,9 @@ class ActionExecutor:
         if title:
             context.setdefault("title", title)
 
-        template = params.get("template") or self.config["documents"].get("default_template", "proposal")
+        template = params.get("template") or self.config["documents"].get(
+            "default_template", "proposal"
+        )
         output_path = params.get("output_path")
         return generator.create_docx(template, context, output_path)
 
@@ -657,7 +779,9 @@ class ActionExecutor:
         if title:
             context.setdefault("title", title)
 
-        template = params.get("template") or self.config["documents"].get("default_template", "proposal")
+        template = params.get("template") or self.config["documents"].get(
+            "default_template", "proposal"
+        )
         output_path = params.get("output_path")
         return generator.create_pdf(template, context, output_path)
 
@@ -676,16 +800,26 @@ class ActionExecutor:
         if isinstance(embedding, str):
             try:
                 cleaned = embedding.replace("[", "").replace("]", "")
-                embedding = [float(item.strip()) for item in cleaned.split(",") if item.strip()]
+                embedding = [
+                    float(item.strip()) for item in cleaned.split(",") if item.strip()
+                ]
             except ValueError:
-                self.logger.warning("Invalid embedding string provided; ignoring embedding")
+                self.logger.warning(
+                    "Invalid embedding string provided; ignoring embedding"
+                )
                 embedding = None
-        metadata = params.get("metadata") if isinstance(params.get("metadata"), dict) else {}
+        metadata = (
+            params.get("metadata") if isinstance(params.get("metadata"), dict) else {}
+        )
         relations_input = params.get("relations")
         relation_entries = None
         if relations_input is not None:
             relation_entries = []
-            items = relations_input if isinstance(relations_input, (list, tuple)) else [relations_input]
+            items = (
+                relations_input
+                if isinstance(relations_input, (list, tuple))
+                else [relations_input]
+            )
             for item in items:
                 if isinstance(item, dict):
                     source = item.get("source")
@@ -695,7 +829,9 @@ class ActionExecutor:
                     relation_entries.append(
                         (
                             source,
-                            item.get("relation") or item.get("predicate") or "related_to",
+                            item.get("relation")
+                            or item.get("predicate")
+                            or "related_to",
                             target,
                             item.get("metadata"),
                         )
@@ -708,12 +844,14 @@ class ActionExecutor:
 
         # Store in RAG pipeline if available
         rag_result = None
-        if self.rag_pipeline and hasattr(self.rag_pipeline, 'remember'):
+        if self.rag_pipeline and hasattr(self.rag_pipeline, "remember"):
             try:
                 enriched_metadata = dict(metadata) if metadata else {}
                 enriched_metadata.setdefault("source", "action_executor")
                 enriched_metadata.setdefault("timestamp", datetime.now().isoformat())
-                rag_result = self.rag_pipeline.remember(text, metadata=enriched_metadata)
+                rag_result = self.rag_pipeline.remember(
+                    text, metadata=enriched_metadata
+                )
                 self.logger.debug("Stored memory in RAG pipeline: %s", rag_result)
             except Exception as exc:
                 self.logger.debug("Failed to store in RAG pipeline: %s", exc)
@@ -728,7 +866,9 @@ class ActionExecutor:
             reference = record.get("vector_id") or record.get("long_term_id")
             result_msg = f"Memory stored successfully (ref={reference or 'n/a'})."
             if rag_result:
-                result_msg += f" Also stored in RAG pipeline (id={rag_result.get('id', 'n/a')})."
+                result_msg += (
+                    f" Also stored in RAG pipeline (id={rag_result.get('id', 'n/a')})."
+                )
             return result_msg
         except Exception as exc:
             self.logger.error("Failed to store memory: %s", exc)
@@ -736,13 +876,18 @@ class ActionExecutor:
 
     def search_memory(self, params: Dict[str, Any]) -> str:
         # Try RAG pipeline first if available
-        if self.rag_pipeline and hasattr(self.rag_pipeline, 'query'):
+        if self.rag_pipeline and hasattr(self.rag_pipeline, "query"):
             query = params.get("query") or params.get("text") or params.get("keyword")
             if query:
                 try:
                     top_k_raw = params.get("top_k") or params.get("limit", 4)
-                    top_k = int(top_k_raw) if isinstance(top_k_raw, (int, str)) and str(top_k_raw).isdigit() else 4
-                    
+                    top_k = (
+                        int(top_k_raw)
+                        if isinstance(top_k_raw, (int, str))
+                        and str(top_k_raw).isdigit()
+                        else 4
+                    )
+
                     rag_results = self.rag_pipeline.query(query, top_k=top_k)
                     if rag_results:
                         lines: List[str] = []
@@ -753,10 +898,14 @@ class ActionExecutor:
                             score = chunk.score
                             metadata_info = []
                             if chunk.metadata.get("source"):
-                                metadata_info.append(f"source: {chunk.metadata['source']}")
+                                metadata_info.append(
+                                    f"source: {chunk.metadata['source']}"
+                                )
                             if chunk.metadata.get("timestamp"):
-                                metadata_info.append(f"time: {chunk.metadata['timestamp']}")
-                            
+                                metadata_info.append(
+                                    f"time: {chunk.metadata['timestamp']}"
+                                )
+
                             segment = f"{idx}. {preview}"
                             if isinstance(score, (int, float)):
                                 segment += f" (score={score:.3f})"
@@ -765,7 +914,10 @@ class ActionExecutor:
                             lines.append(segment)
                         return f"RAG Memory results for '{query}':\n" + "\n".join(lines)
                 except Exception as exc:
-                    self.logger.debug("RAG pipeline search failed, falling back to memory manager: %s", exc)
+                    self.logger.debug(
+                        "RAG pipeline search failed, falling back to memory manager: %s",
+                        exc,
+                    )
 
         # Fallback to memory manager
         manager = self._get_memory_manager()
@@ -777,9 +929,13 @@ class ActionExecutor:
         if isinstance(embedding, str):
             cleaned = embedding.replace("[", "").replace("]", "")
             try:
-                embedding = [float(item.strip()) for item in cleaned.split(",") if item.strip()]
+                embedding = [
+                    float(item.strip()) for item in cleaned.split(",") if item.strip()
+                ]
             except ValueError:
-                self.logger.warning("Invalid embedding string provided for search; ignoring embedding")
+                self.logger.warning(
+                    "Invalid embedding string provided for search; ignoring embedding"
+                )
                 embedding = None
         top_k_raw = params.get("top_k") or params.get("limit")
         top_k = None
@@ -822,24 +978,30 @@ class ActionExecutor:
         source = params.get("source") or params.get("from")
         target = params.get("target") or params.get("to")
         relation = params.get("relation") or params.get("predicate") or "related_to"
-        metadata = params.get("metadata") if isinstance(params.get("metadata"), dict) else None
+        metadata = (
+            params.get("metadata") if isinstance(params.get("metadata"), dict) else None
+        )
 
         if not source or not target:
             return "Source and target are required to link memory nodes."
 
         try:
-            manager.add_relation(str(source), str(relation), str(target), metadata=metadata)
+            manager.add_relation(
+                str(source), str(relation), str(target), metadata=metadata
+            )
             return f"Linked memory nodes: {source} -> {target} ({relation})."
         except Exception as exc:
             self.logger.error("Failed to link memory nodes: %s", exc)
             return f"Error linking memory nodes: {exc}"
 
     # Code Generation and Analysis
-    def create_code(self, language: str, description: str, filename: Optional[str] = None) -> str:
+    def create_code(
+        self, language: str, description: str, filename: Optional[str] = None
+    ) -> str:
         """Generate code based on description and language."""
         if not language or not description:
             return "Language and description required."
-        
+
         # Basic code templates
         templates = {
             "python": f"""# {description}
@@ -894,19 +1056,22 @@ body {{
 }}
 
 /* Add your CSS here */
-"""
+""",
         }
-        
-        code = templates.get(language.lower(), f"// {description}\n// Code template not available for {language}")
-        
+
+        code = templates.get(
+            language.lower(),
+            f"// {description}\n// Code template not available for {language}",
+        )
+
         if filename:
             try:
-                with open(filename, 'w', encoding='utf-8') as f:
+                with open(filename, "w", encoding="utf-8") as f:
                     f.write(code)
                 return f"Code created and saved to {filename}"
             except Exception as e:
                 return f"Error saving code: {e}"
-        
+
         return f"Generated {language} code:\n{code}"
 
     def analyze_code(self, path: str) -> str:
@@ -914,18 +1079,24 @@ body {{
         if not path:
             return "No file path provided."
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 code = f.read()
-            
-            lines = code.split('\n')
+
+            lines = code.split("\n")
             analysis = {
                 "total_lines": len(lines),
                 "non_empty_lines": len([line for line in lines if line.strip()]),
-                "comment_lines": len([line for line in lines if line.strip().startswith('#') or line.strip().startswith('//')]),
+                "comment_lines": len(
+                    [
+                        line
+                        for line in lines
+                        if line.strip().startswith("#") or line.strip().startswith("//")
+                    ]
+                ),
                 "file_size": os.path.getsize(path),
-                "language": self._detect_language(path)
+                "language": self._detect_language(path),
             }
-            
+
             return f"Code analysis for {path}:\n{json.dumps(analysis, indent=2)}"
         except Exception as e:
             return f"Error analyzing code: {e}"
@@ -934,19 +1105,19 @@ body {{
         """Detect programming language from file extension."""
         extension = Path(path).suffix.lower()
         lang_map = {
-            '.py': 'Python',
-            '.js': 'JavaScript',
-            '.java': 'Java',
-            '.cpp': 'C++',
-            '.c': 'C',
-            '.html': 'HTML',
-            '.css': 'CSS',
-            '.php': 'PHP',
-            '.rb': 'Ruby',
-            '.go': 'Go',
-            '.rs': 'Rust'
+            ".py": "Python",
+            ".js": "JavaScript",
+            ".java": "Java",
+            ".cpp": "C++",
+            ".c": "C",
+            ".html": "HTML",
+            ".css": "CSS",
+            ".php": "PHP",
+            ".rb": "Ruby",
+            ".go": "Go",
+            ".rs": "Rust",
         }
-        return lang_map.get(extension, 'Unknown')
+        return lang_map.get(extension, "Unknown")
 
     def move_file(self, src, dst):
         if not src or not dst:
@@ -972,14 +1143,14 @@ body {{
         """Create or append to notes file."""
         if not content:
             return "No content provided for note."
-        
+
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             note_entry = f"\n## {title or 'Note'} - {timestamp}\n\n{content}\n\n---\n"
-            
-            with open(self.notes_file, 'a', encoding='utf-8') as f:
+
+            with open(self.notes_file, "a", encoding="utf-8") as f:
                 f.write(note_entry)
-            
+
             return f"Note saved to {self.notes_file}"
         except Exception as e:
             return f"Error saving note: {e}"
@@ -989,10 +1160,10 @@ body {{
         try:
             if not os.path.exists(self.notes_file):
                 return "No notes file found."
-            
-            with open(self.notes_file, 'r', encoding='utf-8') as f:
+
+            with open(self.notes_file, "r", encoding="utf-8") as f:
                 notes = f.read()
-            
+
             return f"Notes from {self.notes_file}:\n{notes}"
         except Exception as e:
             return f"Error reading notes: {e}"
@@ -1001,43 +1172,50 @@ body {{
         """Search for specific content in notes."""
         if not query:
             return "No search query provided."
-        
+
         try:
             if not os.path.exists(self.notes_file):
                 return "No notes file found."
-            
-            with open(self.notes_file, 'r', encoding='utf-8') as f:
+
+            with open(self.notes_file, "r", encoding="utf-8") as f:
                 notes = f.read()
-            
+
             matching_lines = []
-            for i, line in enumerate(notes.split('\n'), 1):
+            for i, line in enumerate(notes.split("\n"), 1):
                 if query.lower() in line.lower():
                     matching_lines.append(f"Line {i}: {line}")
-            
+
             if matching_lines:
-                return f"Found {len(matching_lines)} matches for '{query}':\n" + "\n".join(matching_lines)
+                return (
+                    f"Found {len(matching_lines)} matches for '{query}':\n"
+                    + "\n".join(matching_lines)
+                )
             else:
                 return f"No matches found for '{query}'"
         except Exception as e:
             return f"Error searching notes: {e}"
 
     # Spreadsheet Operations
-    def create_sheet(self, filename: str, data: Optional[List[List[str]]] = None) -> str:
+    def create_sheet(
+        self, filename: str, data: Optional[List[List[str]]] = None
+    ) -> str:
         """Create a new spreadsheet file."""
         if not filename:
             return "No filename provided."
-        
+
         try:
-            if filename.endswith('.xlsx'):
+            if filename.endswith(".xlsx"):
                 return self._create_excel_sheet(filename, data)
-            elif filename.endswith('.csv'):
+            elif filename.endswith(".csv"):
                 return self._create_csv_sheet(filename, data)
             else:
                 return "Unsupported file format. Use .xlsx or .csv"
         except Exception as e:
             return f"Error creating sheet: {e}"
 
-    def _create_excel_sheet(self, filename: str, data: Optional[List[List[str]]] = None) -> str:
+    def _create_excel_sheet(
+        self, filename: str, data: Optional[List[List[str]]] = None
+    ) -> str:
         """Create Excel spreadsheet."""
         try:
             from openpyxl import Workbook  # type: ignore
@@ -1049,38 +1227,40 @@ body {{
         if ws is None:
             return "Failed to create worksheet"
         ws.title = "Sheet1"  # type: ignore
-        
+
         if data:
             for row in data:
                 ws.append(row)  # type: ignore
         else:
             ws.append(["Column1", "Column2", "Column3"])  # type: ignore
             ws.append(["Sample", "Data", "Here"])  # type: ignore
-        
+
         wb.save(filename)
         return f"Excel sheet created: {filename}"
 
-    def _create_csv_sheet(self, filename: str, data: Optional[List[List[str]]] = None) -> str:
+    def _create_csv_sheet(
+        self, filename: str, data: Optional[List[List[str]]] = None
+    ) -> str:
         """Create CSV file."""
-        with open(filename, 'w', newline='', encoding='utf-8') as f:
+        with open(filename, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             if data:
                 writer.writerows(data)
             else:
                 writer.writerow(["Column1", "Column2", "Column3"])
                 writer.writerow(["Sample", "Data", "Here"])
-        
+
         return f"CSV sheet created: {filename}"
 
     def read_sheet(self, filename: str) -> str:
         """Read data from spreadsheet file."""
         if not filename:
             return "No filename provided."
-        
+
         try:
-            if filename.endswith('.xlsx'):
+            if filename.endswith(".xlsx"):
                 return self._read_excel_sheet(filename)
-            elif filename.endswith('.csv'):
+            elif filename.endswith(".csv"):
                 return self._read_csv_sheet(filename)
             else:
                 return "Unsupported file format. Use .xlsx or .csv"
@@ -1098,32 +1278,32 @@ body {{
         ws = wb.active  # type: ignore
         if ws is None:
             return "Failed to load worksheet"
-        
+
         data = []
         for row in ws.iter_rows(values_only=True):  # type: ignore
             data.append(row)
-        
+
         return f"Excel sheet data from {filename}:\n{json.dumps(data, indent=2, default=str)}"
 
     def _read_csv_sheet(self, filename: str) -> str:
         """Read CSV file."""
         data = []
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filename, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
             for row in reader:
                 data.append(row)
-        
+
         return f"CSV sheet data from {filename}:\n{json.dumps(data, indent=2)}"
 
     def write_sheet(self, filename: str, data: List[List[str]]) -> str:
         """Write data to spreadsheet file."""
         if not filename or not data:
             return "Filename and data required."
-        
+
         try:
-            if filename.endswith('.xlsx'):
+            if filename.endswith(".xlsx"):
                 return self._write_excel_sheet(filename, data)
-            elif filename.endswith('.csv'):
+            elif filename.endswith(".csv"):
                 return self._write_csv_sheet(filename, data)
             else:
                 return "Unsupported file format. Use .xlsx or .csv"
@@ -1141,28 +1321,30 @@ body {{
         ws = wb.active
         if ws is None:
             return "Failed to create worksheet"
-        
+
         for row in data:
             ws.append(row)
-        
+
         wb.save(filename)
         return f"Data written to Excel sheet: {filename}"
 
     def _write_csv_sheet(self, filename: str, data: List[List[str]]) -> str:
         """Write to CSV file."""
-        with open(filename, 'w', newline='', encoding='utf-8') as f:
+        with open(filename, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerows(data)
-        
+
         return f"Data written to CSV sheet: {filename}"
 
     # Presentations (PowerPoint)
-    def create_presentation(self, filename: str, title: Optional[str] = None, content: Optional[str] = None) -> str:
+    def create_presentation(
+        self, filename: str, title: Optional[str] = None, content: Optional[str] = None
+    ) -> str:
         """Create a new PowerPoint presentation with an optional title slide."""
         if not filename:
             return "No filename provided."
-        if not filename.lower().endswith('.pptx'):
-            filename += '.pptx'
+        if not filename.lower().endswith(".pptx"):
+            filename += ".pptx"
         try:
             from pptx import Presentation  # type: ignore
         except ImportError:
@@ -1184,7 +1366,12 @@ body {{
         except Exception as e:
             return f"Error creating presentation: {e}"
 
-    def add_presentation_slide(self, filename: str, title: Optional[str] = None, bullets: Optional[List[str]] = None) -> str:
+    def add_presentation_slide(
+        self,
+        filename: str,
+        title: Optional[str] = None,
+        bullets: Optional[List[str]] = None,
+    ) -> str:
         """Add a slide with title and bullet points to an existing presentation."""
         if not filename:
             return "No filename provided."
@@ -1229,14 +1416,17 @@ body {{
         """Close application by name."""
         if not app:
             return "No application name provided."
-        
+
         try:
-            if os.name == 'nt':  # Windows
-                subprocess.run(['taskkill', '/F', '/IM', f'{app}.exe'], 
-                             capture_output=True, text=True)
+            if os.name == "nt":  # Windows
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", f"{app}.exe"],
+                    capture_output=True,
+                    text=True,
+                )
                 return f"Attempting to close {app}"
             else:  # Unix-like systems
-                subprocess.run(['pkill', '-f', app], capture_output=True, text=True)
+                subprocess.run(["pkill", "-f", app], capture_output=True, text=True)
                 return f"Attempting to close {app}"
         except Exception as e:
             return f"Error closing app: {e}"
@@ -1245,7 +1435,7 @@ body {{
     def clipboard_action(self, params):
         """Handle clipboard operations."""
         action = params.get("action", "")
-        
+
         if action == "copy":
             return self.clipboard_copy(params.get("text", ""))
         elif action == "paste":
@@ -1258,7 +1448,7 @@ body {{
         """Send notification."""
         if not message:
             return "No message provided."
-        
+
         return self.show_notification("M.I.A", message)
 
     # System Settings
@@ -1266,10 +1456,10 @@ body {{
         """Change system settings."""
         setting = params.get("setting", "")
         value = params.get("value", "")
-        
+
         if not setting:
             return "No setting specified."
-        
+
         try:
             if setting == "volume":
                 return self._set_volume(value)
@@ -1285,15 +1475,18 @@ body {{
     def _set_volume(self, value):
         """Set system volume."""
         try:
-            if os.name == 'nt':
+            if os.name == "nt":
                 # Windows volume control
-                subprocess.run(['nircmd', 'setsysvolume', str(int(value) * 655.35)], 
-                             capture_output=True)
+                subprocess.run(
+                    ["nircmd", "setsysvolume", str(int(value) * 655.35)],
+                    capture_output=True,
+                )
                 return f"Volume set to {value}%"
             else:
                 # Linux volume control
-                subprocess.run(['amixer', 'set', 'Master', f'{value}%'], 
-                             capture_output=True)
+                subprocess.run(
+                    ["amixer", "set", "Master", f"{value}%"], capture_output=True
+                )
                 return f"Volume set to {value}%"
         except:
             return "Volume control not available on this system."
@@ -1301,14 +1494,14 @@ body {{
     def _set_brightness(self, value):
         """Set screen brightness."""
         try:
-            if os.name == 'nt':
+            if os.name == "nt":
                 # Windows brightness control (requires powershell)
-                cmd = f'(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{value})'
-                subprocess.run(['powershell', '-Command', cmd], capture_output=True)
+                cmd = f"(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{value})"
+                subprocess.run(["powershell", "-Command", cmd], capture_output=True)
                 return f"Brightness set to {value}%"
             else:
                 # Linux brightness control
-                subprocess.run(['xbacklight', '-set', str(value)], capture_output=True)
+                subprocess.run(["xbacklight", "-set", str(value)], capture_output=True)
                 return f"Brightness set to {value}%"
         except:
             return "Brightness control not available on this system."
@@ -1316,21 +1509,29 @@ body {{
     def _control_wifi(self, action):
         """Control WiFi connection."""
         try:
-            if os.name == 'nt':
+            if os.name == "nt":
                 if action == "on":
-                    subprocess.run(['netsh', 'interface', 'set', 'interface', 'Wi-Fi', 'enabled'], 
-                                 capture_output=True)
+                    subprocess.run(
+                        ["netsh", "interface", "set", "interface", "Wi-Fi", "enabled"],
+                        capture_output=True,
+                    )
                     return "WiFi enabled"
                 elif action == "off":
-                    subprocess.run(['netsh', 'interface', 'set', 'interface', 'Wi-Fi', 'disabled'], 
-                                 capture_output=True)
+                    subprocess.run(
+                        ["netsh", "interface", "set", "interface", "Wi-Fi", "disabled"],
+                        capture_output=True,
+                    )
                     return "WiFi disabled"
             else:
                 if action == "on":
-                    subprocess.run(['nmcli', 'radio', 'wifi', 'on'], capture_output=True)
+                    subprocess.run(
+                        ["nmcli", "radio", "wifi", "on"], capture_output=True
+                    )
                     return "WiFi enabled"
                 elif action == "off":
-                    subprocess.run(['nmcli', 'radio', 'wifi', 'off'], capture_output=True)
+                    subprocess.run(
+                        ["nmcli", "radio", "wifi", "off"], capture_output=True
+                    )
                     return "WiFi disabled"
         except:
             return "WiFi control not available on this system."
@@ -1354,7 +1555,9 @@ body {{
             try:
                 from wasmtime import wat2wasm  # type: ignore
             except Exception:
-                return "wat2wasm requires wasmtime. Install with 'pip install wasmtime'."
+                return (
+                    "wat2wasm requires wasmtime. Install with 'pip install wasmtime'."
+                )
             try:
                 wasm_bytes = wat2wasm(wat_source)
             except Exception as exc:  # pragma: no cover
@@ -1476,7 +1679,9 @@ body {{
 
         # Resolve SMTP configuration from env/config with param overrides
         email_cfg = (self.config or {}).get("email", {})
-        smtp_server = params.get("smtp_server") or email_cfg.get("smtp_server", "smtp.gmail.com")
+        smtp_server = params.get("smtp_server") or email_cfg.get(
+            "smtp_server", "smtp.gmail.com"
+        )
         smtp_port = int(params.get("smtp_port") or email_cfg.get("smtp_port", 587))
         from_addr = params.get("from") or email_cfg.get("username") or ""
         password = params.get("password") or email_cfg.get("password") or ""
@@ -1510,10 +1715,10 @@ body {{
         title = params.get("title", "")
         date = params.get("date", "")
         time = params.get("time", "")
-        
+
         if not title:
             return "No event title provided."
-        
+
         # For now, create a simple text file for calendar events
         try:
             event_info = f"Event: {title}\nDate: {date}\nTime: {time}\n\n"
@@ -1529,10 +1734,10 @@ body {{
         platform = params.get("platform", "").lower()
         to = params.get("to", "")
         message = params.get("message", "")
-        
+
         if not to or not message:
             return "Recipient and message required."
-        
+
         try:
             if platform == "whatsapp":
                 return self.send_whatsapp(params)
@@ -1566,21 +1771,21 @@ body {{
         """Control smart home devices via Home Assistant."""
         device = params.get("device", "")
         action = params.get("action", "")
-        
+
         if not device or not action:
             return "Device and action required."
-        
+
         ha_url = self.config.get("smart_home", {}).get("home_assistant_url", "")
         ha_token = self.config.get("smart_home", {}).get("home_assistant_token", "")
-        
+
         if not ha_url or not ha_token:
             return "Home Assistant URL and token not configured."
-        
+
         try:
             headers = {"Authorization": f"Bearer {ha_token}"}
             url = f"{ha_url}/api/services/homeassistant/turn_{action}"
             data = {"entity_id": device}
-            
+
             response = requests.post(url, headers=headers, json=data)
             if response.status_code == 200:
                 return f"Smart home action: {action} on {device}"
@@ -1594,11 +1799,11 @@ body {{
         """Control smart home devices."""
         if not device_type or not action:
             return "Device type and action required."
-        
+
         try:
             device_type = device_type.lower()
             action = action.lower()
-            
+
             if device_type == "light":
                 return self._control_light(action, **kwargs)
             elif device_type == "temperature":
@@ -1614,10 +1819,10 @@ body {{
 
     def _control_light(self, action: str, **kwargs) -> str:
         """Control lighting system."""
-        room = kwargs.get('room', 'living room')
-        brightness = kwargs.get('brightness', 100)
-        color = kwargs.get('color', 'white')
-        
+        room = kwargs.get("room", "living room")
+        brightness = kwargs.get("brightness", 100)
+        color = kwargs.get("color", "white")
+
         if action == "on":
             return f"Turning on {room} lights at {brightness}% brightness"
         elif action == "off":
@@ -1631,9 +1836,9 @@ body {{
 
     def _control_temperature(self, action: str, **kwargs) -> str:
         """Control temperature system."""
-        temperature = kwargs.get('temperature', 22)
-        mode = kwargs.get('mode', 'auto')
-        
+        temperature = kwargs.get("temperature", 22)
+        mode = kwargs.get("mode", "auto")
+
         if action == "set":
             return f"Setting temperature to {temperature}°C in {mode} mode"
         elif action == "heat":
@@ -1647,9 +1852,9 @@ body {{
 
     def _control_music(self, action: str, **kwargs) -> str:
         """Control music system."""
-        volume = kwargs.get('volume', 50)
-        song = kwargs.get('song', '')
-        
+        volume = kwargs.get("volume", 50)
+        song = kwargs.get("song", "")
+
         if action == "play":
             return f"Playing music{' - ' + song if song else ''} at {volume}% volume"
         elif action == "pause":
@@ -1663,8 +1868,8 @@ body {{
 
     def _control_security(self, action: str, **kwargs) -> str:
         """Control security system."""
-        zone = kwargs.get('zone', 'all')
-        
+        zone = kwargs.get("zone", "all")
+
         if action == "arm":
             return f"Arming security system for {zone}"
         elif action == "disarm":
@@ -1683,7 +1888,7 @@ body {{
         """Copy text to clipboard."""
         if not text:
             return "No text provided to copy."
-        
+
         try:
             import pyperclip  # type: ignore
         except ImportError:
@@ -1712,7 +1917,7 @@ body {{
         """Show system notification."""
         if not title or not message:
             return "Title and message required for notification."
-        
+
         try:
             from plyer import notification  # type: ignore
         except ImportError:
@@ -1720,10 +1925,7 @@ body {{
 
         try:
             notification.notify(  # type: ignore
-                title=title,
-                message=message,
-                app_name="M.I.A",
-                timeout=10
+                title=title, message=message, app_name="M.I.A", timeout=10
             )
             return f"Notification sent: {title} - {message}"
         except Exception as e:
@@ -1733,13 +1935,17 @@ body {{
         """Open an application."""
         if not app_name:
             return "No application name provided."
-        
+
         try:
-            if os.name == 'nt':  # Windows
+            if os.name == "nt":  # Windows
                 os.startfile(app_name)
-            elif os.name == 'posix':  # Linux/Mac
-                subprocess.run(['open', app_name] if sys.platform == 'darwin' else ['xdg-open', app_name])
-            
+            elif os.name == "posix":  # Linux/Mac
+                subprocess.run(
+                    ["open", app_name]
+                    if sys.platform == "darwin"
+                    else ["xdg-open", app_name]
+                )
+
             return f"Opening application: {app_name}"
         except Exception as e:
             return f"Error opening application: {e}"
@@ -1748,7 +1954,7 @@ body {{
         """Get system information."""
         try:
             import platform
-            
+
             info: Dict[str, Any] = {
                 "system": platform.system(),
                 "release": platform.release(),
@@ -1757,18 +1963,22 @@ body {{
                 "processor": platform.processor(),
                 "python_version": platform.python_version(),
             }
-            
+
             try:
                 import psutil  # type: ignore
             except ImportError:
-                info["note"] = "psutil not installed. Run: pip install psutil for detailed system info"
+                info["note"] = (
+                    "psutil not installed. Run: pip install psutil for detailed system info"
+                )
             else:
-                info.update({
-                    "cpu_count": psutil.cpu_count(),  # type: ignore
-                    "memory": f"{psutil.virtual_memory().total / (1024**3):.2f} GB",  # type: ignore
-                    "disk_usage": f"{psutil.disk_usage('/').percent}%"  # type: ignore
-                })
-            
+                info.update(
+                    {
+                        "cpu_count": psutil.cpu_count(),  # type: ignore
+                        "memory": f"{psutil.virtual_memory().total / (1024**3):.2f} GB",  # type: ignore
+                        "disk_usage": f"{psutil.disk_usage('/').percent}%",  # type: ignore
+                    }
+                )
+
             return json.dumps(info, indent=2)
         except Exception as e:
             return f"Error getting system info: {e}"
@@ -1781,14 +1991,16 @@ body {{
         """Search the web for information."""
         if not query:
             return "No search query provided."
-        
+
         try:
             # Use DuckDuckGo as default search engine
             search_url = f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
-            response = requests.get(search_url, headers={'User-Agent': 'Mozilla/5.0'})
-            
+            response = requests.get(search_url, headers={"User-Agent": "Mozilla/5.0"})
+
             if response.status_code == 200:
-                return f"Web search completed for: {query}. Found results at {search_url}"
+                return (
+                    f"Web search completed for: {query}. Found results at {search_url}"
+                )
             else:
                 return f"Web search failed with status code: {response.status_code}"
         except Exception as e:
@@ -1798,9 +2010,9 @@ body {{
         """Scrape content from a web page."""
         if not url:
             return "No URL provided."
-        
+
         try:
-            response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+            response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
             if response.status_code == 200:
                 return f"Web scraping completed for: {url}. Content length: {len(response.text)} characters"
             else:
@@ -1812,18 +2024,18 @@ body {{
         """Research a topic using multiple sources."""
         if not topic:
             return "No topic provided."
-        
+
         try:
             results = []
-            
+
             # Web search
             web_result = self.web_search(topic)
             results.append(f"Web Search: {web_result}")
-            
+
             # Wikipedia search
             wiki_result = self.wikipedia_search(topic)
             results.append(f"Wikipedia: {wiki_result}")
-            
+
             return f"Research on '{topic}':\n" + "\n".join(results)
         except Exception as e:
             return f"Error researching topic: {e}"
@@ -1832,7 +2044,7 @@ body {{
         """Search Wikipedia for information."""
         if not query:
             return "No search query provided."
-        
+
         try:
             import wikipedia  # type: ignore
         except ImportError:
@@ -1849,10 +2061,10 @@ body {{
         if not path:
             return "No file path provided."
         try:
-            if os.name == 'nt':
+            if os.name == "nt":
                 os.startfile(path)
             else:
-                subprocess.run(['xdg-open', path])
+                subprocess.run(["xdg-open", path])
             return f"Opened file: {path}"
         except Exception as e:
             return f"Error opening file: {e}"
@@ -1874,8 +2086,8 @@ body {{
                 return "pywhatkit does not provide sendwhatmsg_instantly. Update the library."
 
             send_instant(
-                recipient or self.config.get('whatsapp', {}).get('phone_number', ''),
-                message
+                recipient or self.config.get("whatsapp", {}).get("phone_number", ""),
+                message,
             )  # type: ignore
             return f"Sent WhatsApp message to {recipient}"
         except Exception as e:

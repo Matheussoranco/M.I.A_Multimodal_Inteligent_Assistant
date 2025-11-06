@@ -1,69 +1,65 @@
+from typing import Any, Dict
+
+import numpy as np
 import speech_recognition as sr
 from PIL import Image
-import numpy as np
-from typing import Dict, Any
+
 
 class MultimodalProcessor:
     def __init__(self):
         self.recognizer = sr.Recognizer()
         self.vision_cache: Dict[str, Any] = {}
-        
+
     def process_audio(self, audio_data) -> Dict[str, Any]:
         """Convert speech to text with emotion analysis"""
         try:
             # Use Google Speech Recognition as primary method
-            text = getattr(self.recognizer, 'recognize_google')(audio_data)  # type: ignore
-            return {
-                'text': text,
-                'emotion': self._analyze_emotion(audio_data)
-            }
+            text = getattr(self.recognizer, "recognize_google")(audio_data)  # type: ignore
+            return {"text": text, "emotion": self._analyze_emotion(audio_data)}
         except (sr.UnknownValueError, AttributeError):
             return {"error": "Could not understand audio"}
         except sr.RequestError:
             # Try alternative recognition methods
             try:
                 # Try Sphinx (offline) as fallback
-                text = getattr(self.recognizer, 'recognize_sphinx')(audio_data)  # type: ignore
-                return {
-                    'text': text,
-                    'emotion': self._analyze_emotion(audio_data)
-                }
+                text = getattr(self.recognizer, "recognize_sphinx")(audio_data)  # type: ignore
+                return {"text": text, "emotion": self._analyze_emotion(audio_data)}
             except (sr.UnknownValueError, sr.RequestError, AttributeError):
                 return {"error": "Could not process audio"}
-            
+
     def process_image(self, image_path):
         """Analyze image content"""
         img = Image.open(image_path)
         return {
-            'size': img.size,
-            'dominant_color': self._get_dominant_color(img),
-            'text_ocr': self._extract_text(img)
+            "size": img.size,
+            "dominant_color": self._get_dominant_color(img),
+            "text_ocr": self._extract_text(img),
         }
-    
+
     def _analyze_emotion(self, audio):
         """Analyze emotion from audio using basic signal processing"""
         try:
             # Convert audio to numpy array
-            if hasattr(audio, 'get_raw_data'):
+            if hasattr(audio, "get_raw_data"):
                 audio_np = np.frombuffer(audio.get_raw_data(), dtype=np.int16)
             else:
                 audio_np = np.array(audio, dtype=np.float32)
-            
+
             # Convert to float and normalize
             if audio_np.dtype == np.int16:
                 audio_np = audio_np.astype(np.float32) / 32768.0
-            
+
             # Basic feature extraction
             # Energy (volume level)
-            energy = np.sum(audio_np ** 2) / len(audio_np)
-            
+            energy = np.sum(audio_np**2) / len(audio_np)
+
             # Zero crossing rate (measure of noisiness)
             zero_crossings = np.sum(np.abs(np.diff(np.sign(audio_np)))) / len(audio_np)
-            
+
             # Simple pitch estimation using autocorrelation
             if len(audio_np) > 100:
-                corr = np.correlate(audio_np[:1000], audio_np[:1000], mode='full')
-                corr = corr[len(corr)//2:]
+                corr = np.correlate(audio_np[:1000], audio_np[:1000], mode="full")
+                corr = corr[len(corr) // 2 :]
                 if len(corr) > 10:
                     peak_index = np.argmax(corr[10:100]) + 10
                     pitch_estimate = 16000 / peak_index if peak_index > 0 else 0
@@ -71,7 +67,7 @@ class MultimodalProcessor:
                     pitch_estimate = 0
             else:
                 pitch_estimate = 0
-            
+
             # Simple emotion classification based on features
             if energy > 0.04:  # High energy
                 if zero_crossings > 0.2:  # Noisy
@@ -86,7 +82,7 @@ class MultimodalProcessor:
                 return "happy"
             else:
                 return "neutral"
-                
+
         except Exception as e:
             print(f"Emotion analysis failed: {e}")
             return "neutral"
@@ -95,22 +91,23 @@ class MultimodalProcessor:
         """Extract dominant color from image"""
         try:
             # Convert to RGB if necessary
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+
             # Resize for faster processing
             img = img.resize((100, 100))
 
             # Get pixel data - use getdata for compatibility with mocks
             pixels = np.array(img.getdata())
             if len(pixels) % 3 != 0:
-                pixels = pixels[:len(pixels) - (len(pixels) % 3)]
+                pixels = pixels[: len(pixels) - (len(pixels) % 3)]
             pixels = pixels.reshape(-1, 3)
 
             # Simple approach: find most frequent color
             pixel_tuples = [tuple(pixel) for pixel in pixels]
 
             from collections import Counter
+
             color_counts = Counter(pixel_tuples)
 
             # Get most common color
@@ -120,22 +117,22 @@ class MultimodalProcessor:
                 dominant_color = (128, 128, 128)  # Default gray
 
             # Convert to hex format
-            hex_color = '#{:02x}{:02x}{:02x}'.format(*dominant_color)
+            hex_color = "#{:02x}{:02x}{:02x}".format(*dominant_color)
 
             return {
-                'hex': hex_color,
-                'rgb': dominant_color,
-                'name': self._color_name(dominant_color)
+                "hex": hex_color,
+                "rgb": dominant_color,
+                "name": self._color_name(dominant_color),
             }
 
         except Exception as e:
             print(f"Dominant color extraction failed: {e}")
-            return {'hex': '#808080', 'rgb': (128, 128, 128), 'name': 'unknown'}
+            return {"hex": "#808080", "rgb": (128, 128, 128), "name": "unknown"}
 
     def _color_name(self, rgb):
         """Get approximate color name from RGB values"""
         r, g, b = rgb
-        
+
         # Simple color classification
         if r > 200 and g > 200 and b > 200:
             return "white"
@@ -167,7 +164,8 @@ class MultimodalProcessor:
             # Try to use pytesseract if available
             try:
                 import importlib
-                pytesseract = importlib.import_module('pytesseract')
+
+                pytesseract = importlib.import_module("pytesseract")
                 # Convert PIL to string format pytesseract expects
                 text = pytesseract.image_to_string(img)
                 return text.strip() if text.strip() else ""
@@ -183,28 +181,29 @@ class MultimodalProcessor:
         try:
             # This is a very simple fallback - in practice, you'd want proper OCR
             # Convert to grayscale
-            if img.mode != 'L':
-                img = img.convert('L')
-            
+            if img.mode != "L":
+                img = img.convert("L")
+
             # Get image dimensions
             width, height = img.size
-            
+
             # Simple text detection by looking for high contrast areas
             # This is just a placeholder - real OCR would be much more sophisticated
             pixels = list(img.getdata())
-            
+
             # Calculate basic statistics
             mean_brightness = sum(pixels) / len(pixels)
             contrast = sum(abs(p - mean_brightness) for p in pixels) / len(pixels)
-            
+
             if contrast > 30:  # High contrast might indicate text
                 return "[Text detected - OCR not available. Install pytesseract for full OCR functionality]"
             else:
                 return ""
-                
+
         except Exception as e:
             print(f"Basic OCR failed: {e}")
             return ""
+
 
 # Usage:
 # processor = MultimodalProcessor()

@@ -1,10 +1,19 @@
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 
 class EmailUtil:
     @staticmethod
-    def send_email(smtp_server: str, port: int, login: str, password: str, recipient: str, subject: str, body: str) -> str:
+    def send_email(
+        smtp_server: str,
+        port: int,
+        login: str,
+        password: str,
+        recipient: str,
+        subject: str,
+        body: str,
+    ) -> str:
         """
         Send an email using the specified SMTP server.
 
@@ -19,11 +28,11 @@ class EmailUtil:
         """
         try:
             msg = MIMEMultipart()
-            msg['From'] = login
-            msg['To'] = recipient
-            msg['Subject'] = subject
+            msg["From"] = login
+            msg["To"] = recipient
+            msg["Subject"] = subject
 
-            msg.attach(MIMEText(body, 'plain'))
+            msg.attach(MIMEText(body, "plain"))
 
             with smtplib.SMTP(smtp_server, port) as server:
                 server.starttls()
@@ -33,6 +42,7 @@ class EmailUtil:
             return f"Email to {recipient} with subject '{subject}' sent successfully."
         except Exception as e:
             return f"Failed to send email: {e}"
+
 
 # Example usage:
 # EmailUtil.send_email(

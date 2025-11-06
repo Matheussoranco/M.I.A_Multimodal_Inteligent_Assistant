@@ -2,10 +2,12 @@
 Comprehensive integration tests for core M.I.A functionality.
 Tests real component interactions with minimal mocking.
 """
-import pytest
-import time
+
 import os
+import time
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class TestCoreIntegration:
@@ -15,7 +17,7 @@ class TestCoreIntegration:
         """Test configuration and resource manager integration."""
         # Test that config manager loads properly
         assert config_manager.config is not None
-        assert config_manager.config.llm.provider == 'openai'
+        assert config_manager.config.llm.provider == "openai"
 
         # Test resource manager initialization
         assert resource_manager.max_memory_bytes == 50 * 1024 * 1024
@@ -102,7 +104,7 @@ class TestCoreIntegration:
 
         # Check that cache stats are updated
         stats = cache_manager.get_stats()
-        assert stats['memory_cache']['size'] > 0
+        assert stats["memory_cache"]["size"] > 0
 
         # Test resource manager memory tracking
         assert resource_manager.max_memory_bytes > 0
@@ -125,7 +127,7 @@ class TestWorkflowIntegration:
         assert is_valid
 
         # Test config updates
-        config_manager.update_config('llm', 'temperature', 0.8)
+        config_manager.update_config("llm", "temperature", 0.8)
         assert config_manager.config.llm.temperature == 0.8
 
     def test_caching_workflow(self, cache_manager):
@@ -136,7 +138,7 @@ class TestWorkflowIntegration:
         assert result == {"step": 1}
 
         # Test cache expiration (simulate)
-        with patch('time.time', return_value=time.time() + 120):  # 2 minutes later
+        with patch("time.time", return_value=time.time() + 120):  # 2 minutes later
             expired_result = cache_manager.get("workflow_test")
             assert expired_result is None  # Should be expired
 
@@ -189,7 +191,9 @@ class TestComponentInteraction:
         cached_value = cache_manager.get("config_test")
         assert cached_value == config_value
 
-    def test_resource_performance_interaction(self, resource_manager, performance_monitor):
+    def test_resource_performance_interaction(
+        self, resource_manager, performance_monitor
+    ):
         """Test resource management with performance monitoring."""
         performance_monitor.start_monitoring()
 

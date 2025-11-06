@@ -1,13 +1,14 @@
-import logging
-import json
-import hashlib
 import asyncio
-import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Tuple, Set, Union
-from datetime import datetime, timedelta
-from collections import defaultdict, deque
+import hashlib
+import json
+import logging
 import threading
+import time
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
 try:
     import numpy as np
 except ImportError:
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class KnowledgeNode:
     """Represents a node in the knowledge graph."""
+
     id: str
     content: Any
     node_type: str
@@ -43,13 +45,16 @@ class KnowledgeNode:
             "updated_at": self.updated_at.isoformat(),
             "confidence": self.confidence,
             "access_count": self.access_count,
-            "last_accessed": self.last_accessed.isoformat() if self.last_accessed else None
+            "last_accessed": (
+                self.last_accessed.isoformat() if self.last_accessed else None
+            ),
         }
 
 
 @dataclass
 class KnowledgeEdge:
     """Represents an edge/relationship in the knowledge graph."""
+
     source_id: str
     target_id: str
     relationship_type: str
@@ -69,13 +74,16 @@ class KnowledgeEdge:
             "metadata": self.metadata,
             "created_at": self.created_at.isoformat(),
             "access_count": self.access_count,
-            "last_accessed": self.last_accessed.isoformat() if self.last_accessed else None
+            "last_accessed": (
+                self.last_accessed.isoformat() if self.last_accessed else None
+            ),
         }
 
 
 @dataclass
 class VectorSearchResult:
     """Result of a vector similarity search."""
+
     node: KnowledgeNode
     similarity_score: float
     context_path: List[str] = field(default_factory=list)
@@ -85,13 +93,14 @@ class VectorSearchResult:
         return {
             "node": self.node.to_dict(),
             "similarity_score": self.similarity_score,
-            "context_path": self.context_path
+            "context_path": self.context_path,
         }
 
 
 @dataclass
 class GraphTraversalResult:
     """Result of a graph traversal operation."""
+
     path: List[KnowledgeNode]
     relationships: List[KnowledgeEdge]
     total_weight: float
@@ -103,7 +112,7 @@ class GraphTraversalResult:
             "path": [node.to_dict() for node in self.path],
             "relationships": [edge.to_dict() for edge in self.relationships],
             "total_weight": self.total_weight,
-            "depth": self.depth
+            "depth": self.depth,
         }
 
 
@@ -122,10 +131,12 @@ class KnowledgeMemoryGraph:
         similarity_threshold: float = 0.7,
         decay_factor: float = 0.95,
         consolidation_threshold: float = 0.9,
-        enable_learning: bool = True
+        enable_learning: bool = True,
     ):
         self.config_manager = config_manager
-        self.embedding_provider = embedding_provider or self._get_default_embedding_provider()
+        self.embedding_provider = (
+            embedding_provider or self._get_default_embedding_provider()
+        )
         self.max_nodes = max_nodes
         self.max_edges_per_node = max_edges_per_node
         self.similarity_threshold = similarity_threshold
@@ -141,7 +152,9 @@ class KnowledgeMemoryGraph:
         # Indexes for efficient access
         self.node_type_index: Dict[str, Set[str]] = defaultdict(set)
         self.relationship_index: Dict[str, Set[Tuple[str, str]]] = defaultdict(set)
-        self.temporal_index: Dict[str, List[str]] = defaultdict(list)  # date -> node_ids
+        self.temporal_index: Dict[str, List[str]] = defaultdict(
+            list
+        )  # date -> node_ids
 
         # Learning and evolution
         self.knowledge_patterns: Dict[str, Dict[str, Any]] = {}
@@ -156,7 +169,9 @@ class KnowledgeMemoryGraph:
         self.decay_thread: Optional[threading.Thread] = None
         self.processing_active = False
 
-        logger.info("Knowledge Memory Graph initialized with capacity for %d nodes", max_nodes)
+        logger.info(
+            "Knowledge Memory Graph initialized with capacity for %d nodes", max_nodes
+        )
 
     def _get_default_embedding_provider(self):
         """Get default embedding provider."""
@@ -177,12 +192,10 @@ class KnowledgeMemoryGraph:
         self.consolidation_thread = threading.Thread(
             target=self._consolidation_worker,
             daemon=True,
-            name="KnowledgeConsolidation"
+            name="KnowledgeConsolidation",
         )
         self.decay_thread = threading.Thread(
-            target=self._decay_worker,
-            daemon=True,
-            name="KnowledgeDecay"
+            target=self._decay_worker, daemon=True, name="KnowledgeDecay"
         )
 
         self.consolidation_thread.start()
@@ -203,7 +216,7 @@ class KnowledgeMemoryGraph:
         content: Any,
         node_type: str,
         metadata: Optional[Dict[str, Any]] = None,
-        relationships: Optional[List[Dict[str, Any]]] = None
+        relationships: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """
         Add new knowledge to the graph.
@@ -238,7 +251,7 @@ class KnowledgeMemoryGraph:
                     content=content,
                     node_type=node_type,
                     metadata=metadata or {},
-                    confidence=0.8  # Initial confidence
+                    confidence=0.8,  # Initial confidence
                 )
                 self.nodes[node_id] = node
                 self.node_type_index[node_type].add(node_id)
@@ -302,7 +315,7 @@ class KnowledgeMemoryGraph:
             return content
         elif isinstance(content, dict):
             # Try common text fields
-            for field in ['text', 'content', 'description', 'summary']:
+            for field in ["text", "content", "description", "summary"]:
                 if field in content and isinstance(content[field], str):
                     return content[field]
             return json.dumps(content)
@@ -313,10 +326,10 @@ class KnowledgeMemoryGraph:
 
     def _add_relationship(self, source_id: str, relationship: Dict[str, Any]):
         """Add a relationship between nodes."""
-        target_id = relationship.get('target_id')
-        rel_type = relationship.get('type', 'related')
-        weight = relationship.get('weight', 1.0)
-        metadata = relationship.get('metadata', {})
+        target_id = relationship.get("target_id")
+        rel_type = relationship.get("type", "related")
+        weight = relationship.get("weight", 1.0)
+        metadata = relationship.get("metadata", {})
 
         if not target_id or target_id not in self.nodes:
             logger.debug("Cannot add relationship: target %s not found", target_id)
@@ -335,13 +348,13 @@ class KnowledgeMemoryGraph:
                 target_id=target_id,
                 relationship_type=rel_type,
                 weight=weight,
-                metadata=metadata
+                metadata=metadata,
             )
             self.edges[edge_key] = edge
             self.relationship_index[rel_type].add(edge_key)
 
         # Add reverse relationship if bidirectional
-        if relationship.get('bidirectional', False):
+        if relationship.get("bidirectional", False):
             reverse_key = (target_id, source_id)
             if reverse_key not in self.edges:
                 reverse_edge = KnowledgeEdge(
@@ -349,7 +362,7 @@ class KnowledgeMemoryGraph:
                     target_id=source_id,
                     relationship_type=f"reverse_{rel_type}",
                     weight=weight,
-                    metadata=metadata
+                    metadata=metadata,
                 )
                 self.edges[reverse_key] = reverse_edge
                 self.relationship_index[f"reverse_{rel_type}"].add(reverse_key)
@@ -359,7 +372,7 @@ class KnowledgeMemoryGraph:
         query: str,
         node_types: Optional[List[str]] = None,
         limit: int = 10,
-        include_context: bool = True
+        include_context: bool = True,
     ) -> List[VectorSearchResult]:
         """
         Search knowledge using vector similarity.
@@ -392,19 +405,23 @@ class KnowledgeMemoryGraph:
             for node_id in candidate_ids:
                 if node_id in self.node_embeddings:
                     node_embedding = self.node_embeddings[node_id]
-                    similarity = self._cosine_similarity(query_embedding, node_embedding)
+                    similarity = self._cosine_similarity(
+                        query_embedding, node_embedding
+                    )
 
                     if similarity >= self.similarity_threshold:
                         node = self.nodes[node_id]
                         context_path = []
 
                         if include_context:
-                            context_path = self._get_context_path(node_id, query_embedding)
+                            context_path = self._get_context_path(
+                                node_id, query_embedding
+                            )
 
                         result = VectorSearchResult(
                             node=node,
                             similarity_score=similarity,
-                            context_path=context_path
+                            context_path=context_path,
                         )
                         results.append(result)
 
@@ -438,14 +455,22 @@ class KnowledgeMemoryGraph:
                 dot_product = np.dot(a, b)
                 norm_a = np.linalg.norm(a)
                 norm_b = np.linalg.norm(b)
-                return dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
+                return (
+                    dot_product / (norm_a * norm_b)
+                    if norm_a > 0 and norm_b > 0
+                    else 0.0
+                )
             else:
                 # Simple dot product fallback
                 if isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
                     dot_product = sum(x * y for x, y in zip(a, b))
                     norm_a = sum(x * x for x in a) ** 0.5
                     norm_b = sum(x * x for x in b) ** 0.5
-                    return dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
+                    return (
+                        dot_product / (norm_a * norm_b)
+                        if norm_a > 0 and norm_b > 0
+                        else 0.0
+                    )
                 return 0.0
         except Exception:
             return 0.0
@@ -458,11 +483,17 @@ class KnowledgeMemoryGraph:
         # Find related nodes with high similarity
         for edge_key, edge in self.edges.items():
             if node_id in edge_key:
-                other_id = edge.target_id if edge.source_id == node_id else edge.source_id
+                other_id = (
+                    edge.target_id if edge.source_id == node_id else edge.source_id
+                )
                 if other_id not in visited and other_id in self.node_embeddings:
                     other_embedding = self.node_embeddings[other_id]
-                    similarity = self._cosine_similarity(query_embedding, other_embedding)
-                    if similarity >= self.similarity_threshold * 0.8:  # Slightly lower threshold for context
+                    similarity = self._cosine_similarity(
+                        query_embedding, other_embedding
+                    )
+                    if (
+                        similarity >= self.similarity_threshold * 0.8
+                    ):  # Slightly lower threshold for context
                         context_nodes.append(other_id)
                         visited.add(other_id)
 
@@ -473,7 +504,7 @@ class KnowledgeMemoryGraph:
         start_node_id: str,
         relationship_types: Optional[List[str]] = None,
         max_depth: int = 3,
-        max_nodes: int = 20
+        max_nodes: int = 20,
     ) -> List[GraphTraversalResult]:
         """
         Traverse graph relationships from a starting node.
@@ -493,7 +524,9 @@ class KnowledgeMemoryGraph:
 
             results = []
             visited = set()
-            queue = deque([(start_node_id, [], [], 0, 0.0)])  # node_id, path, relationships, depth, total_weight
+            queue = deque(
+                [(start_node_id, [], [], 0, 0.0)]
+            )  # node_id, path, relationships, depth, total_weight
 
             while queue and len(results) < max_nodes:
                 current_id, path, relationships, depth, total_weight = queue.popleft()
@@ -511,7 +544,7 @@ class KnowledgeMemoryGraph:
                         path=current_path,
                         relationships=relationships,
                         total_weight=total_weight,
-                        depth=depth
+                        depth=depth,
                     )
                     results.append(result)
 
@@ -522,37 +555,42 @@ class KnowledgeMemoryGraph:
                         if neighbor_id not in visited:
                             new_relationships = relationships + [edge]
                             new_weight = total_weight + edge.weight
-                            queue.append((
-                                neighbor_id,
-                                current_path,
-                                new_relationships,
-                                depth + 1,
-                                new_weight
-                            ))
+                            queue.append(
+                                (
+                                    neighbor_id,
+                                    current_path,
+                                    new_relationships,
+                                    depth + 1,
+                                    new_weight,
+                                )
+                            )
 
             return results
 
     def _get_node_neighbors(
-        self,
-        node_id: str,
-        relationship_types: Optional[List[str]] = None
+        self, node_id: str, relationship_types: Optional[List[str]] = None
     ) -> List[Tuple[str, KnowledgeEdge]]:
         """Get neighboring nodes for a given node."""
         neighbors = []
 
         for edge_key, edge in self.edges.items():
             if node_id in edge_key:
-                other_id = edge.target_id if edge.source_id == node_id else edge.source_id
+                other_id = (
+                    edge.target_id if edge.source_id == node_id else edge.source_id
+                )
 
                 # Filter by relationship type if specified
-                if relationship_types and edge.relationship_type not in relationship_types:
+                if (
+                    relationship_types
+                    and edge.relationship_type not in relationship_types
+                ):
                     continue
 
                 neighbors.append((other_id, edge))
 
         # Sort by edge weight
         neighbors.sort(key=lambda x: x[1].weight, reverse=True)
-        return neighbors[:self.max_edges_per_node]
+        return neighbors[: self.max_edges_per_node]
 
     def consolidate_knowledge(self):
         """Consolidate similar knowledge nodes."""
@@ -588,7 +626,9 @@ class KnowledgeMemoryGraph:
                 similarities = [[0.0] * n for _ in range(n)]
                 for i in range(n):
                     for j in range(n):
-                        similarities[i][j] = self._cosine_similarity(embeddings[i][1], embeddings[j][1])
+                        similarities[i][j] = self._cosine_similarity(
+                            embeddings[i][1], embeddings[j][1]
+                        )
 
             # Find clusters of similar nodes
             visited = set()
@@ -600,7 +640,10 @@ class KnowledgeMemoryGraph:
                 visited.add(node_id)
 
                 for j, (other_id, _) in enumerate(nodes_with_embeddings):
-                    if other_id not in visited and similarities[i][j] >= self.consolidation_threshold:
+                    if (
+                        other_id not in visited
+                        and similarities[i][j] >= self.consolidation_threshold
+                    ):
                         cluster.append(other_id)
                         visited.add(other_id)
 
@@ -643,14 +686,16 @@ class KnowledgeMemoryGraph:
                 if node_id in edge_key:
                     new_edge_key = (
                         primary_id if edge.source_id == node_id else edge.source_id,
-                        primary_id if edge.target_id == node_id else edge.target_id
+                        primary_id if edge.target_id == node_id else edge.target_id,
                     )
 
                     if new_edge_key[0] != new_edge_key[1]:  # Avoid self-loops
                         if new_edge_key in self.edges:
                             # Merge edge weights
                             existing_edge = self.edges[new_edge_key]
-                            existing_edge.weight = max(existing_edge.weight, edge.weight)
+                            existing_edge.weight = max(
+                                existing_edge.weight, edge.weight
+                            )
                         else:
                             # Create new edge
                             new_edge = KnowledgeEdge(
@@ -658,10 +703,12 @@ class KnowledgeMemoryGraph:
                                 target_id=new_edge_key[1],
                                 relationship_type=edge.relationship_type,
                                 weight=edge.weight,
-                                metadata=edge.metadata
+                                metadata=edge.metadata,
                             )
                             self.edges[new_edge_key] = new_edge
-                            self.relationship_index[edge.relationship_type].add(new_edge_key)
+                            self.relationship_index[edge.relationship_type].add(
+                                new_edge_key
+                            )
 
                     # Remove old edge
                     del self.edges[edge_key]
@@ -712,8 +759,12 @@ class KnowledgeMemoryGraph:
 
             for node_id, node in self.nodes.items():
                 if node.last_accessed:
-                    hours_since_access = (current_time - node.last_accessed).total_seconds() / 3600
-                    decay_factor = self.decay_factor ** (hours_since_access / 24)  # Daily decay
+                    hours_since_access = (
+                        current_time - node.last_accessed
+                    ).total_seconds() / 3600
+                    decay_factor = self.decay_factor ** (
+                        hours_since_access / 24
+                    )  # Daily decay
 
                     # Apply decay to confidence
                     old_confidence = node.confidence
@@ -765,7 +816,10 @@ class KnowledgeMemoryGraph:
             # Remove oldest, least accessed nodes
             nodes_by_access = sorted(
                 self.nodes.items(),
-                key=lambda x: (x[1].last_accessed or x[1].created_at, x[1].access_count)
+                key=lambda x: (
+                    x[1].last_accessed or x[1].created_at,
+                    x[1].access_count,
+                ),
             )
 
             nodes_to_remove = len(self.nodes) - self.max_nodes
@@ -793,8 +847,16 @@ class KnowledgeMemoryGraph:
                 "relationship_types": dict(relationship_types),
                 "nodes_with_embeddings": len(self.node_embeddings),
                 "consolidation_queue_size": len(self.consolidation_queue),
-                "avg_confidence": sum(n.confidence for n in self.nodes.values()) / len(self.nodes) if self.nodes else 0,
-                "avg_access_count": sum(n.access_count for n in self.nodes.values()) / len(self.nodes) if self.nodes else 0
+                "avg_confidence": (
+                    sum(n.confidence for n in self.nodes.values()) / len(self.nodes)
+                    if self.nodes
+                    else 0
+                ),
+                "avg_access_count": (
+                    sum(n.access_count for n in self.nodes.values()) / len(self.nodes)
+                    if self.nodes
+                    else 0
+                ),
             }
 
     def export_knowledge_graph(self) -> Dict[str, Any]:
@@ -808,8 +870,8 @@ class KnowledgeMemoryGraph:
                     "total_nodes": len(self.nodes),
                     "total_edges": len(self.edges),
                     "node_types": list(self.node_type_index.keys()),
-                    "relationship_types": list(self.relationship_index.keys())
-                }
+                    "relationship_types": list(self.relationship_index.keys()),
+                },
             }
 
     def import_knowledge_graph(self, data: Dict[str, Any]):
@@ -833,7 +895,11 @@ class KnowledgeMemoryGraph:
                     updated_at=datetime.fromisoformat(node_data["updated_at"]),
                     confidence=node_data["confidence"],
                     access_count=node_data["access_count"],
-                    last_accessed=datetime.fromisoformat(node_data["last_accessed"]) if node_data.get("last_accessed") else None
+                    last_accessed=(
+                        datetime.fromisoformat(node_data["last_accessed"])
+                        if node_data.get("last_accessed")
+                        else None
+                    ),
                 )
                 self.nodes[node.id] = node
                 self.node_type_index[node.node_type].add(node.id)
@@ -850,14 +916,21 @@ class KnowledgeMemoryGraph:
                     metadata=edge_data["metadata"],
                     created_at=datetime.fromisoformat(edge_data["created_at"]),
                     access_count=edge_data["access_count"],
-                    last_accessed=datetime.fromisoformat(edge_data["last_accessed"]) if edge_data.get("last_accessed") else None
+                    last_accessed=(
+                        datetime.fromisoformat(edge_data["last_accessed"])
+                        if edge_data.get("last_accessed")
+                        else None
+                    ),
                 )
                 edge_key = (edge.source_id, edge.target_id)
                 self.edges[edge_key] = edge
                 self.relationship_index[edge.relationship_type].add(edge_key)
 
-            logger.info("Imported knowledge graph with %d nodes and %d edges",
-                       len(self.nodes), len(self.edges))
+            logger.info(
+                "Imported knowledge graph with %d nodes and %d edges",
+                len(self.nodes),
+                len(self.edges),
+            )
 
 
 # Register with provider registry
@@ -867,7 +940,9 @@ def create_knowledge_memory_graph(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'knowledge', 'memory_graph',
-    'mia.adaptive_intelligence.knowledge_memory_graph', 'create_knowledge_memory_graph',
-    default=True
+    "knowledge",
+    "memory_graph",
+    "mia.adaptive_intelligence.knowledge_memory_graph",
+    "create_knowledge_memory_graph",
+    default=True,
 )

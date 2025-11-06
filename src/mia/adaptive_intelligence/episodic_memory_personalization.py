@@ -1,14 +1,14 @@
-import logging
 import asyncio
-import json
 import hashlib
+import json
+import logging
+import statistics
 import threading
+import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable, Union, Set, Tuple
 from datetime import datetime, timedelta
 from enum import Enum
-import statistics
-import uuid
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from ..providers import provider_registry
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class MemoryType(Enum):
     """Types of episodic memories."""
+
     INTERACTION = "interaction"
     DECISION = "decision"
     FEEDBACK = "feedback"
@@ -28,6 +29,7 @@ class MemoryType(Enum):
 
 class PrivacyLevel(Enum):
     """Privacy levels for memory data."""
+
     PUBLIC = "public"
     INTERNAL = "internal"
     SENSITIVE = "sensitive"
@@ -36,6 +38,7 @@ class PrivacyLevel(Enum):
 
 class RetentionPolicy(Enum):
     """Data retention policies."""
+
     FOREVER = "forever"
     YEARS_7 = "7_years"
     YEARS_3 = "3_years"
@@ -49,6 +52,7 @@ class RetentionPolicy(Enum):
 @dataclass
 class EpisodicMemory:
     """Represents a single episodic memory."""
+
     id: str
     user_id: str
     session_id: Optional[str]
@@ -69,6 +73,7 @@ class EpisodicMemory:
 @dataclass
 class UserProfile:
     """User profile with preferences and patterns."""
+
     user_id: str
     demographics: Dict[str, Any] = field(default_factory=dict)
     preferences: Dict[str, Any] = field(default_factory=dict)
@@ -85,6 +90,7 @@ class UserProfile:
 @dataclass
 class PersonalizationContext:
     """Context for personalization decisions."""
+
     user_id: str
     current_session: str
     recent_interactions: List[Dict[str, Any]] = field(default_factory=list)
@@ -98,6 +104,7 @@ class PersonalizationContext:
 @dataclass
 class PersonalizationRule:
     """Rule for personalization decisions."""
+
     id: str
     name: str
     condition: Dict[str, Any]
@@ -143,7 +150,9 @@ class EpisodicMemoryStore:
             # Update indices
             self._update_indices(memory, add=True)
 
-            logger.debug(f"Stored episodic memory: {memory_id} for user {memory.user_id}")
+            logger.debug(
+                f"Stored episodic memory: {memory_id} for user {memory.user_id}"
+            )
             return memory_id
 
     def retrieve_memories(
@@ -154,7 +163,7 @@ class EpisodicMemoryStore:
         tags: Optional[List[str]] = None,
         time_range: Optional[Tuple[datetime, datetime]] = None,
         limit: int = 50,
-        min_importance: float = 0.0
+        min_importance: float = 0.0,
     ) -> List[EpisodicMemory]:
         """Retrieve memories based on criteria."""
         with self._lock:
@@ -191,8 +200,7 @@ class EpisodicMemoryStore:
 
             # Sort by importance and recency
             filtered_memories.sort(
-                key=lambda m: (m.importance, m.timestamp),
-                reverse=True
+                key=lambda m: (m.importance, m.timestamp), reverse=True
             )
 
             return filtered_memories[:limit]
@@ -241,7 +249,9 @@ class EpisodicMemoryStore:
         with self._lock:
             if user_id:
                 user_memories = self.user_index.get(user_id, set())
-                memories = [self.memories[mid] for mid in user_memories if mid in self.memories]
+                memories = [
+                    self.memories[mid] for mid in user_memories if mid in self.memories
+                ]
             else:
                 memories = list(self.memories.values())
 
@@ -251,7 +261,9 @@ class EpisodicMemoryStore:
             # Calculate statistics
             type_counts = {}
             for memory in memories:
-                type_counts[memory.memory_type.value] = type_counts.get(memory.memory_type.value, 0) + 1
+                type_counts[memory.memory_type.value] = (
+                    type_counts.get(memory.memory_type.value, 0) + 1
+                )
 
             avg_importance = statistics.mean(m.importance for m in memories)
             avg_confidence = statistics.mean(m.confidence for m in memories)
@@ -266,9 +278,9 @@ class EpisodicMemoryStore:
                 "avg_confidence": avg_confidence,
                 "date_range": {
                     "oldest": oldest_memory.timestamp.isoformat(),
-                    "newest": newest_memory.timestamp.isoformat()
+                    "newest": newest_memory.timestamp.isoformat(),
                 },
-                "storage_utilization": len(self.memories) / self.max_memory_size
+                "storage_utilization": len(self.memories) / self.max_memory_size,
             }
 
     def _update_indices(self, memory: EpisodicMemory, add: bool = True):
@@ -328,15 +340,18 @@ class EpisodicMemoryStore:
         # If still over limit, delete lowest importance memories
         if len(self.memories) >= self.max_memory_size:
             sorted_memories = sorted(
-                self.memories.items(),
-                key=lambda x: (x[1].importance, x[1].timestamp)
+                self.memories.items(), key=lambda x: (x[1].importance, x[1].timestamp)
             )
 
-            to_delete = len(self.memories) - self.max_memory_size + 1000  # Keep some buffer
+            to_delete = (
+                len(self.memories) - self.max_memory_size + 1000
+            )  # Keep some buffer
             for memory_id, _ in sorted_memories[:to_delete]:
                 self.delete_memory(memory_id)
 
-    def _should_delete_memory(self, memory: EpisodicMemory, current_time: datetime) -> bool:
+    def _should_delete_memory(
+        self, memory: EpisodicMemory, current_time: datetime
+    ) -> bool:
         """Check if a memory should be deleted based on retention policy."""
         age = current_time - memory.timestamp
 
@@ -399,7 +414,7 @@ class UserProfileManager:
             profile.updated_at = datetime.now()
 
             # Update personalization vector if preferences changed
-            if 'preferences' in updates:
+            if "preferences" in updates:
                 self._update_personalization_vector(profile)
 
             logger.debug(f"Updated profile for user: {user_id}")
@@ -416,7 +431,7 @@ class UserProfileManager:
                 "type": interaction.get("type", "unknown"),
                 "content": interaction.get("content", ""),
                 "outcome": interaction.get("outcome"),
-                "metadata": interaction.get("metadata", {})
+                "metadata": interaction.get("metadata", {}),
             }
 
             profile.interaction_history.append(interaction_entry)
@@ -431,14 +446,17 @@ class UserProfileManager:
             profile.last_interaction = datetime.now()
             profile.updated_at = datetime.now()
 
-    def get_personalization_context(self, user_id: str, session_id: str) -> PersonalizationContext:
+    def get_personalization_context(
+        self, user_id: str, session_id: str
+    ) -> PersonalizationContext:
         """Get personalization context for a user."""
         profile = self.get_or_create_profile(user_id)
 
         # Get recent interactions (last 24 hours)
         recent_cutoff = datetime.now() - timedelta(hours=24)
         recent_interactions = [
-            interaction for interaction in profile.interaction_history
+            interaction
+            for interaction in profile.interaction_history
             if datetime.fromisoformat(interaction["timestamp"]) > recent_cutoff
         ]
 
@@ -454,7 +472,7 @@ class UserProfileManager:
         # Get environmental context (simplified)
         environmental_context = {
             "timezone": "UTC",  # Would be detected
-            "device_type": "unknown"  # Would be detected
+            "device_type": "unknown",  # Would be detected
         }
 
         return PersonalizationContext(
@@ -465,10 +483,12 @@ class UserProfileManager:
             emotional_state=emotional_state,
             cognitive_load=cognitive_load,
             time_context=time_context,
-            environmental_context=environmental_context
+            environmental_context=environmental_context,
         )
 
-    def _update_engagement_metrics(self, profile: UserProfile, interaction: Dict[str, Any]):
+    def _update_engagement_metrics(
+        self, profile: UserProfile, interaction: Dict[str, Any]
+    ):
         """Update engagement metrics based on interaction."""
         # Simple engagement calculation
         interaction_type = interaction.get("type", "")
@@ -487,7 +507,9 @@ class UserProfileManager:
 
         # Update engagement level (moving average)
         alpha = 0.1  # Learning rate
-        profile.engagement_level = (1 - alpha) * profile.engagement_level + alpha * max(0, min(1, profile.engagement_level + engagement_boost))
+        profile.engagement_level = (1 - alpha) * profile.engagement_level + alpha * max(
+            0, min(1, profile.engagement_level + engagement_boost)
+        )
 
     def _update_personalization_vector(self, profile: UserProfile):
         """Update the personalization vector based on preferences and history."""
@@ -508,11 +530,13 @@ class UserProfileManager:
 
         # Content preferences
         content_prefs = preferences.get("content_preferences", {})
-        vector.extend([
-            content_prefs.get("technical", 0.5),
-            content_prefs.get("creative", 0.5),
-            content_prefs.get("practical", 0.5)
-        ])
+        vector.extend(
+            [
+                content_prefs.get("technical", 0.5),
+                content_prefs.get("creative", 0.5),
+                content_prefs.get("practical", 0.5),
+            ]
+        )
 
         # Learning style
         learning_style = preferences.get("learning_style", "visual")
@@ -525,7 +549,9 @@ class UserProfileManager:
 
         profile.personalization_vector = vector
 
-    def _infer_emotional_state(self, recent_interactions: List[Dict[str, Any]]) -> Optional[str]:
+    def _infer_emotional_state(
+        self, recent_interactions: List[Dict[str, Any]]
+    ) -> Optional[str]:
         """Infer emotional state from recent interactions."""
         if not recent_interactions:
             return None
@@ -548,22 +574,31 @@ class UserProfileManager:
         else:
             return "neutral"
 
-    def _estimate_cognitive_load(self, recent_interactions: List[Dict[str, Any]]) -> float:
+    def _estimate_cognitive_load(
+        self, recent_interactions: List[Dict[str, Any]]
+    ) -> float:
         """Estimate cognitive load from interaction patterns."""
         if not recent_interactions:
             return 0.5
 
         # Estimate based on interaction frequency and complexity
-        recent_count = len([i for i in recent_interactions
-                           if datetime.fromisoformat(i["timestamp"]) > datetime.now() - timedelta(minutes=30)])
+        recent_count = len(
+            [
+                i
+                for i in recent_interactions
+                if datetime.fromisoformat(i["timestamp"])
+                > datetime.now() - timedelta(minutes=30)
+            ]
+        )
 
         # Higher frequency = higher cognitive load
         frequency_load = min(1.0, recent_count / 10.0)
 
         # Complexity based on interaction types
         complex_types = ["analysis", "problem_solving", "learning"]
-        complex_count = sum(1 for i in recent_interactions[-10:]
-                           if i.get("type") in complex_types)
+        complex_count = sum(
+            1 for i in recent_interactions[-10:] if i.get("type") in complex_types
+        )
 
         complexity_load = min(1.0, complex_count / 5.0)
 
@@ -578,7 +613,7 @@ class UserProfileManager:
             "day_of_week": now.weekday(),
             "is_weekend": now.weekday() >= 5,
             "season": self._get_season(now),
-            "time_of_day": self._get_time_of_day(now.hour)
+            "time_of_day": self._get_time_of_day(now.hour),
         }
 
     def _get_season(self, dt: datetime) -> str:
@@ -612,7 +647,9 @@ class PersonalizationEngine:
     Uses user profiles, episodic memories, and context to personalize interactions.
     """
 
-    def __init__(self, memory_store: EpisodicMemoryStore, profile_manager: UserProfileManager):
+    def __init__(
+        self, memory_store: EpisodicMemoryStore, profile_manager: UserProfileManager
+    ):
         self.memory_store = memory_store
         self.profile_manager = profile_manager
         self.personalization_rules: Dict[str, PersonalizationRule] = {}
@@ -626,36 +663,46 @@ class PersonalizationEngine:
                 name="Time-based greeting",
                 condition={"time_of_day": ["morning", "afternoon", "evening"]},
                 action={"modify_response": {"add_greeting": True}},
-                priority=8
+                priority=8,
             ),
             PersonalizationRule(
                 id="emotional_support",
                 name="Emotional support for frustrated users",
                 condition={"emotional_state": "frustrated"},
-                action={"modify_response": {"add_encouragement": True, "be_more_helpful": True}},
-                priority=9
+                action={
+                    "modify_response": {
+                        "add_encouragement": True,
+                        "be_more_helpful": True,
+                    }
+                },
+                priority=9,
             ),
             PersonalizationRule(
                 id="cognitive_load_adaptation",
                 name="Adapt to high cognitive load",
                 condition={"cognitive_load": {"gt": 0.7}},
-                action={"modify_response": {"simplify_explanation": True, "break_down_steps": True}},
-                priority=7
+                action={
+                    "modify_response": {
+                        "simplify_explanation": True,
+                        "break_down_steps": True,
+                    }
+                },
+                priority=7,
             ),
             PersonalizationRule(
                 id="learning_style_adaptation",
                 name="Adapt to learning style",
                 condition={"learning_style": ["visual", "auditory", "kinesthetic"]},
                 action={"modify_response": {"use_learning_style": True}},
-                priority=6
+                priority=6,
             ),
             PersonalizationRule(
                 id="previous_success_boost",
                 name="Boost confidence for previously successful topics",
                 condition={"previous_success": True},
                 action={"modify_response": {"add_confidence_booster": True}},
-                priority=5
-            )
+                priority=5,
+            ),
         ]
 
         for rule in rules:
@@ -666,7 +713,7 @@ class PersonalizationEngine:
         user_id: str,
         base_response: str,
         context: PersonalizationContext,
-        request_metadata: Dict[str, Any]
+        request_metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Personalize a response based on user context and history.
@@ -684,14 +731,14 @@ class PersonalizationEngine:
 
         for rule in applicable_rules:
             modifications.update(rule.action.get("modify_response", {}))
-            personalization_applied.append({
-                "rule_id": rule.id,
-                "rule_name": rule.name,
-                "priority": rule.priority
-            })
+            personalization_applied.append(
+                {"rule_id": rule.id, "rule_name": rule.name, "priority": rule.priority}
+            )
 
         # Apply modifications to response
-        personalized_response = self._apply_modifications(base_response, modifications, context)
+        personalized_response = self._apply_modifications(
+            base_response, modifications, context
+        )
 
         # Get relevant memories for context
         relevant_memories = self._get_relevant_memories(user_id, request_metadata)
@@ -699,16 +746,20 @@ class PersonalizationEngine:
         return {
             "personalized_response": personalized_response,
             "personalization_applied": personalization_applied,
-            "relevant_memories": [self._memory_to_dict(mem) for mem in relevant_memories[:3]],  # Top 3
+            "relevant_memories": [
+                self._memory_to_dict(mem) for mem in relevant_memories[:3]
+            ],  # Top 3
             "context_insights": self._generate_context_insights(context, profile),
-            "confidence_score": self._calculate_personalization_confidence(personalization_applied)
+            "confidence_score": self._calculate_personalization_confidence(
+                personalization_applied
+            ),
         }
 
     def _evaluate_rules(
         self,
         context: PersonalizationContext,
         profile: UserProfile,
-        request_metadata: Dict[str, Any]
+        request_metadata: Dict[str, Any],
     ) -> List[PersonalizationRule]:
         """Evaluate which personalization rules apply."""
         applicable_rules = []
@@ -717,7 +768,9 @@ class PersonalizationEngine:
             if not rule.enabled:
                 continue
 
-            if self._rule_matches_condition(rule.condition, context, profile, request_metadata):
+            if self._rule_matches_condition(
+                rule.condition, context, profile, request_metadata
+            ):
                 applicable_rules.append(rule)
 
         # Sort by priority (highest first)
@@ -730,7 +783,7 @@ class PersonalizationEngine:
         condition: Dict[str, Any],
         context: PersonalizationContext,
         profile: UserProfile,
-        request_metadata: Dict[str, Any]
+        request_metadata: Dict[str, Any],
     ) -> bool:
         """Check if a rule condition matches the current context."""
         for key, expected_value in condition.items():
@@ -754,10 +807,16 @@ class PersonalizationEngine:
             if isinstance(expected_value, dict):
                 # Range conditions like {"gt": 0.7}
                 if "gt" in expected_value and actual_value is not None:
-                    if not (isinstance(actual_value, (int, float)) and actual_value > expected_value["gt"]):
+                    if not (
+                        isinstance(actual_value, (int, float))
+                        and actual_value > expected_value["gt"]
+                    ):
                         return False
                 elif "lt" in expected_value and actual_value is not None:
-                    if not (isinstance(actual_value, (int, float)) and actual_value < expected_value["lt"]):
+                    if not (
+                        isinstance(actual_value, (int, float))
+                        and actual_value < expected_value["lt"]
+                    ):
                         return False
             elif isinstance(expected_value, list):
                 # List membership
@@ -774,7 +833,7 @@ class PersonalizationEngine:
         self,
         base_response: str,
         modifications: Dict[str, Any],
-        context: PersonalizationContext
+        context: PersonalizationContext,
     ) -> str:
         """Apply personalization modifications to the response."""
         response = base_response
@@ -790,7 +849,9 @@ class PersonalizationEngine:
 
         if modifications.get("simplify_explanation"):
             # Add simplified language markers (would be more sophisticated)
-            response = response.replace("Furthermore", "Also").replace("Additionally", "Plus")
+            response = response.replace("Furthermore", "Also").replace(
+                "Additionally", "Plus"
+            )
 
         if modifications.get("break_down_steps"):
             # Add step breakdown if response contains numbered steps
@@ -803,7 +864,9 @@ class PersonalizationEngine:
 
         return response
 
-    def _get_relevant_memories(self, user_id: str, request_metadata: Dict[str, Any]) -> List[EpisodicMemory]:
+    def _get_relevant_memories(
+        self, user_id: str, request_metadata: Dict[str, Any]
+    ) -> List[EpisodicMemory]:
         """Get memories relevant to the current request."""
         # Extract keywords/topics from request
         content = request_metadata.get("content", "")
@@ -814,10 +877,7 @@ class PersonalizationEngine:
 
         for keyword in keywords:
             memories = self.memory_store.retrieve_memories(
-                user_id=user_id,
-                tags=[keyword],
-                limit=5,
-                min_importance=0.3
+                user_id=user_id, tags=[keyword], limit=5, min_importance=0.3
             )
             relevant_memories.extend(memories)
 
@@ -838,39 +898,70 @@ class PersonalizationEngine:
         """Extract keywords from content."""
         # Simple keyword extraction (would use NLP in production)
         words = content.lower().split()
-        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by"}
+        stop_words = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+        }
 
         keywords = [word for word in words if len(word) > 3 and word not in stop_words]
         return list(set(keywords))[:5]  # Top 5 unique keywords
 
-    def _generate_context_insights(self, context: PersonalizationContext, profile: UserProfile) -> Dict[str, Any]:
+    def _generate_context_insights(
+        self, context: PersonalizationContext, profile: UserProfile
+    ) -> Dict[str, Any]:
         """Generate insights about the current context."""
         insights = {}
 
         # Time-based insights
         time_of_day = context.time_context.get("time_of_day")
         if time_of_day == "morning":
-            insights["time_insight"] = "User might prefer quick, actionable responses in the morning"
+            insights["time_insight"] = (
+                "User might prefer quick, actionable responses in the morning"
+            )
         elif time_of_day == "evening":
-            insights["time_insight"] = "User might be more receptive to detailed explanations in the evening"
+            insights["time_insight"] = (
+                "User might be more receptive to detailed explanations in the evening"
+            )
 
         # Engagement insights
         if profile.engagement_level > 0.8:
-            insights["engagement_insight"] = "Highly engaged user - provide comprehensive responses"
+            insights["engagement_insight"] = (
+                "Highly engaged user - provide comprehensive responses"
+            )
         elif profile.engagement_level < 0.3:
-            insights["engagement_insight"] = "Low engagement - keep responses concise and focused"
+            insights["engagement_insight"] = (
+                "Low engagement - keep responses concise and focused"
+            )
 
         # Cognitive load insights
         if context.cognitive_load > 0.7:
-            insights["cognitive_insight"] = "High cognitive load - simplify explanations and break down complex topics"
+            insights["cognitive_insight"] = (
+                "High cognitive load - simplify explanations and break down complex topics"
+            )
 
         # Emotional insights
         if context.emotional_state == "frustrated":
-            insights["emotional_insight"] = "User appears frustrated - provide extra support and encouragement"
+            insights["emotional_insight"] = (
+                "User appears frustrated - provide extra support and encouragement"
+            )
 
         return insights
 
-    def _calculate_personalization_confidence(self, applied_rules: List[Dict[str, Any]]) -> float:
+    def _calculate_personalization_confidence(
+        self, applied_rules: List[Dict[str, Any]]
+    ) -> float:
         """Calculate confidence score for personalization."""
         if not applied_rules:
             return 0.5
@@ -886,10 +977,14 @@ class PersonalizationEngine:
         return {
             "id": memory.id,
             "type": memory.memory_type.value,
-            "content": str(memory.content)[:200] + "..." if len(str(memory.content)) > 200 else str(memory.content),
+            "content": (
+                str(memory.content)[:200] + "..."
+                if len(str(memory.content)) > 200
+                else str(memory.content)
+            ),
             "importance": memory.importance,
             "timestamp": memory.timestamp.isoformat(),
-            "tags": list(memory.tags)
+            "tags": list(memory.tags),
         }
 
     def add_personalization_rule(self, rule: PersonalizationRule):
@@ -913,7 +1008,9 @@ class PrivacyController:
     Ensures compliance with privacy regulations and user preferences.
     """
 
-    def __init__(self, memory_store: EpisodicMemoryStore, profile_manager: UserProfileManager):
+    def __init__(
+        self, memory_store: EpisodicMemoryStore, profile_manager: UserProfileManager
+    ):
         self.memory_store = memory_store
         self.profile_manager = profile_manager
         self.consent_records: Dict[str, Dict[str, Any]] = {}  # user_id -> consent data
@@ -926,23 +1023,23 @@ class PrivacyController:
             "interaction_data": {
                 "retention_period": timedelta(days=365),
                 "consent_required": False,
-                "anonymization_required": False
+                "anonymization_required": False,
             },
             "feedback_data": {
                 "retention_period": timedelta(days=730),
                 "consent_required": False,
-                "anonymization_required": False
+                "anonymization_required": False,
             },
             "personalization_data": {
                 "retention_period": timedelta(days=1095),
                 "consent_required": True,
-                "anonymization_required": True
+                "anonymization_required": True,
             },
             "sensitive_data": {
                 "retention_period": timedelta(days=2555),
                 "consent_required": True,
-                "anonymization_required": True
-            }
+                "anonymization_required": True,
+            },
         }
 
     def check_privacy_compliance(self, memory: EpisodicMemory) -> bool:
@@ -954,7 +1051,9 @@ class PrivacyController:
             return False
 
         # Check retention policy compliance
-        policy = self.privacy_policies.get(memory.memory_type.value, self.privacy_policies["interaction_data"])
+        policy = self.privacy_policies.get(
+            memory.memory_type.value, self.privacy_policies["interaction_data"]
+        )
         max_age = policy["retention_period"]
 
         if datetime.now() - memory.timestamp > max_age:
@@ -972,13 +1071,15 @@ class PrivacyController:
         elif privacy_level == PrivacyLevel.SENSITIVE:
             return consent.get("sensitive_data", False)
         else:
-            return consent.get("general_data", True)  # Default to allowed for internal/public
+            return consent.get(
+                "general_data", True
+            )  # Default to allowed for internal/public
 
     def record_user_consent(self, user_id: str, consent_data: Dict[str, Any]):
         """Record user consent preferences."""
         self.consent_records[user_id] = {
             "timestamp": datetime.now(),
-            "consent_data": consent_data
+            "consent_data": consent_data,
         }
         logger.info(f"Recorded consent for user: {user_id}")
 
@@ -987,7 +1088,9 @@ class PrivacyController:
         # Create anonymized copy
         anonymized = EpisodicMemory(
             id=memory.id,
-            user_id=hashlib.sha256(memory.user_id.encode()).hexdigest()[:16],  # Hash user ID
+            user_id=hashlib.sha256(memory.user_id.encode()).hexdigest()[
+                :16
+            ],  # Hash user ID
             session_id=None,  # Remove session info
             memory_type=memory.memory_type,
             content=self._anonymize_content(memory.content),
@@ -998,7 +1101,7 @@ class PrivacyController:
             confidence=memory.confidence,
             privacy_level=PrivacyLevel.INTERNAL,
             retention_policy=memory.retention_policy,
-            tags=set()  # Remove tags
+            tags=set(),  # Remove tags
         )
 
         return anonymized
@@ -1010,9 +1113,14 @@ class PrivacyController:
             anonymized = content
             # Replace email-like patterns
             import re
-            anonymized = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]', anonymized)
+
+            anonymized = re.sub(
+                r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+                "[EMAIL]",
+                anonymized,
+            )
             # Replace phone-like patterns
-            anonymized = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '[PHONE]', anonymized)
+            anonymized = re.sub(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", "[PHONE]", anonymized)
             return anonymized
         else:
             return "[ANONYMIZED_DATA]"
@@ -1027,7 +1135,7 @@ class PrivacyController:
             "user_id": user_id,
             "consent_status": consent.get("consent_data", {}),
             "memory_statistics": memory_stats,
-            "privacy_compliant": self._check_user_compliance(user_id)
+            "privacy_compliant": self._check_user_compliance(user_id),
         }
 
     def _check_user_compliance(self, user_id: str) -> bool:
@@ -1045,7 +1153,9 @@ class PrivacyController:
         memories_deleted = 0
 
         # Delete all memories for user
-        user_memories = self.memory_store.retrieve_memories(user_id=user_id, limit=10000)
+        user_memories = self.memory_store.retrieve_memories(
+            user_id=user_id, limit=10000
+        )
         for memory in user_memories:
             if self.memory_store.delete_memory(memory.id):
                 memories_deleted += 1
@@ -1073,8 +1183,12 @@ class EpisodicMemoryPersonalizationSystem:
         # Core components
         self.memory_store = EpisodicMemoryStore()
         self.profile_manager = UserProfileManager(self.memory_store)
-        self.personalization_engine = PersonalizationEngine(self.memory_store, self.profile_manager)
-        self.privacy_controller = PrivacyController(self.memory_store, self.profile_manager)
+        self.personalization_engine = PersonalizationEngine(
+            self.memory_store, self.profile_manager
+        )
+        self.privacy_controller = PrivacyController(
+            self.memory_store, self.profile_manager
+        )
 
         # Background processing
         self.cleanup_task: Optional[asyncio.Task] = None
@@ -1140,11 +1254,7 @@ class EpisodicMemoryPersonalizationSystem:
             self.profile_manager._update_personalization_vector(profile)
 
     def store_episodic_memory(
-        self,
-        user_id: str,
-        memory_type: MemoryType,
-        content: Any,
-        **kwargs
+        self, user_id: str, memory_type: MemoryType, content: Any, **kwargs
     ) -> str:
         """Store an episodic memory."""
         memory = EpisodicMemory(
@@ -1159,7 +1269,7 @@ class EpisodicMemoryPersonalizationSystem:
             confidence=kwargs.get("confidence", 0.8),
             privacy_level=kwargs.get("privacy_level", PrivacyLevel.INTERNAL),
             retention_policy=kwargs.get("retention_policy", RetentionPolicy.YEARS_1),
-            tags=set(kwargs.get("tags", []))
+            tags=set(kwargs.get("tags", [])),
         )
 
         # Check privacy compliance
@@ -1174,7 +1284,7 @@ class EpisodicMemoryPersonalizationSystem:
         user_id: str,
         base_response: str,
         session_id: str,
-        request_metadata: Dict[str, Any]
+        request_metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Get a personalized response."""
         context = self.profile_manager.get_personalization_context(user_id, session_id)
@@ -1189,14 +1299,14 @@ class EpisodicMemoryPersonalizationSystem:
         interaction_type: str,
         content: str,
         outcome: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """Record a user interaction."""
         interaction = {
             "type": interaction_type,
             "content": content,
             "outcome": outcome,
-            "metadata": kwargs
+            "metadata": kwargs,
         }
 
         self.profile_manager.record_interaction(user_id, interaction)
@@ -1209,7 +1319,7 @@ class EpisodicMemoryPersonalizationSystem:
             context={"outcome": outcome},
             metadata=kwargs,
             importance=0.6 if outcome == "success" else 0.4,
-            tags=[interaction_type, outcome] if outcome else [interaction_type]
+            tags=[interaction_type, outcome] if outcome else [interaction_type],
         )
 
     def get_user_insights(self, user_id: str) -> Dict[str, Any]:
@@ -1222,7 +1332,7 @@ class EpisodicMemoryPersonalizationSystem:
         recent_memories = self.memory_store.retrieve_memories(
             user_id=user_id,
             limit=10,
-            time_range=(datetime.now() - timedelta(days=7), datetime.now())
+            time_range=(datetime.now() - timedelta(days=7), datetime.now()),
         )
 
         return {
@@ -1230,13 +1340,21 @@ class EpisodicMemoryPersonalizationSystem:
                 "user_id": profile.user_id,
                 "engagement_level": profile.engagement_level,
                 "trust_score": profile.trust_score,
-                "last_interaction": profile.last_interaction.isoformat() if profile.last_interaction else None,
-                "preferences": profile.preferences
+                "last_interaction": (
+                    profile.last_interaction.isoformat()
+                    if profile.last_interaction
+                    else None
+                ),
+                "preferences": profile.preferences,
             },
             "memory_stats": memory_stats,
             "privacy_summary": privacy_summary,
-            "recent_memories": [self._memory_to_summary(mem) for mem in recent_memories],
-            "personalization_context": self.profile_manager.get_personalization_context(user_id, "insights")
+            "recent_memories": [
+                self._memory_to_summary(mem) for mem in recent_memories
+            ],
+            "personalization_context": self.profile_manager.get_personalization_context(
+                user_id, "insights"
+            ),
         }
 
     def _memory_to_summary(self, memory: EpisodicMemory) -> Dict[str, Any]:
@@ -1247,12 +1365,20 @@ class EpisodicMemoryPersonalizationSystem:
             "importance": memory.importance,
             "timestamp": memory.timestamp.isoformat(),
             "tags": list(memory.tags),
-            "content_preview": str(memory.content)[:100] + "..." if len(str(memory.content)) > 100 else str(memory.content)
+            "content_preview": (
+                str(memory.content)[:100] + "..."
+                if len(str(memory.content)) > 100
+                else str(memory.content)
+            ),
         }
 
-    def update_user_preferences(self, user_id: str, preferences: Dict[str, Any]) -> bool:
+    def update_user_preferences(
+        self, user_id: str, preferences: Dict[str, Any]
+    ) -> bool:
         """Update user preferences."""
-        return self.profile_manager.update_profile(user_id, {"preferences": preferences})
+        return self.profile_manager.update_profile(
+            user_id, {"preferences": preferences}
+        )
 
     def set_user_consent(self, user_id: str, consent_data: Dict[str, Any]):
         """Set user privacy consent."""
@@ -1267,11 +1393,13 @@ class EpisodicMemoryPersonalizationSystem:
             "total_users": profile_count,
             "total_memories": memory_stats["total_memories"],
             "memory_utilization": memory_stats["storage_utilization"],
-            "avg_memories_per_user": memory_stats["total_memories"] / max(profile_count, 1),
+            "avg_memories_per_user": memory_stats["total_memories"]
+            / max(profile_count, 1),
             "privacy_compliant_users": sum(
-                1 for uid in self.profile_manager.profiles.keys()
+                1
+                for uid in self.profile_manager.profiles.keys()
                 if self.privacy_controller._check_user_compliance(uid)
-            )
+            ),
         }
 
 
@@ -1282,7 +1410,9 @@ def create_episodic_memory_system(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'adaptive_intelligence', 'episodic_memory',
-    'mia.adaptive_intelligence.episodic_memory_personalization', 'create_episodic_memory_system',
-    default=True
+    "adaptive_intelligence",
+    "episodic_memory",
+    "mia.adaptive_intelligence.episodic_memory_personalization",
+    "create_episodic_memory_system",
+    default=True,
 )

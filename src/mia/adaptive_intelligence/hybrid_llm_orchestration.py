@@ -1,15 +1,15 @@
-import logging
 import asyncio
-import json
-import time
 import hashlib
+import json
+import logging
+import statistics
+import threading
+import time
+import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable, Union, Tuple, Set
 from datetime import datetime, timedelta
 from enum import Enum
-import threading
-import statistics
-import uuid
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from ..providers import provider_registry
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class ModelType(Enum):
     """Types of specialized models."""
+
     REASONING = "reasoning"
     CODE = "code"
     VISION = "vision"
@@ -30,6 +31,7 @@ class ModelType(Enum):
 
 class RoutingStrategy(Enum):
     """Routing strategies for model selection."""
+
     PERFORMANCE = "performance"
     COST = "cost"
     LATENCY = "latency"
@@ -41,6 +43,7 @@ class RoutingStrategy(Enum):
 
 class ModelCapability(Enum):
     """Model capabilities."""
+
     TEXT_GENERATION = "text_generation"
     CODE_GENERATION = "code_generation"
     CODE_REVIEW = "code_review"
@@ -56,6 +59,7 @@ class ModelCapability(Enum):
 @dataclass
 class ModelSpec:
     """Specification for a model."""
+
     id: str
     name: str
     provider: str
@@ -74,6 +78,7 @@ class ModelSpec:
 @dataclass
 class RoutingDecision:
     """Decision made by the router."""
+
     request_id: str
     selected_model: str
     strategy: RoutingStrategy
@@ -86,6 +91,7 @@ class RoutingDecision:
 @dataclass
 class RequestContext:
     """Context for a request."""
+
     id: str
     content: str
     modality: str = "text"
@@ -100,6 +106,7 @@ class RequestContext:
 @dataclass
 class ModelPerformance:
     """Performance metrics for a model."""
+
     model_id: str
     total_requests: int = 0
     successful_requests: int = 0
@@ -115,6 +122,7 @@ class ModelPerformance:
 @dataclass
 class OrchestrationResult:
     """Result of orchestration."""
+
     request_id: str
     model_used: str
     response: Any
@@ -141,74 +149,98 @@ class ModelRegistry:
     def _initialize_builtin_models(self):
         """Initialize built-in model specifications."""
         # Reasoning models
-        self.register_model(ModelSpec(
-            id="reasoning_gpt4",
-            name="GPT-4 Reasoning",
-            provider="openai",
-            model_type=ModelType.REASONING,
-            capabilities={ModelCapability.REASONING, ModelCapability.ANALYSIS, ModelCapability.TEXT_GENERATION},
-            context_window=8192,
-            max_tokens=4096,
-            cost_per_token=0.03,
-            avg_latency_ms=2000,
-            accuracy_score=0.95
-        ))
+        self.register_model(
+            ModelSpec(
+                id="reasoning_gpt4",
+                name="GPT-4 Reasoning",
+                provider="openai",
+                model_type=ModelType.REASONING,
+                capabilities={
+                    ModelCapability.REASONING,
+                    ModelCapability.ANALYSIS,
+                    ModelCapability.TEXT_GENERATION,
+                },
+                context_window=8192,
+                max_tokens=4096,
+                cost_per_token=0.03,
+                avg_latency_ms=2000,
+                accuracy_score=0.95,
+            )
+        )
 
         # Code models
-        self.register_model(ModelSpec(
-            id="code_gpt4",
-            name="GPT-4 Code",
-            provider="openai",
-            model_type=ModelType.CODE,
-            capabilities={ModelCapability.CODE_GENERATION, ModelCapability.CODE_REVIEW, ModelCapability.TEXT_GENERATION},
-            context_window=8192,
-            max_tokens=4096,
-            cost_per_token=0.03,
-            avg_latency_ms=1500,
-            accuracy_score=0.92
-        ))
+        self.register_model(
+            ModelSpec(
+                id="code_gpt4",
+                name="GPT-4 Code",
+                provider="openai",
+                model_type=ModelType.CODE,
+                capabilities={
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.CODE_REVIEW,
+                    ModelCapability.TEXT_GENERATION,
+                },
+                context_window=8192,
+                max_tokens=4096,
+                cost_per_token=0.03,
+                avg_latency_ms=1500,
+                accuracy_score=0.92,
+            )
+        )
 
         # Vision models
-        self.register_model(ModelSpec(
-            id="vision_gpt4v",
-            name="GPT-4 Vision",
-            provider="openai",
-            model_type=ModelType.VISION,
-            capabilities={ModelCapability.IMAGE_ANALYSIS, ModelCapability.TEXT_GENERATION},
-            context_window=8192,
-            max_tokens=4096,
-            cost_per_token=0.03,
-            avg_latency_ms=3000,
-            accuracy_score=0.88
-        ))
+        self.register_model(
+            ModelSpec(
+                id="vision_gpt4v",
+                name="GPT-4 Vision",
+                provider="openai",
+                model_type=ModelType.VISION,
+                capabilities={
+                    ModelCapability.IMAGE_ANALYSIS,
+                    ModelCapability.TEXT_GENERATION,
+                },
+                context_window=8192,
+                max_tokens=4096,
+                cost_per_token=0.03,
+                avg_latency_ms=3000,
+                accuracy_score=0.88,
+            )
+        )
 
         # Mathematical models
-        self.register_model(ModelSpec(
-            id="math_specialist",
-            name="Math Specialist",
-            provider="anthropic",
-            model_type=ModelType.MATHEMATICAL,
-            capabilities={ModelCapability.MATHEMATICAL, ModelCapability.ANALYSIS},
-            context_window=4096,
-            max_tokens=2048,
-            cost_per_token=0.04,
-            avg_latency_ms=2500,
-            accuracy_score=0.96
-        ))
+        self.register_model(
+            ModelSpec(
+                id="math_specialist",
+                name="Math Specialist",
+                provider="anthropic",
+                model_type=ModelType.MATHEMATICAL,
+                capabilities={ModelCapability.MATHEMATICAL, ModelCapability.ANALYSIS},
+                context_window=4096,
+                max_tokens=2048,
+                cost_per_token=0.04,
+                avg_latency_ms=2500,
+                accuracy_score=0.96,
+            )
+        )
 
         # General purpose fallback
-        self.register_model(ModelSpec(
-            id="general_gpt3",
-            name="GPT-3.5 General",
-            provider="openai",
-            model_type=ModelType.GENERAL,
-            capabilities={ModelCapability.TEXT_GENERATION, ModelCapability.CONVERSATION},
-            context_window=4096,
-            max_tokens=2048,
-            cost_per_token=0.002,
-            avg_latency_ms=800,
-            accuracy_score=0.85
-        ))
+        self.register_model(
+            ModelSpec(
+                id="general_gpt3",
+                name="GPT-3.5 General",
+                provider="openai",
+                model_type=ModelType.GENERAL,
+                capabilities={
+                    ModelCapability.TEXT_GENERATION,
+                    ModelCapability.CONVERSATION,
+                },
+                context_window=4096,
+                max_tokens=2048,
+                cost_per_token=0.002,
+                avg_latency_ms=800,
+                accuracy_score=0.85,
+            )
+        )
 
     def register_model(self, model_spec: ModelSpec):
         """Register a new model."""
@@ -327,7 +359,9 @@ class AdaptiveRouter:
             if general_models:
                 selected_model = general_models[0].id
                 confidence = 0.1
-                reasoning = "Fallback to general model - no suitable specialists available"
+                reasoning = (
+                    "Fallback to general model - no suitable specialists available"
+                )
             else:
                 raise ValueError("No models available for routing")
             alternatives = []
@@ -338,7 +372,7 @@ class AdaptiveRouter:
             strategy=strategy,
             confidence=confidence,
             reasoning=reasoning,
-            alternatives=alternatives
+            alternatives=alternatives,
         )
 
         self.routing_history.append(decision)
@@ -353,25 +387,41 @@ class AdaptiveRouter:
         content_lower = context.content.lower()
 
         # Code-related capabilities
-        if any(keyword in content_lower for keyword in ['code', 'function', 'class', 'import', 'def ', 'print(']):
+        if any(
+            keyword in content_lower
+            for keyword in ["code", "function", "class", "import", "def ", "print("]
+        ):
             capabilities.add(ModelCapability.CODE_GENERATION)
-            if 'review' in content_lower or 'bug' in content_lower:
+            if "review" in content_lower or "bug" in content_lower:
                 capabilities.add(ModelCapability.CODE_REVIEW)
 
         # Mathematical capabilities
-        if any(keyword in content_lower for keyword in ['calculate', 'solve', 'equation', 'math', 'formula']):
+        if any(
+            keyword in content_lower
+            for keyword in ["calculate", "solve", "equation", "math", "formula"]
+        ):
             capabilities.add(ModelCapability.MATHEMATICAL)
 
         # Vision capabilities
-        if context.modality == 'image' or 'image' in content_lower or 'picture' in content_lower:
+        if (
+            context.modality == "image"
+            or "image" in content_lower
+            or "picture" in content_lower
+        ):
             capabilities.add(ModelCapability.IMAGE_ANALYSIS)
 
         # Scientific capabilities
-        if any(keyword in content_lower for keyword in ['research', 'scientific', 'hypothesis', 'experiment']):
+        if any(
+            keyword in content_lower
+            for keyword in ["research", "scientific", "hypothesis", "experiment"]
+        ):
             capabilities.add(ModelCapability.SCIENTIFIC)
 
         # Creative capabilities
-        if any(keyword in content_lower for keyword in ['write', 'story', 'poem', 'creative', 'design']):
+        if any(
+            keyword in content_lower
+            for keyword in ["write", "story", "poem", "creative", "design"]
+        ):
             capabilities.add(ModelCapability.CREATIVE_WRITING)
 
         # Reasoning capabilities (default for complex requests)
@@ -384,17 +434,23 @@ class AdaptiveRouter:
 
         return capabilities
 
-    def _select_strategy(self, context: RequestContext, capabilities: Set[ModelCapability]) -> RoutingStrategy:
+    def _select_strategy(
+        self, context: RequestContext, capabilities: Set[ModelCapability]
+    ) -> RoutingStrategy:
         """Select the best routing strategy for the request."""
         # Specialist strategy for specific capabilities
-        specialist_caps = {ModelCapability.CODE_GENERATION, ModelCapability.MATHEMATICAL,
-                          ModelCapability.IMAGE_ANALYSIS, ModelCapability.SCIENTIFIC}
+        specialist_caps = {
+            ModelCapability.CODE_GENERATION,
+            ModelCapability.MATHEMATICAL,
+            ModelCapability.IMAGE_ANALYSIS,
+            ModelCapability.SCIENTIFIC,
+        }
 
         if capabilities.intersection(specialist_caps):
             return RoutingStrategy.SPECIALIST
 
         # Performance for urgent requests
-        if context.urgency == 'high':
+        if context.urgency == "high":
             return RoutingStrategy.PERFORMANCE
 
         # Cost optimization for simple requests
@@ -404,7 +460,9 @@ class AdaptiveRouter:
         # Balanced for most cases
         return RoutingStrategy.BALANCED
 
-    def _find_candidate_models(self, capabilities: Set[ModelCapability], context: RequestContext) -> List[ModelSpec]:
+    def _find_candidate_models(
+        self, capabilities: Set[ModelCapability], context: RequestContext
+    ) -> List[ModelSpec]:
         """Find models that match the required capabilities."""
         candidates = set()
 
@@ -422,8 +480,12 @@ class AdaptiveRouter:
 
         return candidates
 
-    def _score_candidates(self, candidates: List[ModelSpec], context: RequestContext,
-                         strategy: RoutingStrategy) -> List[Tuple[str, float, str]]:
+    def _score_candidates(
+        self,
+        candidates: List[ModelSpec],
+        context: RequestContext,
+        strategy: RoutingStrategy,
+    ) -> List[Tuple[str, float, str]]:
         """Score and rank candidate models."""
         scored = []
 
@@ -435,8 +497,9 @@ class AdaptiveRouter:
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored
 
-    def _calculate_model_score(self, model: ModelSpec, context: RequestContext,
-                              strategy: RoutingStrategy) -> Tuple[float, str]:
+    def _calculate_model_score(
+        self, model: ModelSpec, context: RequestContext, strategy: RoutingStrategy
+    ) -> Tuple[float, str]:
         """Calculate score for a model based on strategy."""
         base_score = 0.5
         reasoning_parts = []
@@ -449,7 +512,9 @@ class AdaptiveRouter:
                 success_weight = perf.successful_requests / max(perf.total_requests, 1)
                 latency_score = 1.0 / (1.0 + perf.avg_latency_ms / 1000.0)  # Normalize
                 base_score = (success_weight * 0.7) + (latency_score * 0.3)
-                reasoning_parts.append(f"Performance: {success_weight:.2f} success, {latency_score:.2f} latency")
+                reasoning_parts.append(
+                    f"Performance: {success_weight:.2f} success, {latency_score:.2f} latency"
+                )
 
             elif strategy == RoutingStrategy.COST:
                 cost_score = 1.0 / (1.0 + perf.avg_cost)  # Lower cost is better
@@ -476,7 +541,9 @@ class AdaptiveRouter:
         matched_caps = len(required_caps.intersection(model.capabilities))
         capability_score = matched_caps / len(required_caps) if required_caps else 0.5
         base_score = (base_score * 0.7) + (capability_score * 0.3)
-        reasoning_parts.append(f"Capabilities: {matched_caps}/{len(required_caps)} matched")
+        reasoning_parts.append(
+            f"Capabilities: {matched_caps}/{len(required_caps)} matched"
+        )
 
         # Availability bonus
         if model.is_available:
@@ -501,7 +568,9 @@ class AdaptiveRouter:
 
         strategy_counts = {}
         for decision in recent_decisions:
-            strategy_counts[decision.strategy.value] = strategy_counts.get(decision.strategy.value, 0) + 1
+            strategy_counts[decision.strategy.value] = (
+                strategy_counts.get(decision.strategy.value, 0) + 1
+            )
 
         avg_confidence = statistics.mean(d.confidence for d in recent_decisions)
 
@@ -509,7 +578,7 @@ class AdaptiveRouter:
             "total_decisions": len(self.routing_history),
             "recent_decisions": len(recent_decisions),
             "strategy_distribution": strategy_counts,
-            "avg_confidence": avg_confidence
+            "avg_confidence": avg_confidence,
         }
 
 
@@ -540,22 +609,30 @@ class ModelPerformanceTracker:
                 perf.failed_requests += 1
 
             # Update rolling averages
-            perf.avg_latency_ms = self._update_average(perf.avg_latency_ms, result.latency_ms, perf.total_requests)
-            perf.avg_cost = self._update_average(perf.avg_cost, result.cost, perf.total_requests)
+            perf.avg_latency_ms = self._update_average(
+                perf.avg_latency_ms, result.latency_ms, perf.total_requests
+            )
+            perf.avg_cost = self._update_average(
+                perf.avg_cost, result.cost, perf.total_requests
+            )
 
             # Estimate accuracy (would be provided by evaluation)
-            perf.avg_accuracy = self._update_average(perf.avg_accuracy, result.confidence, perf.total_requests)
+            perf.avg_accuracy = self._update_average(
+                perf.avg_accuracy, result.confidence, perf.total_requests
+            )
 
             perf.error_rate = perf.failed_requests / perf.total_requests
 
             # Keep metrics history
-            perf.metrics_history.append({
-                "timestamp": result.timestamp.isoformat(),
-                "latency_ms": result.latency_ms,
-                "cost": result.cost,
-                "confidence": result.confidence,
-                "success": result.response is not None
-            })
+            perf.metrics_history.append(
+                {
+                    "timestamp": result.timestamp.isoformat(),
+                    "latency_ms": result.latency_ms,
+                    "cost": result.cost,
+                    "confidence": result.confidence,
+                    "success": result.response is not None,
+                }
+            )
 
             # Limit history size
             if len(perf.metrics_history) > 1000:
@@ -565,7 +642,9 @@ class ModelPerformanceTracker:
         """Get performance metrics for a model."""
         return self.performance.get(model_id)
 
-    def get_top_models(self, metric: str = "success_rate", limit: int = 5) -> List[Tuple[str, float]]:
+    def get_top_models(
+        self, metric: str = "success_rate", limit: int = 5
+    ) -> List[Tuple[str, float]]:
         """Get top performing models by metric."""
         rankings = []
 
@@ -576,7 +655,9 @@ class ModelPerformanceTracker:
             if metric == "success_rate":
                 score = perf.successful_requests / perf.total_requests
             elif metric == "latency":
-                score = 1.0 / (1.0 + perf.avg_latency_ms / 1000.0)  # Lower latency is better
+                score = 1.0 / (
+                    1.0 + perf.avg_latency_ms / 1000.0
+                )  # Lower latency is better
             elif metric == "cost":
                 score = 1.0 / (1.0 + perf.avg_cost)  # Lower cost is better
             elif metric == "accuracy":
@@ -589,7 +670,9 @@ class ModelPerformanceTracker:
         rankings.sort(key=lambda x: x[1], reverse=True)
         return rankings[:limit]
 
-    def _update_average(self, current_avg: float, new_value: float, count: int) -> float:
+    def _update_average(
+        self, current_avg: float, new_value: float, count: int
+    ) -> float:
         """Update rolling average."""
         return ((current_avg * (count - 1)) + new_value) / count
 
@@ -604,9 +687,17 @@ class ModelPerformanceTracker:
         return {
             "total_models": len(self.performance),
             "total_requests": total_requests,
-            "overall_success_rate": total_successful / total_requests if total_requests > 0 else 0,
-            "avg_latency_ms": statistics.mean(p.avg_latency_ms for p in self.performance.values() if p.total_requests > 0),
-            "avg_cost": statistics.mean(p.avg_cost for p in self.performance.values() if p.total_requests > 0)
+            "overall_success_rate": (
+                total_successful / total_requests if total_requests > 0 else 0
+            ),
+            "avg_latency_ms": statistics.mean(
+                p.avg_latency_ms
+                for p in self.performance.values()
+                if p.total_requests > 0
+            ),
+            "avg_cost": statistics.mean(
+                p.avg_cost for p in self.performance.values() if p.total_requests > 0
+            ),
         }
 
 
@@ -642,7 +733,7 @@ class SpecialistWrapper:
             raw_response = await self.provider_client.call_model(
                 model_id=self.model_spec.id,
                 request=processed_request,
-                max_tokens=self.model_spec.max_tokens
+                max_tokens=self.model_spec.max_tokens,
             )
 
             # Post-process response
@@ -662,9 +753,13 @@ class SpecialistWrapper:
                 confidence=self._estimate_confidence(processed_response),
                 metadata={
                     "model_type": self.model_spec.model_type.value,
-                    "capabilities_used": [cap.value for cap in self.model_spec.capabilities],
-                    "tokens_used": self._estimate_tokens(processed_request, processed_response)
-                }
+                    "capabilities_used": [
+                        cap.value for cap in self.model_spec.capabilities
+                    ],
+                    "tokens_used": self._estimate_tokens(
+                        processed_request, processed_response
+                    ),
+                },
             )
 
             # Update statistics
@@ -682,15 +777,12 @@ class SpecialistWrapper:
                 latency_ms=latency_ms,
                 cost=0.0,
                 confidence=0.0,
-                metadata={"error": str(exc)}
+                metadata={"error": str(exc)},
             )
 
     def _preprocess_request(self, request: RequestContext) -> Dict[str, Any]:
         """Pre-process request for this model type."""
-        processed = {
-            "content": request.content,
-            "context": request.metadata
-        }
+        processed = {"content": request.content, "context": request.metadata}
 
         # Model-specific preprocessing
         if self.model_spec.model_type == ModelType.CODE:
@@ -698,7 +790,9 @@ class SpecialistWrapper:
             processed["temperature"] = 0.1  # Lower temperature for code
 
         elif self.model_spec.model_type == ModelType.MATHEMATICAL:
-            processed["content"] = f"Please solve this mathematical problem step by step:\n{request.content}"
+            processed["content"] = (
+                f"Please solve this mathematical problem step by step:\n{request.content}"
+            )
             processed["temperature"] = 0.0  # Deterministic for math
 
         elif self.model_spec.model_type == ModelType.VISION:
@@ -707,7 +801,9 @@ class SpecialistWrapper:
                 processed["image_data"] = request.metadata.get("image_data")
 
         elif self.model_spec.model_type == ModelType.REASONING:
-            processed["content"] = f"Analyze and reason about this request step by step:\n{request.content}"
+            processed["content"] = (
+                f"Analyze and reason about this request step by step:\n{request.content}"
+            )
             processed["temperature"] = 0.3
 
         return processed
@@ -738,7 +834,9 @@ class SpecialistWrapper:
     def _estimate_cost(self, request: Dict, response: Any) -> float:
         """Estimate cost of the request."""
         # Rough estimation based on tokens
-        request_tokens = len(str(request.get("content", ""))) / 4  # Rough token estimation
+        request_tokens = (
+            len(str(request.get("content", ""))) / 4
+        )  # Rough token estimation
         response_tokens = len(str(response)) / 4
 
         total_tokens = request_tokens + response_tokens
@@ -768,7 +866,7 @@ class SpecialistWrapper:
             "model_id": self.model_spec.id,
             "call_count": self.call_count,
             "avg_latency_ms": self.total_latency / max(self.call_count, 1),
-            "model_type": self.model_spec.model_type.value
+            "model_type": self.model_spec.model_type.value,
         }
 
 
@@ -778,7 +876,9 @@ class MockProviderClient:
     def __init__(self, provider: str):
         self.provider = provider
 
-    async def call_model(self, model_id: str, request: Dict[str, Any], max_tokens: int) -> str:
+    async def call_model(
+        self, model_id: str, request: Dict[str, Any], max_tokens: int
+    ) -> str:
         """Mock model call."""
         await asyncio.sleep(0.1)  # Simulate network delay
 
@@ -803,7 +903,9 @@ class EvaluationLoop:
     Monitors performance, collects feedback, and refines routing decisions.
     """
 
-    def __init__(self, router: AdaptiveRouter, performance_tracker: ModelPerformanceTracker):
+    def __init__(
+        self, router: AdaptiveRouter, performance_tracker: ModelPerformanceTracker
+    ):
         self.router = router
         self.performance_tracker = performance_tracker
         self.evaluation_interval = 300  # 5 minutes
@@ -833,12 +935,14 @@ class EvaluationLoop:
 
     async def submit_feedback(self, request_id: str, rating: float, comments: str = ""):
         """Submit user feedback for evaluation."""
-        await self.feedback_queue.put({
-            "request_id": request_id,
-            "rating": rating,
-            "comments": comments,
-            "timestamp": datetime.now()
-        })
+        await self.feedback_queue.put(
+            {
+                "request_id": request_id,
+                "rating": rating,
+                "comments": comments,
+                "timestamp": datetime.now(),
+            }
+        )
 
     async def _evaluation_loop(self):
         """Main evaluation loop."""
@@ -881,7 +985,9 @@ class EvaluationLoop:
 
         # Update model preferences based on feedback
         # This is a simplified implementation
-        logger.info(f"Processed {len(feedback_items)} feedback items, avg rating: {avg_rating:.2f}")
+        logger.info(
+            f"Processed {len(feedback_items)} feedback items, avg rating: {avg_rating:.2f}"
+        )
 
     async def _analyze_performance(self):
         """Analyze performance trends."""
@@ -986,7 +1092,7 @@ class HybridLLMOrchestrator:
                 urgency=kwargs.get("urgency", "normal"),
                 user_id=kwargs.get("user_id"),
                 session_id=kwargs.get("session_id"),
-                metadata=kwargs.get("metadata", {})
+                metadata=kwargs.get("metadata", {}),
             )
 
             try:
@@ -996,13 +1102,17 @@ class HybridLLMOrchestrator:
                 # Get model wrapper
                 wrapper = self.wrappers.get(routing_decision.selected_model)
                 if not wrapper:
-                    raise ValueError(f"No wrapper available for model {routing_decision.selected_model}")
+                    raise ValueError(
+                        f"No wrapper available for model {routing_decision.selected_model}"
+                    )
 
                 # Execute request
                 result = await wrapper.execute(context)
 
                 # Record performance
-                self.performance_tracker.record_request(routing_decision.selected_model, result)
+                self.performance_tracker.record_request(
+                    routing_decision.selected_model, result
+                )
 
                 # Store result
                 self.request_history.append(result)
@@ -1020,7 +1130,7 @@ class HybridLLMOrchestrator:
                     latency_ms=0.0,
                     cost=0.0,
                     confidence=0.0,
-                    metadata={"error": str(exc)}
+                    metadata={"error": str(exc)},
                 )
 
     async def submit_feedback(self, request_id: str, rating: float, comments: str = ""):
@@ -1037,15 +1147,13 @@ class HybridLLMOrchestrator:
             "performance": performance_summary,
             "models": {
                 "total": len(self.model_registry.models),
-                "available": len(self.model_registry.get_available_models())
+                "available": len(self.model_registry.get_available_models()),
             },
             "requests": {
                 "total_processed": len(self.request_history),
-                "active": len(self.processing_tasks)
+                "active": len(self.processing_tasks),
             },
-            "evaluation": {
-                "running": self.evaluation_loop.is_running
-            }
+            "evaluation": {"running": self.evaluation_loop.is_running},
         }
 
     def get_model_stats(self, model_id: str) -> Optional[Dict[str, Any]]:
@@ -1059,21 +1167,22 @@ class HybridLLMOrchestrator:
         stats = {}
 
         if perf:
-            stats.update({
-                "performance": {
-                    "total_requests": perf.total_requests,
-                    "success_rate": perf.successful_requests / max(perf.total_requests, 1),
-                    "avg_latency_ms": perf.avg_latency_ms,
-                    "avg_cost": perf.avg_cost,
-                    "avg_accuracy": perf.avg_accuracy,
-                    "error_rate": perf.error_rate
+            stats.update(
+                {
+                    "performance": {
+                        "total_requests": perf.total_requests,
+                        "success_rate": perf.successful_requests
+                        / max(perf.total_requests, 1),
+                        "avg_latency_ms": perf.avg_latency_ms,
+                        "avg_cost": perf.avg_cost,
+                        "avg_accuracy": perf.avg_accuracy,
+                        "error_rate": perf.error_rate,
+                    }
                 }
-            })
+            )
 
         if wrapper:
-            stats.update({
-                "wrapper": wrapper.get_statistics()
-            })
+            stats.update({"wrapper": wrapper.get_statistics()})
 
         return stats
 
@@ -1090,7 +1199,7 @@ class HybridLLMOrchestrator:
                 "cost_per_token": model.cost_per_token,
                 "avg_latency_ms": model.avg_latency_ms,
                 "accuracy_score": model.accuracy_score,
-                "available": model.is_available
+                "available": model.is_available,
             }
             for model in self.model_registry.models.values()
         ]
@@ -1103,7 +1212,9 @@ def create_hybrid_llm_orchestrator(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'adaptive_intelligence', 'llm_orchestrator',
-    'mia.adaptive_intelligence.hybrid_llm_orchestration', 'create_hybrid_llm_orchestrator',
-    default=True
+    "adaptive_intelligence",
+    "llm_orchestrator",
+    "mia.adaptive_intelligence.hybrid_llm_orchestration",
+    "create_hybrid_llm_orchestrator",
+    default=True,
 )

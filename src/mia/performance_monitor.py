@@ -1,14 +1,16 @@
 """
 Performance Monitor - System performance monitoring and optimization
 """
-import psutil
-import time
-import logging
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
-from threading import Thread, Lock
+
 import gc
+import logging
+import time
 import tracemalloc
+from dataclasses import dataclass
+from threading import Lock, Thread
+from typing import Any, Dict, List, Optional
+
+import psutil
 
 from .config_manager import ConfigManager
 
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PerformanceMetrics:
     """Performance metrics data structure."""
+
     timestamp: float
     cpu_percent: float
     memory_percent: float
@@ -39,7 +42,11 @@ class PerformanceMetrics:
 class PerformanceMonitor:
     """Performance monitoring and optimization system."""
 
-    def __init__(self, config_manager: Optional[ConfigManager] = None, collection_interval: float = 5.0):
+    def __init__(
+        self,
+        config_manager: Optional[ConfigManager] = None,
+        collection_interval: float = 5.0,
+    ):
         self.config_manager = config_manager or ConfigManager()
         self.metrics_history: List[PerformanceMetrics] = []
         self.lock = Lock()
@@ -91,7 +98,9 @@ class PerformanceMonitor:
 
                     # Limit history size
                     if len(self.metrics_history) > self.max_history_size:
-                        self.metrics_history = self.metrics_history[-self.max_history_size:]
+                        self.metrics_history = self.metrics_history[
+                            -self.max_history_size :
+                        ]
 
                 # Check for performance issues
                 self._check_performance_thresholds(metrics)
@@ -128,6 +137,7 @@ class PerformanceMonitor:
         gpu_memory_used = None
         try:
             import GPUtil  # type: ignore
+
             gpus = GPUtil.getGPUs()
             if gpus:
                 gpu = gpus[0]
@@ -149,7 +159,7 @@ class PerformanceMonitor:
             active_threads=active_threads,
             open_files=open_files,
             gpu_usage=gpu_usage,
-            gpu_memory_used=gpu_memory_used
+            gpu_memory_used=gpu_memory_used,
         )
 
     def _check_performance_thresholds(self, metrics: PerformanceMetrics):
@@ -165,7 +175,7 @@ class PerformanceMonitor:
             self._trigger_memory_optimization()
 
         # Disk threshold
-        disk_usage = psutil.disk_usage('/')
+        disk_usage = psutil.disk_usage("/")
         if disk_usage.percent > self.disk_threshold:
             logger.warning(f"High disk usage: {disk_usage.percent:.1f}%")
             self._trigger_disk_optimization()
@@ -177,9 +187,9 @@ class PerformanceMonitor:
 
         # Log CPU-intensive processes
         processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
+        for proc in psutil.process_iter(["pid", "name", "cpu_percent"]):
             try:
-                if proc.info['cpu_percent'] > 10:
+                if proc.info["cpu_percent"] > 10:
                     processes.append(proc.info)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
@@ -195,16 +205,18 @@ class PerformanceMonitor:
         # Log memory usage
         if tracemalloc.is_tracing():
             current, peak = tracemalloc.get_traced_memory()
-            logger.info(f"Memory usage: current={current/1024/1024:.1f}MB, peak={peak/1024/1024:.1f}MB")
+            logger.info(
+                f"Memory usage: current={current/1024/1024:.1f}MB, peak={peak/1024/1024:.1f}MB"
+            )
 
         # Integrate with resource manager for model cleanup
         self._optimize_resource_usage()
 
         # Log memory-intensive processes
         processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+        for proc in psutil.process_iter(["pid", "name", "memory_percent"]):
             try:
-                if proc.info['memory_percent'] > 5:
+                if proc.info["memory_percent"] > 5:
                     processes.append(proc.info)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
@@ -216,8 +228,13 @@ class PerformanceMonitor:
         """Trigger disk optimization measures."""
         # Log disk usage by directory
         import os
-        for root, dirs, files in os.walk('.'):
-            size = sum(os.path.getsize(os.path.join(root, file)) for file in files if os.path.exists(os.path.join(root, file)))
+
+        for root, dirs, files in os.walk("."):
+            size = sum(
+                os.path.getsize(os.path.join(root, file))
+                for file in files
+                if os.path.exists(os.path.join(root, file))
+            )
             if size > 100 * 1024 * 1024:  # > 100MB
                 logger.info(f"Large directory: {root} ({size/1024/1024:.1f}MB)")
 
@@ -226,26 +243,32 @@ class PerformanceMonitor:
         try:
             # Get resource manager stats
             resource_stats = resource_manager.get_stats()
-            total_memory_usage = resource_stats.get('total_memory_usage', 0)
-            max_memory_limit = resource_stats.get('max_memory_limit', 1024 * 1024 * 1024)  # 1GB default
-            
+            total_memory_usage = resource_stats.get("total_memory_usage", 0)
+            max_memory_limit = resource_stats.get(
+                "max_memory_limit", 1024 * 1024 * 1024
+            )  # 1GB default
+
             memory_usage_percent = (total_memory_usage / max_memory_limit) * 100
-            
+
             if memory_usage_percent > 70:  # If using more than 70% of memory limit
-                logger.info(f"High resource memory usage: {memory_usage_percent:.1f}%, triggering cleanup")
-                
+                logger.info(
+                    f"High resource memory usage: {memory_usage_percent:.1f}%, triggering cleanup"
+                )
+
                 # Trigger resource manager cleanup
                 resource_manager._cleanup_idle_resources()
-                
+
                 # Log cleanup results
                 after_stats = resource_manager.get_stats()
-                after_memory_usage = after_stats.get('total_memory_usage', 0)
+                after_memory_usage = after_stats.get("total_memory_usage", 0)
                 after_percent = (after_memory_usage / max_memory_limit) * 100
-                
+
                 freed_memory = total_memory_usage - after_memory_usage
-                logger.info(f"Resource cleanup freed {freed_memory/1024/1024:.1f}MB, "
-                           f"memory usage now: {after_percent:.1f}%")
-                
+                logger.info(
+                    f"Resource cleanup freed {freed_memory/1024/1024:.1f}MB, "
+                    f"memory usage now: {after_percent:.1f}%"
+                )
+
         except Exception as e:
             logger.error(f"Error during resource optimization: {e}")
 
@@ -254,21 +277,25 @@ class PerformanceMonitor:
         try:
             resource_stats = resource_manager.get_stats()
             resource_info = resource_manager.get_resource_info()
-            
+
             # Group resources by type
             resource_counts = {}
             memory_by_type = {}
-            
+
             for info in resource_info:
                 resource_counts[info.type] = resource_counts.get(info.type, 0) + 1
-                memory_by_type[info.type] = memory_by_type.get(info.type, 0) + info.memory_usage
-            
+                memory_by_type[info.type] = (
+                    memory_by_type.get(info.type, 0) + info.memory_usage
+                )
+
             return {
-                'resource_counts': resource_counts,
-                'memory_by_type': memory_by_type,
-                'total_resource_memory': resource_stats.get('total_memory_usage', 0),
-                'resource_memory_percent': resource_stats.get('memory_usage_percent', 0),
-                'active_resources': len(resource_info)
+                "resource_counts": resource_counts,
+                "memory_by_type": memory_by_type,
+                "total_resource_memory": resource_stats.get("total_memory_usage", 0),
+                "resource_memory_percent": resource_stats.get(
+                    "memory_usage_percent", 0
+                ),
+                "active_resources": len(resource_info),
             }
         except Exception as e:
             logger.error(f"Error getting resource metrics: {e}")
@@ -288,13 +315,17 @@ class PerformanceMonitor:
         # Clear metrics history if too large
         with self.lock:
             if len(self.metrics_history) > self.max_history_size // 2:
-                self.metrics_history = self.metrics_history[-self.max_history_size // 2:]
+                self.metrics_history = self.metrics_history[
+                    -self.max_history_size // 2 :
+                ]
                 logger.info("Cleared old performance metrics")
 
         # Log current memory usage
         if tracemalloc.is_tracing():
             current, peak = tracemalloc.get_traced_memory()
-            logger.info(f"Memory after optimization: current={current/1024/1024:.1f}MB, peak={peak/1024/1024:.1f}MB")
+            logger.info(
+                f"Memory after optimization: current={current/1024/1024:.1f}MB, peak={peak/1024/1024:.1f}MB"
+            )
 
         logger.info("Performance optimization completed")
 
@@ -304,22 +335,24 @@ class PerformanceMonitor:
             return []
 
         snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
+        top_stats = snapshot.statistics("lineno")
 
         consumers = []
         for stat in top_stats[:limit]:
-            consumers.append({
-                'filename': stat.traceback.format()[0],
-                'size_mb': stat.size / 1024 / 1024,
-                'count': stat.count
-            })
+            consumers.append(
+                {
+                    "filename": stat.traceback.format()[0],
+                    "size_mb": stat.size / 1024 / 1024,
+                    "count": stat.count,
+                }
+            )
 
         return consumers
 
     def get_current_metrics(self) -> Optional[PerformanceMetrics]:
         """
         Get the most recent performance metrics.
-        
+
         Returns:
             PerformanceMetrics: The latest metrics, or None if no metrics available
         """
@@ -335,102 +368,117 @@ class PerformanceMonitor:
     def get_performance_summary(self) -> Dict[str, Any]:
         """
         Get a summary of performance metrics over the monitoring period.
-        
+
         Returns:
             Dict containing performance summary statistics
         """
         with self.lock:
             if not self.metrics_history:
                 return {
-                    'status': 'no_data',
-                    'message': 'No performance metrics available'
+                    "status": "no_data",
+                    "message": "No performance metrics available",
                 }
-            
+
             # Calculate summary statistics
             metrics_count = len(self.metrics_history)
             if metrics_count == 0:
                 return {
-                    'status': 'no_data',
-                    'message': 'No performance metrics available'
+                    "status": "no_data",
+                    "message": "No performance metrics available",
                 }
-            
+
             # Extract metric values
-            cpu_values = [m.cpu_percent for m in self.metrics_history if m.cpu_percent is not None]
-            memory_values = [m.memory_percent for m in self.metrics_history if m.memory_percent is not None]
-            memory_used_values = [m.memory_used_mb for m in self.metrics_history if m.memory_used_mb is not None]
-            
+            cpu_values = [
+                m.cpu_percent for m in self.metrics_history if m.cpu_percent is not None
+            ]
+            memory_values = [
+                m.memory_percent
+                for m in self.metrics_history
+                if m.memory_percent is not None
+            ]
+            memory_used_values = [
+                m.memory_used_mb
+                for m in self.metrics_history
+                if m.memory_used_mb is not None
+            ]
+
             summary = {
-                'status': 'active' if self.monitoring_active else 'stopped',
-                'total_samples': metrics_count,
-                'time_range': {
-                    'start': self.metrics_history[0].timestamp,
-                    'end': self.metrics_history[-1].timestamp,
-                    'duration_seconds': self.metrics_history[-1].timestamp - self.metrics_history[0].timestamp
-                }
+                "status": "active" if self.monitoring_active else "stopped",
+                "total_samples": metrics_count,
+                "time_range": {
+                    "start": self.metrics_history[0].timestamp,
+                    "end": self.metrics_history[-1].timestamp,
+                    "duration_seconds": self.metrics_history[-1].timestamp
+                    - self.metrics_history[0].timestamp,
+                },
             }
-            
+
             # CPU statistics
             if cpu_values:
-                summary['cpu'] = {
-                    'current': cpu_values[-1],
-                    'average': sum(cpu_values) / len(cpu_values),
-                    'max': max(cpu_values),
-                    'min': min(cpu_values)
+                summary["cpu"] = {
+                    "current": cpu_values[-1],
+                    "average": sum(cpu_values) / len(cpu_values),
+                    "max": max(cpu_values),
+                    "min": min(cpu_values),
                 }
                 # Add flat keys for backward compatibility
-                summary['average_cpu_percent'] = summary['cpu']['average']
-                summary['current_cpu_percent'] = summary['cpu']['current']
-                summary['max_cpu_percent'] = summary['cpu']['max']
-                summary['min_cpu_percent'] = summary['cpu']['min']
-            
+                summary["average_cpu_percent"] = summary["cpu"]["average"]
+                summary["current_cpu_percent"] = summary["cpu"]["current"]
+                summary["max_cpu_percent"] = summary["cpu"]["max"]
+                summary["min_cpu_percent"] = summary["cpu"]["min"]
+
             # Memory statistics
             memory_section: Dict[str, Any] = {}
             memory_section_has_data = False
-            
+
             if memory_values:
                 memory_section_has_data = True
-                memory_section.update({
-                    'current_percent': memory_values[-1],
-                    'average_percent': sum(memory_values) / len(memory_values),
-                    'max_percent': max(memory_values),
-                    'min_percent': min(memory_values)
-                })
+                memory_section.update(
+                    {
+                        "current_percent": memory_values[-1],
+                        "average_percent": sum(memory_values) / len(memory_values),
+                        "max_percent": max(memory_values),
+                        "min_percent": min(memory_values),
+                    }
+                )
                 # Add flat keys for backward compatibility
-                summary['average_memory_percent'] = memory_section['average_percent']
-                summary['current_memory_percent'] = memory_section['current_percent']
-                summary['max_memory_percent'] = memory_section['max_percent']
-                summary['min_memory_percent'] = memory_section['min_percent']
-            
+                summary["average_memory_percent"] = memory_section["average_percent"]
+                summary["current_memory_percent"] = memory_section["current_percent"]
+                summary["max_memory_percent"] = memory_section["max_percent"]
+                summary["min_memory_percent"] = memory_section["min_percent"]
+
             if memory_used_values:
                 memory_section_has_data = True
-                memory_section.update({
-                    'current_mb': memory_used_values[-1],
-                    'average_mb': sum(memory_used_values) / len(memory_used_values),
-                    'max_mb': max(memory_used_values),
-                    'min_mb': min(memory_used_values)
-                })
+                memory_section.update(
+                    {
+                        "current_mb": memory_used_values[-1],
+                        "average_mb": sum(memory_used_values) / len(memory_used_values),
+                        "max_mb": max(memory_used_values),
+                        "min_mb": min(memory_used_values),
+                    }
+                )
                 # Add flat keys for backward compatibility
-                summary['memory_used_mb'] = memory_section['current_mb']
-                summary['average_memory_mb'] = memory_section['average_mb']
-                summary['max_memory_mb'] = memory_section['max_mb']
-                summary['min_memory_mb'] = memory_section['min_mb']
-            
+                summary["memory_used_mb"] = memory_section["current_mb"]
+                summary["average_memory_mb"] = memory_section["average_mb"]
+                summary["max_memory_mb"] = memory_section["max_mb"]
+                summary["min_memory_mb"] = memory_section["min_mb"]
+
             if memory_section_has_data:
-                summary['memory'] = memory_section
-            
+                summary["memory"] = memory_section
+
             # Add metrics_count for test compatibility
-            summary['metrics_count'] = metrics_count
-            
+            summary["metrics_count"] = metrics_count
+
             # Performance issues
             issues = []
             if cpu_values and max(cpu_values) > 90:
-                issues.append('High CPU usage detected')
+                issues.append("High CPU usage detected")
             if memory_values and max(memory_values) > 90:
-                issues.append('High memory usage detected')
-            
-            summary['issues'] = issues
-            summary['issues_count'] = len(issues)
-            
+                issues.append("High memory usage detected")
+
+            summary["issues"] = issues
+            summary["issues_count"] = len(issues)
+
             return summary
 
     def cleanup(self):

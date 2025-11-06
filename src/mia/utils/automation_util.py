@@ -1,6 +1,6 @@
-import webbrowser
 import os
 import platform
+import webbrowser
 from typing import Optional
 
 # Optional selenium import

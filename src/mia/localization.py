@@ -4,24 +4,25 @@ Provides internationalization support for English and Portuguese.
 """
 
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 
 class Localization:
     """Handles localization for M.I.A interface."""
-    
+
     def __init__(self, language: str = "en"):
         """
         Initialize localization.
-        
+
         Args:
             language: Language code ("en" or "pt")
         """
         self.language = language.lower()
         if self.language not in ["en", "pt"]:
             self.language = "en"
-        
+
         self.strings = self._load_strings()
-    
+
     def _load_strings(self) -> Dict[str, Any]:
         """Load localized strings."""
         strings = {
@@ -76,7 +77,7 @@ class Localization:
                 "audio_listening": "🎤 Listening... (Ctrl+C to switch to text)",
                 "audio_no_speech": "🔇 No speech detected.",
                 "audio_transcription_failed": "❌ Could not transcribe audio.",
-                "audio_hotword_detected": "🔊 Hotword detected ({confidence}%)"
+                "audio_hotword_detected": "🔊 Hotword detected ({confidence}%)",
             },
             "pt": {
                 "app_title": "🤖 M.I.A - Assistente Inteligente Multimodal",
@@ -129,19 +130,19 @@ class Localization:
                 "audio_listening": "🎤 Escutando... (Ctrl+C para texto)",
                 "audio_no_speech": "🔇 Nenhuma fala detectada.",
                 "audio_transcription_failed": "❌ Não foi possível transcrever o áudio.",
-                "audio_hotword_detected": "🔊 Hotword detectada ({confidence}%)"
-            }
+                "audio_hotword_detected": "🔊 Hotword detectada ({confidence}%)",
+            },
         }
         return strings.get(self.language, strings["en"])
-    
+
     def get(self, key: str, **kwargs) -> str:
         """
         Get localized string.
-        
+
         Args:
             key: String key
             **kwargs: Format arguments
-            
+
         Returns:
             Localized string with format arguments applied
         """
@@ -152,11 +153,11 @@ class Localization:
             except (KeyError, ValueError):
                 return text
         return text
-    
+
     def set_language(self, language: str):
         """
         Change language.
-        
+
         Args:
             language: Language code ("en" or "pt")
         """
@@ -164,27 +165,30 @@ class Localization:
             self.language = language.lower()
             self.strings = self._load_strings()
 
+
 # Global localization instance
 _localization = None
+
 
 def init_localization(language: Optional[str] = None) -> Localization:
     """
     Initialize global localization.
-    
+
     Args:
         language: Language code, or None to use environment variable
-        
+
     Returns:
         Localization instance
     """
     global _localization
-    
+
     if language is None:
         # Check environment variable
         language = os.getenv("MIA_LANGUAGE", "en")
-    
+
     _localization = Localization(language)
     return _localization
+
 
 def get_localization() -> Localization:
     """Get current localization instance."""
@@ -193,14 +197,15 @@ def get_localization() -> Localization:
         _localization = Localization()
     return _localization
 
+
 def _(key: str, **kwargs) -> str:
     """
     Quick access to localized strings.
-    
+
     Args:
         key: String key
         **kwargs: Format arguments
-        
+
     Returns:
         Localized string
     """

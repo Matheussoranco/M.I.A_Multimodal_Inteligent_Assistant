@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import networkx as nx
 
 # Import custom exceptions and error handling
-from ..exceptions import MemoryError, InitializationError, ValidationError
+from ..exceptions import InitializationError, MemoryError, ValidationError
 
 # Optional Chroma import with fallback
 try:

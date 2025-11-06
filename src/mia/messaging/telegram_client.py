@@ -1,10 +1,11 @@
 """Telegram messaging integration built on Telethon."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
 from pathlib import Path
-from typing import Callable, Coroutine, Optional, Any
+from typing import Any, Callable, Coroutine, Optional
 
 
 class TelegramMessenger:
@@ -33,9 +34,13 @@ class TelegramMessenger:
         self.api_id = self._to_int(api_id)
         self.api_hash = api_hash.strip() if isinstance(api_hash, str) else api_hash
         self.bot_token = bot_token.strip() if isinstance(bot_token, str) else bot_token
-        self.phone_number = phone_number.strip() if isinstance(phone_number, str) else phone_number
+        self.phone_number = (
+            phone_number.strip() if isinstance(phone_number, str) else phone_number
+        )
 
-        self.session_path = Path(session_dir or "sessions") / (session_name or "mia_telegram")
+        self.session_path = Path(session_dir or "sessions") / (
+            session_name or "mia_telegram"
+        )
         self.session_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._available = self._validate_credentials()
@@ -65,12 +70,14 @@ class TelegramMessenger:
     def is_available(self) -> bool:
         return self._available
 
-    def send_message(self, message: str, recipient: Optional[str] = None, silent: bool = False) -> str:
+    def send_message(
+        self, message: str, recipient: Optional[str] = None, silent: bool = False
+    ) -> str:
         if not self._available:
             return "Telegram messenger not configured. Provide API credentials and enable it."
         if not message:
             return "No message content provided."
-        peer = (recipient or self.default_peer)
+        peer = recipient or self.default_peer
         if not peer:
             return "No Telegram recipient configured."
         try:
@@ -104,7 +111,7 @@ class TelegramMessenger:
 
         if not self.api_id or not self.api_hash:
             return "Telegram API credentials missing."
-            
+
         client = TelegramClient(
             str(self.session_path),
             self.api_id,

@@ -3,6 +3,7 @@
 Provides an interface for executing WebAssembly modules under
 resource limits using either wasmtime or wasmer when available.
 """
+
 from __future__ import annotations
 
 import json
@@ -65,12 +66,9 @@ class WasiSandbox:
     ) -> None:
         self.limits = limits or SandboxLimits.from_env()
         self.work_dir = Path(
-            work_dir
-            or os.getenv("MIA_SANDBOX_WORKDIR", tempfile.gettempdir())
+            work_dir or os.getenv("MIA_SANDBOX_WORKDIR", tempfile.gettempdir())
         )
-        self.log_dir = Path(
-            log_dir or os.getenv("MIA_SANDBOX_LOGDIR", "logs/sandbox")
-        )
+        self.log_dir = Path(log_dir or os.getenv("MIA_SANDBOX_LOGDIR", "logs/sandbox"))
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.work_dir.mkdir(parents=True, exist_ok=True)
         logger.debug(
@@ -186,7 +184,7 @@ class WasiSandbox:
         )
 
         store = wasmtime.Store(engine)
-        if self.limits.fuel is not None and hasattr(store, 'add_fuel'):
+        if self.limits.fuel is not None and hasattr(store, "add_fuel"):
             store.add_fuel(self.limits.fuel)  # type: ignore
 
         wasi_config = wasmtime.WasiConfig()
@@ -194,7 +192,7 @@ class WasiSandbox:
         wasi_config.env = list((env or {}).items())
         wasi_config.inherit_stderr()
         wasi_config.inherit_stdout()
-        if stdin is not None and hasattr(wasi_config, 'set_stdin_bytes'):
+        if stdin is not None and hasattr(wasi_config, "set_stdin_bytes"):
             wasi_config.set_stdin_bytes(stdin)  # type: ignore
         else:
             wasi_config.inherit_stdin()
@@ -219,7 +217,7 @@ class WasiSandbox:
             exit_code = 0
         except Exception as exc:
             # Handle exit codes from various wasmtime versions
-            exit_code = getattr(exc, 'code', 1)
+            exit_code = getattr(exc, "code", 1)
         duration_ms = int((time.perf_counter() - start) * 1000)
 
         consumed_fuel = None

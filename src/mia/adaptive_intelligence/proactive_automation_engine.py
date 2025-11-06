@@ -1,14 +1,14 @@
-import logging
 import asyncio
 import json
+import logging
+import re
+import statistics
 import threading
+import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable, Set, Tuple, Union
 from datetime import datetime, timedelta
 from enum import Enum
-import statistics
-import uuid
-import re
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from ..providers import provider_registry
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class AutomationTrigger(Enum):
     """Types of automation triggers."""
+
     TIME_BASED = "time_based"
     EVENT_BASED = "event_based"
     PATTERN_BASED = "pattern_based"
@@ -27,6 +28,7 @@ class AutomationTrigger(Enum):
 
 class AutomationAction(Enum):
     """Types of automation actions."""
+
     NOTIFICATION = "notification"
     TASK_EXECUTION = "task_execution"
     DATA_PROCESSING = "data_processing"
@@ -37,6 +39,7 @@ class AutomationAction(Enum):
 
 class PatternType(Enum):
     """Types of detectable patterns."""
+
     TEMPORAL = "temporal"  # Time-based patterns
     BEHAVIORAL = "behavioral"  # User behavior patterns
     SYSTEM = "system"  # System performance patterns
@@ -47,6 +50,7 @@ class PatternType(Enum):
 @dataclass
 class AutomationRule:
     """Rule for proactive automation."""
+
     id: str
     name: str
     description: str
@@ -66,6 +70,7 @@ class AutomationRule:
 @dataclass
 class DetectedPattern:
     """A detected pattern in user behavior or system state."""
+
     id: str
     pattern_type: PatternType
     description: str
@@ -79,6 +84,7 @@ class DetectedPattern:
 @dataclass
 class AutomationTask:
     """A task to be executed by the automation engine."""
+
     id: str
     rule_id: str
     trigger_data: Dict[str, Any]
@@ -96,6 +102,7 @@ class AutomationTask:
 @dataclass
 class ActionSpec:
     """Specification for an automation action."""
+
     action_type: AutomationAction
     executor_function: Callable
     required_permissions: Set[str] = field(default_factory=set)
@@ -122,10 +129,12 @@ class PatternDetector:
             "behavioral_sequence": self._detect_behavioral_sequence,
             "system_anomaly": self._detect_system_anomaly,
             "contextual_correlation": self._detect_contextual_correlation,
-            "predictive_trend": self._detect_predictive_trend
+            "predictive_trend": self._detect_predictive_trend,
         }
 
-    def detect_patterns(self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]) -> List[DetectedPattern]:
+    def detect_patterns(
+        self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]
+    ) -> List[DetectedPattern]:
         """
         Detect patterns in the given data stream.
 
@@ -159,7 +168,9 @@ class PatternDetector:
 
         return filtered_patterns
 
-    def _detect_temporal_rhythm(self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]) -> List[DetectedPattern]:
+    def _detect_temporal_rhythm(
+        self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]
+    ) -> List[DetectedPattern]:
         """Detect temporal rhythms (daily, weekly patterns)."""
         patterns = []
 
@@ -169,17 +180,25 @@ class PatternDetector:
         # Group by hour of day
         hourly_counts = {}
         for point in data_stream:
-            timestamp = datetime.fromisoformat(point.get("timestamp", datetime.now().isoformat()))
+            timestamp = datetime.fromisoformat(
+                point.get("timestamp", datetime.now().isoformat())
+            )
             hour = timestamp.hour
             hourly_counts[hour] = hourly_counts.get(hour, 0) + 1
 
         # Find peak hours
         if hourly_counts:
             max_count = max(hourly_counts.values())
-            peak_hours = [hour for hour, count in hourly_counts.items() if count >= max_count * 0.8]
+            peak_hours = [
+                hour
+                for hour, count in hourly_counts.items()
+                if count >= max_count * 0.8
+            ]
 
             if len(peak_hours) <= 3:  # Not too many peaks
-                confidence = min(1.0, len(data_stream) / 50.0)  # Higher confidence with more data
+                confidence = min(
+                    1.0, len(data_stream) / 50.0
+                )  # Higher confidence with more data
 
                 pattern = DetectedPattern(
                     id=str(uuid.uuid4()),
@@ -191,14 +210,16 @@ class PatternDetector:
                     metadata={
                         "peak_hours": peak_hours,
                         "hourly_distribution": hourly_counts,
-                        "pattern_type": "daily_rhythm"
-                    }
+                        "pattern_type": "daily_rhythm",
+                    },
                 )
                 patterns.append(pattern)
 
         return patterns
 
-    def _detect_behavioral_sequence(self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]) -> List[DetectedPattern]:
+    def _detect_behavioral_sequence(
+        self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]
+    ) -> List[DetectedPattern]:
         """Detect behavioral sequences (repeated action patterns)."""
         patterns = []
 
@@ -206,7 +227,10 @@ class PatternDetector:
             return patterns
 
         # Extract action sequences
-        actions = [point.get("action", point.get("type", "unknown")) for point in data_stream[-20:]]
+        actions = [
+            point.get("action", point.get("type", "unknown"))
+            for point in data_stream[-20:]
+        ]
 
         # Find repeated sequences
         sequences = self._find_repeated_sequences(actions, min_length=2, max_length=5)
@@ -225,14 +249,16 @@ class PatternDetector:
                     metadata={
                         "sequence": seq,
                         "occurrences": count,
-                        "pattern_type": "action_sequence"
-                    }
+                        "pattern_type": "action_sequence",
+                    },
                 )
                 patterns.append(pattern)
 
         return patterns
 
-    def _detect_system_anomaly(self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]) -> List[DetectedPattern]:
+    def _detect_system_anomaly(
+        self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]
+    ) -> List[DetectedPattern]:
         """Detect system anomalies (unusual performance or behavior)."""
         patterns = []
 
@@ -274,14 +300,16 @@ class PatternDetector:
                     "z_score_threshold": threshold,
                     "baseline_mean": mean,
                     "baseline_stdev": stdev,
-                    "pattern_type": "performance_anomaly"
-                }
+                    "pattern_type": "performance_anomaly",
+                },
             )
             patterns.append(pattern)
 
         return patterns
 
-    def _detect_contextual_correlation(self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]) -> List[DetectedPattern]:
+    def _detect_contextual_correlation(
+        self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]
+    ) -> List[DetectedPattern]:
         """Detect correlations between different contextual factors."""
         patterns = []
 
@@ -292,7 +320,8 @@ class PatternDetector:
         correlations = self._calculate_correlations(data_stream)
 
         significant_correlations = [
-            (key, corr) for key, corr in correlations.items()
+            (key, corr)
+            for key, corr in correlations.items()
             if abs(corr) > 0.7  # Strong correlation
         ]
 
@@ -310,14 +339,16 @@ class PatternDetector:
                     "dimension1": dim1,
                     "dimension2": dim2,
                     "correlation": correlation,
-                    "pattern_type": "contextual_correlation"
-                }
+                    "pattern_type": "contextual_correlation",
+                },
             )
             patterns.append(pattern)
 
         return patterns
 
-    def _detect_predictive_trend(self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]) -> List[DetectedPattern]:
+    def _detect_predictive_trend(
+        self, data_stream: List[Dict[str, Any]], context: Dict[str, Any]
+    ) -> List[DetectedPattern]:
         """Detect predictive trends in the data."""
         patterns = []
 
@@ -342,26 +373,30 @@ class PatternDetector:
                 metadata={
                     "trend_slope": trend,
                     "direction": direction,
-                    "pattern_type": "predictive_trend"
-                }
+                    "pattern_type": "predictive_trend",
+                },
             )
             patterns.append(pattern)
 
         return patterns
 
-    def _find_repeated_sequences(self, actions: List[str], min_length: int, max_length: int) -> Dict[Tuple[str, ...], int]:
+    def _find_repeated_sequences(
+        self, actions: List[str], min_length: int, max_length: int
+    ) -> Dict[Tuple[str, ...], int]:
         """Find repeated sequences in a list of actions."""
         sequences = {}
 
         for length in range(min_length, min(max_length + 1, len(actions) // 2 + 1)):
             for i in range(len(actions) - length + 1):
-                seq = tuple(actions[i:i + length])
+                seq = tuple(actions[i : i + length])
                 sequences[seq] = sequences.get(seq, 0) + 1
 
         # Filter to only sequences that appear multiple times
         return {seq: count for seq, count in sequences.items() if count > 1}
 
-    def _calculate_correlations(self, data_stream: List[Dict[str, Any]]) -> Dict[Tuple[str, str], float]:
+    def _calculate_correlations(
+        self, data_stream: List[Dict[str, Any]]
+    ) -> Dict[Tuple[str, str], float]:
         """Calculate correlations between different dimensions in the data."""
         correlations = {}
 
@@ -408,7 +443,9 @@ class PatternDetector:
         slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x * sum_x)
         return slope
 
-    def _filter_patterns(self, patterns: List[DetectedPattern]) -> List[DetectedPattern]:
+    def _filter_patterns(
+        self, patterns: List[DetectedPattern]
+    ) -> List[DetectedPattern]:
         """Filter and rank detected patterns."""
         # Remove low confidence patterns
         filtered = [p for p in patterns if p.confidence >= 0.6]
@@ -473,7 +510,10 @@ class TaskPlanner:
                     continue
 
                 # Check cooldown period
-                if rule.last_executed and datetime.now() - rule.last_executed < rule.cooldown_period:
+                if (
+                    rule.last_executed
+                    and datetime.now() - rule.last_executed < rule.cooldown_period
+                ):
                     continue
 
                 # Evaluate trigger conditions
@@ -487,7 +527,7 @@ class TaskPlanner:
                             trigger_data=trigger_data,
                             actions=rule.actions,
                             priority=rule.priority,
-                            scheduled_time=datetime.now()
+                            scheduled_time=datetime.now(),
                         )
                         tasks.append(task)
 
@@ -504,7 +544,9 @@ class TaskPlanner:
             logger.info(f"Created {len(tasks)} automation tasks")
             return tasks
 
-    def _evaluate_trigger(self, rule: AutomationRule, trigger_data: Dict[str, Any]) -> bool:
+    def _evaluate_trigger(
+        self, rule: AutomationRule, trigger_data: Dict[str, Any]
+    ) -> bool:
         """Evaluate if a trigger matches the rule."""
         trigger_type = trigger_data.get("trigger_type")
 
@@ -523,7 +565,9 @@ class TaskPlanner:
 
         return False
 
-    def _evaluate_conditions(self, conditions: Dict[str, Any], trigger_data: Dict[str, Any]) -> bool:
+    def _evaluate_conditions(
+        self, conditions: Dict[str, Any], trigger_data: Dict[str, Any]
+    ) -> bool:
         """Evaluate rule conditions against trigger data."""
         for key, expected_value in conditions.items():
             actual_value = self._get_nested_value(trigger_data, key)
@@ -535,7 +579,7 @@ class TaskPlanner:
 
     def _get_nested_value(self, data: Dict[str, Any], key_path: str) -> Any:
         """Get a nested value from data using dot notation."""
-        keys = key_path.split('.')
+        keys = key_path.split(".")
         current = data
 
         for key in keys:
@@ -551,9 +595,15 @@ class TaskPlanner:
         if isinstance(expected_value, dict):
             # Range conditions
             if "gt" in expected_value:
-                return isinstance(actual_value, (int, float)) and actual_value > expected_value["gt"]
+                return (
+                    isinstance(actual_value, (int, float))
+                    and actual_value > expected_value["gt"]
+                )
             elif "lt" in expected_value:
-                return isinstance(actual_value, (int, float)) and actual_value < expected_value["lt"]
+                return (
+                    isinstance(actual_value, (int, float))
+                    and actual_value < expected_value["lt"]
+                )
             elif "eq" in expected_value:
                 return actual_value == expected_value["eq"]
             elif "in" in expected_value:
@@ -570,7 +620,9 @@ class TaskPlanner:
     def get_pending_tasks(self, limit: int = 50) -> List[AutomationTask]:
         """Get pending automation tasks."""
         with self._lock:
-            return sorted(self.pending_tasks, key=lambda t: (t.priority, t.scheduled_time))[:limit]
+            return sorted(
+                self.pending_tasks, key=lambda t: (t.priority, t.scheduled_time)
+            )[:limit]
 
     def mark_task_completed(self, task_id: str, result: Dict[str, Any]):
         """Mark a task as completed."""
@@ -586,7 +638,9 @@ class TaskPlanner:
                     # Update rule success rate
                     rule = self.automation_rules.get(task.rule_id)
                     if rule:
-                        rule.success_rate = (rule.success_rate * rule.execution_count + 1) / (rule.execution_count + 1)
+                        rule.success_rate = (
+                            rule.success_rate * rule.execution_count + 1
+                        ) / (rule.execution_count + 1)
 
                     logger.info(f"Task completed: {task_id}")
                     break
@@ -605,7 +659,9 @@ class TaskPlanner:
                     # Update rule success rate
                     rule = self.automation_rules.get(task.rule_id)
                     if rule:
-                        rule.success_rate = (rule.success_rate * rule.execution_count) / (rule.execution_count + 1)
+                        rule.success_rate = (
+                            rule.success_rate * rule.execution_count
+                        ) / (rule.execution_count + 1)
 
                     logger.error(f"Task failed: {task_id} - {error_message}")
                     break
@@ -614,7 +670,9 @@ class TaskPlanner:
         """Get automation task statistics."""
         with self._lock:
             total_tasks = len(self.task_history)
-            completed_tasks = len([t for t in self.task_history if t.status == "completed"])
+            completed_tasks = len(
+                [t for t in self.task_history if t.status == "completed"]
+            )
             failed_tasks = len([t for t in self.task_history if t.status == "failed"])
 
             success_rate = completed_tasks / max(total_tasks, 1)
@@ -625,7 +683,9 @@ class TaskPlanner:
                 "failed_tasks": failed_tasks,
                 "pending_tasks": len(self.pending_tasks),
                 "success_rate": success_rate,
-                "active_rules": len([r for r in self.automation_rules.values() if r.enabled])
+                "active_rules": len(
+                    [r for r in self.automation_rules.values() if r.enabled]
+                ),
             }
 
 
@@ -647,10 +707,12 @@ class ActionExecutor:
             AutomationAction.DATA_PROCESSING: self._execute_data_processing,
             AutomationAction.SYSTEM_MAINTENANCE: self._execute_system_maintenance,
             AutomationAction.USER_ASSISTANCE: self._execute_user_assistance,
-            AutomationAction.RESOURCE_OPTIMIZATION: self._execute_resource_optimization
+            AutomationAction.RESOURCE_OPTIMIZATION: self._execute_resource_optimization,
         }
 
-    async def execute_action(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_action(
+        self, action: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Execute an automation action.
 
@@ -680,7 +742,7 @@ class ActionExecutor:
                 "result": result,
                 "execution_time": execution_time,
                 "timestamp": datetime.now().isoformat(),
-                "success": True
+                "success": True,
             }
 
             self.execution_history.append(execution_record)
@@ -698,13 +760,15 @@ class ActionExecutor:
                 "context": context,
                 "error": str(exc),
                 "timestamp": datetime.now().isoformat(),
-                "success": False
+                "success": False,
             }
 
             self.execution_history.append(execution_record)
             raise exc
 
-    async def _execute_notification(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_notification(
+        self, action: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a notification action."""
         message = action.get("message", "Automation notification")
         target = action.get("target", "user")
@@ -718,10 +782,12 @@ class ActionExecutor:
             "message": message,
             "target": target,
             "priority": priority,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-    async def _execute_task(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_task(
+        self, action: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a task action."""
         task_type = action.get("task_type", "generic")
         parameters = action.get("parameters", {})
@@ -737,10 +803,12 @@ class ActionExecutor:
             "task_type": task_type,
             "parameters": parameters,
             "result": "Task completed successfully",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-    async def _execute_data_processing(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_data_processing(
+        self, action: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a data processing action."""
         operation = action.get("operation", "process")
         data_source = action.get("data_source", "unknown")
@@ -755,10 +823,12 @@ class ActionExecutor:
             "operation": operation,
             "data_source": data_source,
             "records_processed": 100,  # Simulated
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-    async def _execute_system_maintenance(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_system_maintenance(
+        self, action: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a system maintenance action."""
         maintenance_type = action.get("maintenance_type", "cleanup")
 
@@ -771,10 +841,12 @@ class ActionExecutor:
             "maintenance_completed": True,
             "maintenance_type": maintenance_type,
             "resources_cleaned": 50,  # Simulated
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-    async def _execute_user_assistance(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_user_assistance(
+        self, action: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a user assistance action."""
         assistance_type = action.get("assistance_type", "help")
         user_id = context.get("user_id", "unknown")
@@ -789,10 +861,12 @@ class ActionExecutor:
             "assistance_type": assistance_type,
             "user_id": user_id,
             "response": "Assistance provided successfully",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-    async def _execute_resource_optimization(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_resource_optimization(
+        self, action: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a resource optimization action."""
         resource_type = action.get("resource_type", "memory")
         optimization_type = action.get("optimization_type", "cleanup")
@@ -807,7 +881,7 @@ class ActionExecutor:
             "resource_type": resource_type,
             "optimization_type": optimization_type,
             "resources_freed": 25,  # Simulated percentage
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
@@ -918,7 +992,9 @@ class ProactiveAutomationEngine:
                 for stream_name, data_stream in self.data_streams.items():
                     if len(data_stream) >= 10:  # Minimum data points
                         context = {"stream_name": stream_name}
-                        patterns = self.pattern_detector.detect_patterns(data_stream, context)
+                        patterns = self.pattern_detector.detect_patterns(
+                            data_stream, context
+                        )
 
                         if patterns:
                             # Trigger pattern-based automation
@@ -926,7 +1002,7 @@ class ProactiveAutomationEngine:
                                 trigger_data = {
                                     "trigger_type": "pattern_based",
                                     "pattern": pattern,
-                                    "stream_name": stream_name
+                                    "stream_name": stream_name,
                                 }
                                 self.task_planner.evaluate_triggers(trigger_data)
 
@@ -948,7 +1024,7 @@ class ProactiveAutomationEngine:
             "disk_usage": 23.1,
             "network_connections": 12,
             "active_users": 3,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     async def _check_triggers(self, system_data: Dict[str, Any]):
@@ -958,28 +1034,34 @@ class ProactiveAutomationEngine:
         # Time-based triggers
         current_time = datetime.now()
         if current_time.hour == 9 and current_time.minute < 5:  # Morning trigger
-            triggers_to_check.append({
-                "trigger_type": "time_based",
-                "time_of_day": "morning",
-                "timestamp": current_time.isoformat()
-            })
+            triggers_to_check.append(
+                {
+                    "trigger_type": "time_based",
+                    "time_of_day": "morning",
+                    "timestamp": current_time.isoformat(),
+                }
+            )
 
         # System state triggers
         if system_data.get("cpu_usage", 0) > 90:
-            triggers_to_check.append({
-                "trigger_type": "system_state",
-                "condition": "high_cpu",
-                "value": system_data["cpu_usage"],
-                "timestamp": current_time.isoformat()
-            })
+            triggers_to_check.append(
+                {
+                    "trigger_type": "system_state",
+                    "condition": "high_cpu",
+                    "value": system_data["cpu_usage"],
+                    "timestamp": current_time.isoformat(),
+                }
+            )
 
         if system_data.get("memory_usage", 0) > 85:
-            triggers_to_check.append({
-                "trigger_type": "system_state",
-                "condition": "high_memory",
-                "value": system_data["memory_usage"],
-                "timestamp": current_time.isoformat()
-            })
+            triggers_to_check.append(
+                {
+                    "trigger_type": "system_state",
+                    "condition": "high_memory",
+                    "value": system_data["memory_usage"],
+                    "timestamp": current_time.isoformat(),
+                }
+            )
 
         # Evaluate triggers
         for trigger_data in triggers_to_check:
@@ -999,7 +1081,7 @@ class ProactiveAutomationEngine:
                 context = {
                     "task_id": task.id,
                     "rule_id": task.rule_id,
-                    "trigger_data": task.trigger_data
+                    "trigger_data": task.trigger_data,
                 }
 
                 result = await self.action_executor.execute_action(action, context)
@@ -1046,9 +1128,11 @@ class ProactiveAutomationEngine:
         return {
             **task_stats,
             "active_data_streams": len(self.data_streams),
-            "total_data_points": sum(len(stream) for stream in self.data_streams.values()),
+            "total_data_points": sum(
+                len(stream) for stream in self.data_streams.values()
+            ),
             "detected_patterns": len(self.pattern_detector.patterns),
-            "system_running": self.running
+            "system_running": self.running,
         }
 
     def get_recent_patterns(self, limit: int = 10) -> List[DetectedPattern]:
@@ -1064,13 +1148,15 @@ class ProactiveAutomationEngine:
                 description="Send morning greeting to active users",
                 trigger=AutomationTrigger.TIME_BASED,
                 conditions={"time_of_day": "morning"},
-                actions=[{
-                    "type": "notification",
-                    "message": "Good morning! How can I help you start your day?",
-                    "target": "user",
-                    "priority": "normal"
-                }],
-                priority=3
+                actions=[
+                    {
+                        "type": "notification",
+                        "message": "Good morning! How can I help you start your day?",
+                        "target": "user",
+                        "priority": "normal",
+                    }
+                ],
+                priority=3,
             ),
             AutomationRule(
                 id="high_cpu_alert",
@@ -1078,14 +1164,16 @@ class ProactiveAutomationEngine:
                 description="Alert when CPU usage is too high",
                 trigger=AutomationTrigger.SYSTEM_STATE,
                 conditions={"cpu_usage": {"gt": 90}},
-                actions=[{
-                    "type": "notification",
-                    "message": "High CPU usage detected. Consider optimizing system resources.",
-                    "target": "admin",
-                    "priority": "high"
-                }],
+                actions=[
+                    {
+                        "type": "notification",
+                        "message": "High CPU usage detected. Consider optimizing system resources.",
+                        "target": "admin",
+                        "priority": "high",
+                    }
+                ],
                 priority=8,
-                cooldown_period=timedelta(minutes=10)
+                cooldown_period=timedelta(minutes=10),
             ),
             AutomationRule(
                 id="memory_optimization",
@@ -1093,13 +1181,15 @@ class ProactiveAutomationEngine:
                 description="Optimize memory usage when high",
                 trigger=AutomationTrigger.SYSTEM_STATE,
                 conditions={"memory_usage": {"gt": 85}},
-                actions=[{
-                    "type": "resource_optimization",
-                    "resource_type": "memory",
-                    "optimization_type": "cleanup"
-                }],
+                actions=[
+                    {
+                        "type": "resource_optimization",
+                        "resource_type": "memory",
+                        "optimization_type": "cleanup",
+                    }
+                ],
                 priority=7,
-                cooldown_period=timedelta(minutes=15)
+                cooldown_period=timedelta(minutes=15),
             ),
             AutomationRule(
                 id="user_inactivity_check",
@@ -1107,14 +1197,16 @@ class ProactiveAutomationEngine:
                 description="Check on inactive users",
                 trigger=AutomationTrigger.USER_STATE,
                 conditions={"inactive_hours": {"gt": 2}},
-                actions=[{
-                    "type": "user_assistance",
-                    "assistance_type": "check_in",
-                    "message": "I noticed you haven't been active. Is there anything I can help you with?"
-                }],
+                actions=[
+                    {
+                        "type": "user_assistance",
+                        "assistance_type": "check_in",
+                        "message": "I noticed you haven't been active. Is there anything I can help you with?",
+                    }
+                ],
                 priority=2,
-                cooldown_period=timedelta(hours=1)
-            )
+                cooldown_period=timedelta(hours=1),
+            ),
         ]
 
         for rule in default_rules:
@@ -1132,7 +1224,9 @@ def create_proactive_automation_engine(config_manager=None, **kwargs):
 
 
 provider_registry.register_lazy(
-    'adaptive_intelligence', 'proactive_automation',
-    'mia.adaptive_intelligence.proactive_automation_engine', 'create_proactive_automation_engine',
-    default=True
+    "adaptive_intelligence",
+    "proactive_automation",
+    "mia.adaptive_intelligence.proactive_automation_engine",
+    "create_proactive_automation_engine",
+    default=True,
 )

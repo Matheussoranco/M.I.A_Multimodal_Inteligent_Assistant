@@ -63,7 +63,7 @@ class LLMInference:
 
         if resolved_local_path and not inferred_provider:
             # Maintain backwards compatibility with legacy constructor usage.
-            inferred_provider = 'local'
+            inferred_provider = "local"
 
         self.config_manager = config_manager or ConfigManager()
         self.manager = LLMManager(
@@ -88,48 +88,52 @@ class LLMInference:
         """Alias for :meth:`query_model` for semantic clarity."""
         return self.query_model(prompt, **kwargs)
 
-    def generate_chat_completion(self, messages: List[Dict[str, str]], **kwargs: Any) -> Optional[str]:
+    def generate_chat_completion(
+        self, messages: List[Dict[str, str]], **kwargs: Any
+    ) -> Optional[str]:
         """Support multi-turn chat style prompts by joining user content."""
         if not messages:
             return None
 
         # Delegate to provider with best-effort formatting.
         provider = self.manager.provider
-        if provider in {'openai', 'anthropic', 'gemini', 'groq', 'grok', 'minimax'}:
-            kwargs.setdefault('messages', messages)
-            return self.manager.query(messages[-1].get('content', ''), **kwargs)
+        if provider in {"openai", "anthropic", "gemini", "groq", "grok", "minimax"}:
+            kwargs.setdefault("messages", messages)
+            return self.manager.query(messages[-1].get("content", ""), **kwargs)
 
         # For local providers, concatenate content for a pragmatic fallback.
-        combined_prompt = "\n".join(msg.get('content', '') for msg in messages if msg.get('content'))
+        combined_prompt = "\n".join(
+            msg.get("content", "") for msg in messages if msg.get("content")
+        )
         return self.manager.query(combined_prompt, **kwargs)
 
     def switch_provider(self, provider: str, **overrides: Any) -> None:
         """Re-initialize the underlying manager with a new provider."""
         self.manager = LLMManager(
             provider=provider,
-            model_id=overrides.get('model_id'),
-            api_key=overrides.get('api_key'),
-            url=overrides.get('url'),
-            local_model_path=overrides.get('local_model_path'),
+            model_id=overrides.get("model_id"),
+            api_key=overrides.get("api_key"),
+            url=overrides.get("url"),
+            local_model_path=overrides.get("local_model_path"),
             config_manager=self.config_manager,
             auto_detect=False,
         )
 
     def update_config(self, config: Any) -> None:
         """Update the LLM configuration dynamically."""
-        if hasattr(config, 'provider'):
+        if hasattr(config, "provider"):
             self.manager.provider = config.provider
-        if hasattr(config, 'model_id'):
+        if hasattr(config, "model_id"):
             self.manager.model_id = config.model_id
-        if hasattr(config, 'api_key'):
+        if hasattr(config, "api_key"):
             self.manager.api_key = config.api_key
-        if hasattr(config, 'url'):
+        if hasattr(config, "url"):
             self.manager.url = config.url
-        if hasattr(config, 'max_tokens'):
+        if hasattr(config, "max_tokens"):
             self.manager.max_tokens = config.max_tokens
-        if hasattr(config, 'temperature'):
+        if hasattr(config, "temperature"):
             self.manager.temperature = config.temperature
-        if hasattr(config, 'timeout'):
+        if hasattr(config, "timeout"):
             self.manager.timeout = config.timeout
 
     def available_providers(self) -> Dict[str, Any]:
@@ -157,7 +161,9 @@ class LLMInference:
 
     def autofill_login(self, url: str, username: str, password: str) -> str:
         if not HAS_SELENIUM:
-            return "Selenium not available. Install selenium for web automation features."
+            return (
+                "Selenium not available. Install selenium for web automation features."
+            )
 
         driver = webdriver.Chrome()  # pragma: no cover - requires selenium runtime
         driver.get(url)
