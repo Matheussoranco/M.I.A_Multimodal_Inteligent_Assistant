@@ -1,6 +1,14 @@
 import base64
 import unittest
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+# Add src directory to Python path for imports
+project_root = Path(__file__).parent.parent.parent
+src_dir = project_root / 'src'
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
 
 class TestSpeechGenerator(unittest.TestCase):
@@ -23,7 +31,7 @@ class TestSpeechGenerator(unittest.TestCase):
         mock_config_manager.return_value = mock_config
         mock_llm_inference.return_value = MagicMock()
 
-        from mia.audio.speech_generator import SpeechGenerator
+        from mia.audio.speech_generator import SpeechGenerator  # type: ignore
 
         generator = SpeechGenerator(default_tts_provider='nanochat')
         generator.tts_providers.setdefault('nanochat', {})['api_key'] = 'test-token'

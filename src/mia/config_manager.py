@@ -6,7 +6,7 @@ import os
 import json
 import yaml
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Iterable, Tuple
 from pathlib import Path
 from dataclasses import dataclass, field
 from .exceptions import ConfigurationError, ValidationError
@@ -56,6 +56,59 @@ class LLMConfig:
         if self.timeout <= 0:
             raise ValidationError("Timeout must be positive", "INVALID_TIMEOUT")
 
+
+@dataclass
+class LLMProfileConfig:
+    """Named LLM profile that can override base configuration and provide metadata."""
+    name: str = "default"
+    label: Optional[str] = None
+    description: Optional[str] = None
+    provider: Optional[str] = None
+    model_id: Optional[str] = None
+    api_key: Optional[str] = None
+    url: Optional[str] = None
+    max_tokens: Optional[int] = None
+    temperature: Optional[float] = None
+    timeout: Optional[int] = None
+    system_prompt: Optional[str] = None
+    stream: Optional[bool] = None
+    scopes: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def validate(self) -> None:
+        if not self.name:
+            raise ValidationError("LLM profile must have a name", "LLM_PROFILE_NO_NAME")
+
+        if self.provider and self.provider not in SUPPORTED_LLM_PROVIDERS:
+            raise ValidationError(
+                f"Unsupported provider in profile '{self.name}': {self.provider}",
+                "LLM_PROFILE_PROVIDER_INVALID",
+            )
+
+        if self.temperature is not None and not 0.0 <= self.temperature <= 2.0:
+            raise ValidationError(
+                f"Temperature for profile '{self.name}' must be between 0.0 and 2.0",
+                "LLM_PROFILE_TEMPERATURE_INVALID",
+            )
+
+        if self.timeout is not None and self.timeout <= 0:
+            raise ValidationError(
+                f"Timeout for profile '{self.name}' must be positive",
+                "LLM_PROFILE_TIMEOUT_INVALID",
+            )
+
+    def apply_overrides(self, base: LLMConfig) -> LLMConfig:
+        """Return a new LLMConfig using profile overrides on top of base."""
+        return LLMConfig(
+            provider=self.provider or base.provider,
+            model_id=self.model_id or base.model_id,
+            api_key=self.api_key or base.api_key,
+            url=self.url or base.url,
+            max_tokens=self.max_tokens or base.max_tokens,
+            temperature=self.temperature if self.temperature is not None else base.temperature,
+            timeout=self.timeout or base.timeout,
+        )
+
 SUPPORTED_TTS_PROVIDERS = {
     'local',
     'nanochat',
@@ -87,6 +140,13 @@ class AudioConfig:
     vad_aggressiveness: int = 2
     vad_frame_duration_ms: int = 30
     vad_silence_duration_ms: int = 600
+    playback_enabled: bool = True
+    playback_device_id: Optional[int] = None
+    push_to_talk: bool = False
+    hotword_enabled: bool = False
+    hotword: str = "mia"
+    hotword_sensitivity: float = 0.6
+    hotword_timeout: float = 15.0
     
     def validate(self) -> None:
         """Validate audio configuration."""
@@ -113,6 +173,12 @@ class AudioConfig:
 
         if self.vad_silence_duration_ms <= 0:
             raise ValidationError("VAD silence duration must be positive", "INVALID_VAD_SILENCE_DURATION")
+
+        if self.hotword_sensitivity is not None and not 0.0 <= self.hotword_sensitivity <= 1.0:
+            raise ValidationError("Hotword sensitivity must be between 0.0 and 1.0", "INVALID_HOTWORD_SENSITIVITY")
+
+        if self.hotword_timeout is not None and self.hotword_timeout <= 0:
+            raise ValidationError("Hotword timeout must be positive", "INVALID_HOTWORD_TIMEOUT")
 
 @dataclass
 class VisionConfig:
@@ -238,6 +304,11 @@ class SecurityConfig:
     blocked_commands: List[str] = field(default_factory=lambda: ["rm -rf", "del /f", "format", "fdisk"])
     max_command_length: int = 1000
     audit_logging: bool = True
+    require_consent: bool = True
+    scopes: Dict[str, List[str]] = field(default_factory=dict)
+    default_allow: List[str] = field(default_factory=list)
+    api_enabled: bool = False
+    api_keys: Dict[str, List[str]] = field(default_factory=dict)
     
     def validate(self) -> None:
         """Validate security configuration."""
@@ -246,6 +317,12 @@ class SecurityConfig:
         
         if self.max_command_length <= 0:
             raise ValidationError("Max command length must be positive", "INVALID_COMMAND_LENGTH")
+
+        for key, scope_list in self.api_keys.items():
+            if not key:
+                raise ValidationError("API key identifier cannot be empty", "INVALID_API_KEY")
+            if scope_list and not all(isinstance(scope, str) for scope in scope_list):
+                raise ValidationError("API key scopes must be strings", "INVALID_API_SCOPE")
 
 @dataclass
 class SystemConfig:
@@ -277,6 +354,8 @@ class SystemConfig:
 class MIAConfig:
     """Main configuration class for M.I.A."""
     llm: LLMConfig = field(default_factory=LLMConfig)
+    llm_profiles: Dict[str, LLMProfileConfig] = field(default_factory=dict)
+    default_llm_profile: Optional[str] = None
     audio: AudioConfig = field(default_factory=AudioConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
@@ -289,6 +368,13 @@ class MIAConfig:
     def validate(self) -> None:
         """Validate all configuration sections."""
         self.llm.validate()
+        for profile in self.llm_profiles.values():
+            profile.validate()
+        if self.default_llm_profile and self.default_llm_profile not in self.llm_profiles:
+            raise ValidationError(
+                f"Default LLM profile '{self.default_llm_profile}' not found",
+                "DEFAULT_LLM_PROFILE_UNKNOWN",
+            )
         self.audio.validate()
         self.vision.validate()
         self.memory.validate()
@@ -312,6 +398,7 @@ class ConfigManager:
             self._explicit_config_file = None
         
         self.config: Optional[MIAConfig] = None
+        self.active_llm_profile: Optional[str] = None
         self._config_file_paths = [
             self.config_dir / "config.json",
             self.config_dir / "config.yaml",
@@ -373,6 +460,7 @@ class ConfigManager:
         except ValidationError as e:
             raise ConfigurationError(f"Configuration validation failed: {str(e)}", "CONFIG_VALIDATION_FAILED")
         
+        self.active_llm_profile = self.config.default_llm_profile
         logger.info("Configuration loaded successfully")
         return self.config
     
@@ -404,8 +492,28 @@ class ConfigManager:
     def _create_config_from_dict(self, config_data: Dict[str, Any]) -> MIAConfig:
         """Create MIAConfig from dictionary."""
         try:
+            profiles: Dict[str, LLMProfileConfig] = {}
+            raw_profiles = config_data.get('llm_profiles', {})
+
+            def _iter_profiles(source: Any) -> Iterable[tuple[str, Dict[str, Any]]]:
+                if isinstance(source, dict):
+                    for name, payload in source.items():
+                        if isinstance(payload, dict):
+                            yield str(name), payload
+                elif isinstance(source, list):
+                    for entry in source:
+                        if isinstance(entry, dict) and entry.get('name'):
+                            yield str(entry['name']), entry
+
+            for profile_name, payload in _iter_profiles(raw_profiles):
+                profiles[profile_name] = LLMProfileConfig(name=profile_name, **{
+                    k: v for k, v in payload.items() if k != 'name'
+                })
+
             return MIAConfig(
                 llm=LLMConfig(**config_data.get('llm', {})),
+                llm_profiles=profiles,
+                default_llm_profile=config_data.get('default_llm_profile'),
                 audio=AudioConfig(**config_data.get('audio', {})),
                 vision=VisionConfig(**config_data.get('vision', {})),
                 memory=MemoryConfig(**config_data.get('memory', {})),
@@ -441,6 +549,13 @@ class ConfigManager:
             'MIA_AUDIO_VAD_AGGRESSIVENESS': ('audio', 'vad_aggressiveness'),
             'MIA_AUDIO_VAD_FRAME_MS': ('audio', 'vad_frame_duration_ms'),
             'MIA_AUDIO_VAD_SILENCE_MS': ('audio', 'vad_silence_duration_ms'),
+            'MIA_AUDIO_PLAYBACK_ENABLED': ('audio', 'playback_enabled'),
+            'MIA_AUDIO_PLAYBACK_DEVICE_ID': ('audio', 'playback_device_id'),
+            'MIA_AUDIO_PUSH_TO_TALK': ('audio', 'push_to_talk'),
+            'MIA_AUDIO_HOTWORD_ENABLED': ('audio', 'hotword_enabled'),
+            'MIA_AUDIO_HOTWORD': ('audio', 'hotword'),
+            'MIA_AUDIO_HOTWORD_SENSITIVITY': ('audio', 'hotword_sensitivity'),
+            'MIA_AUDIO_HOTWORD_TIMEOUT': ('audio', 'hotword_timeout'),
             'MIA_VISION_ENABLED': ('vision', 'enabled'),
             'MIA_MEMORY_ENABLED': ('memory', 'enabled'),
             'MIA_MEMORY_VECTOR_ENABLED': ('memory', 'vector_enabled'),
@@ -449,6 +564,8 @@ class ConfigManager:
             'MIA_MEMORY_PATH': ('memory', 'vector_db_path'),
             'MIA_MEMORY_MAX_RESULTS': ('memory', 'max_results'),
             'MIA_SECURITY_ENABLED': ('security', 'enabled'),
+            'MIA_SECURITY_REQUIRE_CONSENT': ('security', 'require_consent'),
+            'MIA_SECURITY_API_ENABLED': ('security', 'api_enabled'),
             'MIA_SYSTEM_DEBUG': ('system', 'debug'),
             'MIA_SYSTEM_LOG_LEVEL': ('system', 'log_level'),
             'MIA_SANDBOX_ENABLED': ('sandbox', 'enabled'),
@@ -483,21 +600,25 @@ class ConfigManager:
             'TELEGRAM_REQUEST_TIMEOUT': ('telegram', 'request_timeout'),
         }
         
+        default_profile_env = os.getenv('MIA_LLM_PROFILE') or os.getenv('MIA_DEFAULT_LLM_PROFILE')
+        if default_profile_env:
+            self.config.default_llm_profile = default_profile_env
+
         for env_var, (section, key) in env_mappings.items():
             value = os.getenv(env_var)
             if value is not None:
                 section_obj = getattr(self.config, section)
                 
                 # Type conversion
-                if key in ['enabled', 'debug'] or key.endswith('_enabled'):
+                if key in ['enabled', 'debug'] or key.endswith('_enabled') or key in ['push_to_talk', 'playback_enabled', 'require_consent', 'api_enabled']:
                     value = value.lower() in ['true', '1', 'yes', 'on']
-                elif key in ['max_tokens', 'timeout', 'sample_rate', 'chunk_size', 'max_memory_mb', 'timeout_ms', 'request_timeout', 'api_id', 'vad_aggressiveness', 'vad_frame_duration_ms', 'vad_silence_duration_ms', 'max_results']:
+                elif key in ['max_tokens', 'timeout', 'sample_rate', 'chunk_size', 'max_memory_mb', 'timeout_ms', 'request_timeout', 'api_id', 'vad_aggressiveness', 'vad_frame_duration_ms', 'vad_silence_duration_ms', 'max_results', 'playback_device_id']:
                     try:
                         value = int(value)
                     except ValueError:
                         logger.warning("Invalid integer for %s: %s", env_var, value)
                         continue
-                elif key in ['temperature', 'input_threshold', 'similarity_threshold']:
+                elif key in ['temperature', 'input_threshold', 'similarity_threshold', 'hotword_sensitivity', 'hotword_timeout']:
                     value = float(value)
                 elif key == 'fuel':
                     try:
@@ -542,6 +663,24 @@ class ConfigManager:
         if not self.config:
             return {}
         
+        profiles_dict: Dict[str, Dict[str, Any]] = {}
+        for name, profile in self.config.llm_profiles.items():
+            profiles_dict[name] = {
+                'label': profile.label,
+                'description': profile.description,
+                'provider': profile.provider,
+                'model_id': profile.model_id,
+                'api_key': profile.api_key,
+                'url': profile.url,
+                'max_tokens': profile.max_tokens,
+                'temperature': profile.temperature,
+                'timeout': profile.timeout,
+                'system_prompt': profile.system_prompt,
+                'stream': profile.stream,
+                'scopes': profile.scopes,
+                'metadata': profile.metadata,
+            }
+
         return {
             'llm': {
                 'provider': self.config.llm.provider,
@@ -552,6 +691,8 @@ class ConfigManager:
                 'temperature': self.config.llm.temperature,
                 'timeout': self.config.llm.timeout
             },
+            'llm_profiles': profiles_dict,
+            'default_llm_profile': self.config.default_llm_profile,
             'audio': {
                 'enabled': self.config.audio.enabled,
                 'sample_rate': self.config.audio.sample_rate,
@@ -572,6 +713,13 @@ class ConfigManager:
                 'vad_aggressiveness': self.config.audio.vad_aggressiveness,
                 'vad_frame_duration_ms': self.config.audio.vad_frame_duration_ms,
                 'vad_silence_duration_ms': self.config.audio.vad_silence_duration_ms,
+                'playback_enabled': self.config.audio.playback_enabled,
+                'playback_device_id': self.config.audio.playback_device_id,
+                'push_to_talk': self.config.audio.push_to_talk,
+                'hotword_enabled': self.config.audio.hotword_enabled,
+                'hotword': self.config.audio.hotword,
+                'hotword_sensitivity': self.config.audio.hotword_sensitivity,
+                'hotword_timeout': self.config.audio.hotword_timeout,
             },
             'vision': {
                 'enabled': self.config.vision.enabled,
@@ -597,7 +745,12 @@ class ConfigManager:
                 'allowed_file_types': self.config.security.allowed_file_types,
                 'blocked_commands': self.config.security.blocked_commands,
                 'max_command_length': self.config.security.max_command_length,
-                'audit_logging': self.config.security.audit_logging
+                'audit_logging': self.config.security.audit_logging,
+                'require_consent': self.config.security.require_consent,
+                'scopes': self.config.security.scopes,
+                'default_allow': self.config.security.default_allow,
+                'api_enabled': self.config.security.api_enabled,
+                'api_keys': self.config.security.api_keys,
             },
             'system': {
                 'debug': self.config.system.debug,
@@ -636,6 +789,40 @@ class ConfigManager:
             },
         }
     
+    def list_llm_profiles(self) -> List[str]:
+        if not self.config:
+            return []
+        return list(self.config.llm_profiles.keys())
+
+    def get_llm_profile(self, name: Optional[str]) -> Optional[LLMProfileConfig]:
+        if not self.config or not name:
+            return None
+        return self.config.llm_profiles.get(name)
+
+    def activate_llm_profile(self, name: Optional[str]) -> Optional[LLMProfileConfig]:
+        if not self.config:
+            raise ConfigurationError("No configuration loaded", "NO_CONFIG")
+        if name is None:
+            self.active_llm_profile = None
+            return None
+        profile = self.config.llm_profiles.get(name)
+        if not profile:
+            raise ConfigurationError(f"Unknown LLM profile: {name}", "UNKNOWN_LLM_PROFILE")
+        self.active_llm_profile = name
+        return profile
+
+    def resolve_llm_config(self, profile_name: Optional[str] = None) -> Tuple[LLMConfig, Optional[LLMProfileConfig]]:
+        if not self.config:
+            raise ConfigurationError("No configuration loaded", "NO_CONFIG")
+
+        base = self.config.llm
+        chosen = profile_name or self.active_llm_profile or self.config.default_llm_profile
+        if chosen and chosen in self.config.llm_profiles:
+            profile = self.config.llm_profiles[chosen]
+            merged = profile.apply_overrides(base)
+            return merged, profile
+        return base, None
+
     def get_config(self) -> Optional[MIAConfig]:
         """Get current configuration."""
         return self.config

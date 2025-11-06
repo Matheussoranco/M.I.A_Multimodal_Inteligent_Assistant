@@ -13,7 +13,7 @@ from ..error_handler import global_error_handler, with_error_handling
 logger = logging.getLogger(__name__)
 
 class SecurityManager:
-    def __init__(self):
+    def __init__(self, config_manager=None):
         self.data_policies: Dict[str, bool] = {
             # Default safe actions
             "read_file": False,  # Requires explicit permission
@@ -224,6 +224,45 @@ class SecurityManager:
         
         return explanation
         
-    def get_audit_trail(self, limit: int = 50) -> List[Dict]:
-        """Get recent action audit trail."""
-        return self.action_history[-limit:]
+    def has_scope(self, scope: str) -> bool:
+        """Check if a specific scope is allowed."""
+        try:
+            if not scope or not isinstance(scope, str):
+                return False
+                
+            # Map scopes to actions for permission checking
+            scope_to_action = {
+                "files.read": "read_file",
+                "files.write": "write_file", 
+                "system": "execute_command",
+                "web": "web_search",
+                "messaging": "send_email",
+                "iot": "system_control",
+                "memory.read": "web_search",  # Using web_search as proxy for memory read
+                "memory.write": "web_search",  # Using web_search as proxy for memory write
+                "productivity": "calendar_access"
+            }
+            
+            action = scope_to_action.get(scope)
+            if action:
+                return self.data_policies.get(action, False)
+                
+            # Default to False for unknown scopes
+            logger.debug(f"Unknown scope requested: {scope}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Scope check failed for {scope}: {e}")
+            return False
+
+    def has_scopes(self, scopes: Set[str]) -> bool:
+        """Check if all specified scopes are allowed."""
+        try:
+            if not scopes:
+                return True
+                
+            return all(self.has_scope(scope) for scope in scopes)
+            
+        except Exception as e:
+            logger.error(f"Scopes check failed: {e}")
+            return False

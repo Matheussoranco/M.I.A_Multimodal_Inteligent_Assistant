@@ -19,7 +19,7 @@ if str(src_dir) not in sys.path:
 # Import and run main
 if __name__ == "__main__":
     try:
-        from mia.main import main
+        from mia.main import main  # type: ignore
         main()
     except ImportError as e:
         print(f"Error importing main module: {e}")

@@ -8,7 +8,7 @@ project_root = Path(__file__).parent.parent.parent
 src_dir = project_root / 'src'
 sys.path.insert(0, str(src_dir))
 
-from mia.main import main
+from mia.main import main  # type: ignore
 
 class TestMainEntryPoint(unittest.TestCase):
     def test_main_exists(self):

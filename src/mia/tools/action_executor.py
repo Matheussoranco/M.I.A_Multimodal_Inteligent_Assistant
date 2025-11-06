@@ -33,27 +33,122 @@ DEFAULT_SENSITIVE_ACTIONS = {
 }
 
 class ActionExecutor:
+    ACTION_SCOPES: Dict[str, set[str]] = {
+        "open_file": {"files.read"},
+        "read_file": {"files.read"},
+        "search_file": {"files.read"},
+        "create_file": {"files.write"},
+        "write_file": {"files.write"},
+        "delete_file": {"files.write"},
+        "move_file": {"files.write"},
+        "create_directory": {"files.write"},
+    "open_directory": {"files.read"},
+        "run_command": {"system"},
+        "run_sandboxed": {"system"},
+        "open_application": {"system"},
+        "launch_app": {"system"},
+        "close_app": {"system"},
+    "clipboard_copy": {"system"},
+    "clipboard_paste": {"system"},
+    "clipboard": {"system"},
+    "show_notification": {"system"},
+    "notify": {"system"},
+    "system_setting": {"system"},
+    "get_system_info": {"system"},
+        "send_email": {"messaging"},
+        "send_whatsapp": {"messaging"},
+        "send_message": {"messaging"},
+        "send_telegram": {"messaging"},
+        "web_search": {"web"},
+        "web_scrape": {"web"},
+        "web_automation": {"web"},
+        "research_topic": {"web"},
+        "wikipedia_search": {"web"},
+        "control_device": {"iot"},
+        "smart_home": {"iot"},
+        "control_lights": {"iot"},
+        "control_temperature": {"iot"},
+        "store_memory": {"memory.write"},
+        "search_memory": {"memory.read"},
+        "create_code": {"files.write"},
+        "analyze_code": {"files.read"},
+        "make_note": {"files.write"},
+        "read_notes": {"files.read"},
+        "search_notes": {"files.read"},
+        "create_docx": {"files.write"},
+        "create_pdf": {"files.write"},
+        "create_sheet": {"files.write"},
+        "read_sheet": {"files.read"},
+        "write_sheet": {"files.write"},
+        "open_sheet": {"files.read"},
+        "create_presentation": {"files.write"},
+        "add_presentation_slide": {"files.write"},
+        "open_presentation": {"files.read"},
+        "calendar_event": {"productivity"},
+    }
+
     def __init__(
         self,
         permissions: Optional[Dict[str, bool]] = None,
         logger: Optional[logging.Logger] = None,
         consent_callback: Optional[Callable[[str, Dict[str, Any]], bool]] = None,
         sensitive_actions: Optional[List[str]] = None,
+        *,
+        security_manager: Optional[Any] = None,
+        rag_pipeline: Optional[Any] = None,
+        web_agent: Optional[Any] = None,
+        config_manager: Optional[Any] = None,
+        allowed_scopes: Optional[List[str]] = None,
     ) -> None:
         self.permissions = permissions or {}
         self.logger = logger or logging.getLogger(__name__)
         self.consent_callback = consent_callback or (lambda action, params: True)
         self.sensitive_actions = set(sensitive_actions or DEFAULT_SENSITIVE_ACTIONS)
         self.notes_file = "mia_notes.md"
+        self.security_manager = security_manager
+        self.rag_pipeline = rag_pipeline
+        self._config_manager = config_manager
+        self.allowed_scopes = set(allowed_scopes or [])
+
         self.config = self._load_config()
+        if self._config_manager and getattr(self._config_manager, 'config', None):
+            try:
+                cfg = self._config_manager.config
+                if getattr(cfg, 'documents', None):
+                    self.config.setdefault('documents', {})
+                    self.config['documents'].update(
+                        {
+                            'template_dir': getattr(cfg.documents, 'template_dir', self.config['documents'].get('template_dir')),
+                            'output_dir': getattr(cfg.documents, 'output_dir', self.config['documents'].get('output_dir')),
+                            'default_template': getattr(cfg.documents, 'default_template', self.config['documents'].get('default_template')),
+                        }
+                    )
+                if getattr(cfg, 'memory', None):
+                    self.config.setdefault('memory', {})
+                    self.config['memory'].update(
+                        {
+                            'persist_dir': getattr(cfg.memory, 'vector_db_path', self.config['memory'].get('persist_dir')),
+                            'vector_enabled': getattr(cfg.memory, 'vector_enabled', self.config['memory'].get('vector_enabled', True)),
+                            'graph_enabled': getattr(cfg.memory, 'graph_enabled', self.config['memory'].get('graph_enabled', True)),
+                            'long_term_enabled': getattr(cfg.memory, 'long_term_enabled', self.config['memory'].get('long_term_enabled', True)),
+                            'max_entries': getattr(cfg.memory, 'max_memory_size', self.config['memory'].get('max_entries', 10_000)),
+                            'max_results': getattr(cfg.memory, 'max_results', self.config['memory'].get('max_results', 5)),
+                            'similarity_threshold': getattr(cfg.memory, 'similarity_threshold', self.config['memory'].get('similarity_threshold', 0.7)),
+                        }
+                    )
+            except Exception as exc:
+                self.logger.debug("Failed to merge config manager settings into ActionExecutor: %s", exc)
+
         self._document_factory = self._load_provider_factory('documents')
         self._sandbox_factory = self._load_provider_factory('sandbox')
         self._telegram_factory = self._load_provider_factory('messaging', 'telegram')
         self._memory_factory = self._load_provider_factory('memory', 'manager')
+        self._web_agent_factory = self._load_provider_factory('web', 'agent') if web_agent is None else None
         self._document_generator_instance: Optional[Any] = None
         self._sandbox_instance: Optional[Any] = None
         self._telegram_client: Optional[Any] = None
         self._memory_instance: Optional[Any] = None
+        self._web_agent_instance: Optional[Any] = web_agent
         
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config file or environment variables."""
@@ -241,6 +336,48 @@ class ActionExecutor:
             self._memory_instance = False
         return self._memory_instance or None
 
+    def _get_web_agent(self):
+        if self._web_agent_instance is False:
+            return None
+        if self._web_agent_instance is not None:
+            return self._web_agent_instance
+        if not self._web_agent_factory:
+            self._web_agent_instance = False
+            return None
+        try:
+            self._web_agent_instance = self._web_agent_factory()
+        except Exception as exc:  # pragma: no cover - optional deps
+            self.logger.warning("Failed to instantiate web agent: %s", exc)
+            self._web_agent_instance = False
+        return self._web_agent_instance or None
+
+    def _is_scope_allowed(self, action: str) -> bool:
+        required = self.ACTION_SCOPES.get(action)
+        if not required:
+            return True
+
+        if self.allowed_scopes:
+            if "*" in self.allowed_scopes or "all" in self.allowed_scopes:
+                return True
+            if required & self.allowed_scopes:
+                return True
+            return False
+
+        if self.security_manager:
+            try:
+                if hasattr(self.security_manager, "has_scopes"):
+                    return bool(self.security_manager.has_scopes(required))  # type: ignore[attr-defined]
+                if hasattr(self.security_manager, "has_scope"):
+                    return any(
+                        bool(self.security_manager.has_scope(scope))  # type: ignore[attr-defined]
+                        for scope in required
+                    )
+            except Exception as exc:  # pragma: no cover - defensive
+                self.logger.warning("Security scope check failed for %s: %s", action, exc)
+                return False
+
+        return True
+
     def _get_telegram_client(self):
         if self._telegram_client is False:
             return None
@@ -278,6 +415,19 @@ class ActionExecutor:
         self.logger.info(f"Executing action: {action}")
         
         consent_prompted = False
+
+        if not self._is_scope_allowed(action):
+            self.logger.warning("Action %s blocked due to missing scopes", action)
+            return f"Action '{action}' is not permitted in the current security scope."
+
+        if self.security_manager:
+            try:
+                if hasattr(self.security_manager, "log_action"):
+                    self.security_manager.log_action(action, params)
+                elif hasattr(self.security_manager, "record_action"):
+                    self.security_manager.record_action(action, params)
+            except Exception as exc:  # pragma: no cover - defensive
+                self.logger.debug("Security action logging failed for %s: %s", action, exc)
 
         # Check permissions (allow all actions by default unless specifically restricted)
         if self.permissions and action in self.permissions and not self.permissions[action]:
@@ -556,6 +706,18 @@ class ActionExecutor:
             if not relation_entries:
                 relation_entries = None
 
+        # Store in RAG pipeline if available
+        rag_result = None
+        if self.rag_pipeline and hasattr(self.rag_pipeline, 'remember'):
+            try:
+                enriched_metadata = dict(metadata) if metadata else {}
+                enriched_metadata.setdefault("source", "action_executor")
+                enriched_metadata.setdefault("timestamp", datetime.now().isoformat())
+                rag_result = self.rag_pipeline.remember(text, metadata=enriched_metadata)
+                self.logger.debug("Stored memory in RAG pipeline: %s", rag_result)
+            except Exception as exc:
+                self.logger.debug("Failed to store in RAG pipeline: %s", exc)
+
         try:
             record = manager.store_memory(
                 text,
@@ -564,12 +726,48 @@ class ActionExecutor:
                 relations=relation_entries,
             )
             reference = record.get("vector_id") or record.get("long_term_id")
-            return f"Memory stored successfully (ref={reference or 'n/a'})."
+            result_msg = f"Memory stored successfully (ref={reference or 'n/a'})."
+            if rag_result:
+                result_msg += f" Also stored in RAG pipeline (id={rag_result.get('id', 'n/a')})."
+            return result_msg
         except Exception as exc:
             self.logger.error("Failed to store memory: %s", exc)
             return f"Error storing memory: {exc}"
 
     def search_memory(self, params: Dict[str, Any]) -> str:
+        # Try RAG pipeline first if available
+        if self.rag_pipeline and hasattr(self.rag_pipeline, 'query'):
+            query = params.get("query") or params.get("text") or params.get("keyword")
+            if query:
+                try:
+                    top_k_raw = params.get("top_k") or params.get("limit", 4)
+                    top_k = int(top_k_raw) if isinstance(top_k_raw, (int, str)) and str(top_k_raw).isdigit() else 4
+                    
+                    rag_results = self.rag_pipeline.query(query, top_k=top_k)
+                    if rag_results:
+                        lines: List[str] = []
+                        for idx, chunk in enumerate(rag_results, start=1):
+                            preview = chunk.text
+                            if len(preview) > 160:
+                                preview = preview[:157] + "..."
+                            score = chunk.score
+                            metadata_info = []
+                            if chunk.metadata.get("source"):
+                                metadata_info.append(f"source: {chunk.metadata['source']}")
+                            if chunk.metadata.get("timestamp"):
+                                metadata_info.append(f"time: {chunk.metadata['timestamp']}")
+                            
+                            segment = f"{idx}. {preview}"
+                            if isinstance(score, (int, float)):
+                                segment += f" (score={score:.3f})"
+                            if metadata_info:
+                                segment += f" [{', '.join(metadata_info)}]"
+                            lines.append(segment)
+                        return f"RAG Memory results for '{query}':\n" + "\n".join(lines)
+                except Exception as exc:
+                    self.logger.debug("RAG pipeline search failed, falling back to memory manager: %s", exc)
+
+        # Fallback to memory manager
         manager = self._get_memory_manager()
         if not manager:
             return "Memory manager not available."
@@ -648,12 +846,8 @@ class ActionExecutor:
 # Generated by M.I.A
 
 def main():
-    \"\"\"
-    {description}
-    \"\"\"
     print("Hello, World!")
     # Add your code here
-    pass
 
 if __name__ == "__main__":
     main()
@@ -665,7 +859,6 @@ function main() {{
     console.log("Hello, World!");
     // Add your code here
 }}
-
 main();
 """,
             "java": f"""// {description}
@@ -1210,25 +1403,68 @@ body {{
 
     # Web Automation (Selenium)
     def web_automation(self, params):
+        agent = self._get_web_agent()
+        plan = params.get("plan") or params.get("steps")
+
+        if agent and plan:
+            viewport = params.get("viewport")
+            viewport_tuple: Optional[tuple[int, int]] = None
+            if isinstance(viewport, (list, tuple)) and len(viewport) == 2:
+                try:
+                    viewport_tuple = (int(viewport[0]), int(viewport[1]))
+                except (TypeError, ValueError):
+                    self.logger.debug("Invalid viewport provided: %s", viewport)
+
+            try:
+                results = agent.run_plan(
+                    plan,
+                    headless=params.get("headless"),
+                    viewport=viewport_tuple,
+                )
+            except Exception as exc:  # pragma: no cover - runtime failure
+                self.logger.error("Web automation plan failed: %s", exc)
+                return f"Web automation failed: {exc}"
+
+            success_count = sum(1 for step in results if step.success)
+            failure_messages = [step.message for step in results if not step.success]
+            payload_requested = params.get("return_payloads")
+            if payload_requested:
+                payloads = [step.payload for step in results if step.payload]
+                return (
+                    f"Executed web plan with {success_count}/{len(results)} successful steps. "
+                    f"Payloads: {json.dumps(payloads, ensure_ascii=True)}"
+                )
+            if failure_messages:
+                return (
+                    f"Executed web plan with {success_count}/{len(results)} successful steps. "
+                    f"Failures: {failure_messages}"
+                )
+            return f"Executed web plan with {success_count} successful steps."
+
+        # Fallback for legacy direct automation
         try:
             from selenium import webdriver  # type: ignore
         except ImportError:
-            return "Selenium not installed. Run: pip install selenium."
+            return "Web agent not available and Selenium missing. Run: pip install selenium webdriver-manager."
 
         url = params.get("url")
         if not url:
-            return "No URL provided."
+            return "No URL or plan provided for web automation."
+
+        driver = None
         try:
-            driver = None
             driver = webdriver.Chrome()
             driver.get(url)
+            return f"Opened {url} via direct Selenium fallback."
+        except Exception as exc:  # pragma: no cover
+            self.logger.error("Fallback web automation failed: %s", exc)
+            return f"Web automation failed: {exc}"
         finally:
             try:
                 if driver:
                     driver.quit()
             except Exception:
                 pass
-        return f"Web automation on {url} complete."
 
     # Email (SMTP)
     def send_email(self, params):
@@ -1237,15 +1473,32 @@ body {{
         body = params.get("body", "")
         if not to:
             return "No recipient provided."
+
+        # Resolve SMTP configuration from env/config with param overrides
+        email_cfg = (self.config or {}).get("email", {})
+        smtp_server = params.get("smtp_server") or email_cfg.get("smtp_server", "smtp.gmail.com")
+        smtp_port = int(params.get("smtp_port") or email_cfg.get("smtp_port", 587))
+        from_addr = params.get("from") or email_cfg.get("username") or ""
+        password = params.get("password") or email_cfg.get("password") or ""
+
+        if not from_addr:
+            return "Sender email not configured. Set EMAIL_USERNAME or provide 'from' param."
+
         msg = EmailMessage()
         msg["Subject"] = subject
-        msg["From"] = params.get("from", "your@email.com")
+        msg["From"] = from_addr
         msg["To"] = to
         msg.set_content(body)
+
         try:
-            with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
-                smtp.starttls()
-                smtp.login(params.get("from", "your@email.com"), params.get("password", ""))
+            with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+                # Use STARTTLS if port typically supports it
+                try:
+                    smtp.starttls()
+                except Exception:
+                    pass
+                if password:
+                    smtp.login(from_addr, password)
                 smtp.send_message(msg)
             return f"Email sent to {to}"
         except Exception as e:

@@ -68,7 +68,15 @@ class Localization:
                 "agent_specify_search": "🤖 Agent: Please specify a filename to search",
                 "file_created_timestamp": "File created by M.I.A Agent on {timestamp}",
                 "status_connected": "LLM Connected",
-                "status_issues": "LLM Connection Issues"
+                "status_issues": "LLM Connection Issues",
+                "audio_waiting_hotword": "🪄 Say '{hotword}' to activate",
+                "audio_hotword_timeout": "⏱️ Hotword not detected in time.",
+                "audio_push_to_talk": "Press and hold space to speak",
+                "audio_push_to_talk_cancel": "🔕 Capture cancelled.",
+                "audio_listening": "🎤 Listening... (Ctrl+C to switch to text)",
+                "audio_no_speech": "🔇 No speech detected.",
+                "audio_transcription_failed": "❌ Could not transcribe audio.",
+                "audio_hotword_detected": "🔊 Hotword detected ({confidence}%)"
             },
             "pt": {
                 "app_title": "🤖 M.I.A - Assistente Inteligente Multimodal",
@@ -113,7 +121,15 @@ class Localization:
                 "agent_specify_search": "🤖 Agente: Por favor, especifique um nome de arquivo para buscar",
                 "file_created_timestamp": "Arquivo criado pelo Agente M.I.A em {timestamp}",
                 "status_connected": "LLM Conectado",
-                "status_issues": "Problemas de Conexão LLM"
+                "status_issues": "Problemas de Conexão LLM",
+                "audio_waiting_hotword": "🪄 Diga '{hotword}' para ativar",
+                "audio_hotword_timeout": "⏱️ Hotword não detectada a tempo.",
+                "audio_push_to_talk": "Pressione e segure espaço para falar",
+                "audio_push_to_talk_cancel": "🔕 Captura cancelada.",
+                "audio_listening": "🎤 Escutando... (Ctrl+C para texto)",
+                "audio_no_speech": "🔇 Nenhuma fala detectada.",
+                "audio_transcription_failed": "❌ Não foi possível transcrever o áudio.",
+                "audio_hotword_detected": "🔊 Hotword detectada ({confidence}%)"
             }
         }
         return strings.get(self.language, strings["en"])

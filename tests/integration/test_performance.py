@@ -2,6 +2,15 @@
 Performance and load testing for M.I.A components.
 Tests system behavior under various load conditions.
 """
+import sys
+from pathlib import Path
+
+# Add src directory to Python path for imports
+project_root = Path(__file__).parent.parent.parent
+src_dir = project_root / 'src'
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
 import pytest
 import time
 import threading
@@ -85,7 +94,7 @@ class TestPerformanceScenarios:
         """Test concurrent access to shared resources."""
         performance_monitor.start_monitoring()
 
-        from mia.resource_manager import ManagedResource
+        from mia.resource_manager import ManagedResource  # type: ignore
 
         class SharedResource(ManagedResource):
             def __init__(self, resource_id):

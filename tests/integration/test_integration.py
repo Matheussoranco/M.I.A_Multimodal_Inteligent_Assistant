@@ -10,9 +10,9 @@ import yaml
 from unittest.mock import Mock, patch, MagicMock
 
 # Import the modules we're testing
-from src.mia.config_manager import ConfigManager, LLMConfig, AudioConfig, VisionConfig, SystemConfig
-from src.mia.resource_manager import ResourceManager, ManagedResource
-from src.mia.audio.audio_resource_manager import AudioResourceManager, AudioResource
+from src.mia.config_manager import ConfigManager, LLMConfig, AudioConfig, VisionConfig, SystemConfig  # type: ignore
+from src.mia.resource_manager import ResourceManager, ManagedResource  # type: ignore
+from src.mia.audio.audio_resource_manager import AudioResourceManager, AudioResource  # type: ignore
 from src.mia.multimodal.vision_resource_manager import VisionResourceManager, VisionResource
 from src.mia.llm.llm_manager import LLMManager
 from src.mia.exceptions import ConfigurationError, ResourceError
@@ -75,22 +75,26 @@ class TestConfigurationManagement(unittest.TestCase):
         config_manager = ConfigManager(self.config_path)
         config = config_manager.load_config()  # Load the config explicitly
         
+        # Ensure config was loaded
+        self.assertIsNotNone(config_manager.config)
+        self.assertIsNotNone(config)
+        
         # Test LLM configuration
-        self.assertEqual(config_manager.config.llm.provider, 'openai')
-        self.assertEqual(config_manager.config.llm.model_id, 'gpt-3.5-turbo')
-        self.assertEqual(config_manager.config.llm.max_tokens, 2048)
+        self.assertEqual(config_manager.config.llm.provider, 'openai')  # type: ignore
+        self.assertEqual(config_manager.config.llm.model_id, 'gpt-3.5-turbo')  # type: ignore
+        self.assertEqual(config_manager.config.llm.max_tokens, 2048)  # type: ignore
         
         # Test audio configuration
-        self.assertTrue(config_manager.config.audio.enabled)
-        self.assertEqual(config_manager.config.audio.sample_rate, 16000)
+        self.assertTrue(config_manager.config.audio.enabled)  # type: ignore
+        self.assertEqual(config_manager.config.audio.sample_rate, 16000)  # type: ignore
         
         # Test vision configuration
-        self.assertTrue(config_manager.config.vision.enabled)
-        self.assertEqual(config_manager.config.vision.model, 'clip-vit-base-patch32')
+        self.assertTrue(config_manager.config.vision.enabled)  # type: ignore
+        self.assertEqual(config_manager.config.vision.model, 'clip-vit-base-patch32')  # type: ignore
         
         # Test system configuration
-        self.assertEqual(config_manager.config.system.log_level, 'INFO')
-        self.assertEqual(config_manager.config.system.max_workers, 4)
+        self.assertEqual(config_manager.config.system.log_level, 'INFO')  # type: ignore
+        self.assertEqual(config_manager.config.system.max_workers, 4)  # type: ignore
     
     def test_config_validation(self):
         """Test configuration validation."""
@@ -100,7 +104,7 @@ class TestConfigurationManagement(unittest.TestCase):
         self.assertTrue(config_manager.validate_config())
         
         # Test invalid configuration
-        config_manager.config.llm.max_tokens = -1
+        config_manager.config.llm.max_tokens = -1  # type: ignore
         with self.assertRaises(ConfigurationError):
             config_manager.validate_config()
     
@@ -109,7 +113,7 @@ class TestConfigurationManagement(unittest.TestCase):
         with patch.dict(os.environ, {'MIA_LLM_API_KEY': 'env-key'}):
             config_manager = ConfigManager(self.config_path)
             # Environment variable should override config file
-            self.assertEqual(config_manager.config.llm.api_key, 'env-key')
+            self.assertEqual(config_manager.config.llm.api_key, 'env-key')  # type: ignore
     
     def test_config_update(self):
         """Test configuration updates."""
@@ -117,7 +121,7 @@ class TestConfigurationManagement(unittest.TestCase):
         
         # Test updating configuration
         config_manager.update_config('llm', 'temperature', 0.9)
-        self.assertEqual(config_manager.config.llm.temperature, 0.9)
+        self.assertEqual(config_manager.config.llm.temperature, 0.9)  # type: ignore
         
         # Test invalid section
         with self.assertRaises(ConfigurationError):

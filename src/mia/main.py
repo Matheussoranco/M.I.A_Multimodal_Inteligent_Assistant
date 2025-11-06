@@ -1,10 +1,14 @@
 import argparse
-import sys
+import json
 import logging
 import os
-import warnings
 import re
-from typing import Tuple, Optional, Dict, Any, List
+import sys
+import time
+import warnings
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import numpy as np
 
 try:
     import colorama
@@ -16,6 +20,7 @@ except ImportError:
 from .__version__ import __version__, get_full_version
 from .localization import init_localization, _
 from .providers import provider_registry, ProviderLookupError
+from .audio.hotword_detector import HotwordDetector
 
 try:
     from .exceptions import *
@@ -63,6 +68,20 @@ def red(text):
 def cyan(text):
     """Make text cyan using ANSI escape codes"""
     return f"\033[36m{text}\033[0m"
+
+
+def _msg(key: str, default: str, **kwargs) -> str:
+    """Return localized message or provided default when missing."""
+    localized = _(key, **kwargs)
+    if localized != key:
+        return localized
+
+    if kwargs:
+        try:
+            return default.format(**kwargs)
+        except Exception:
+            return default
+    return default
 
 
 def _extract_filepath(text: str, extensions: Optional[List[str]] = None) -> Optional[str]:
@@ -479,6 +498,11 @@ def parse_arguments():
     parser.add_argument(
         "--model-id", type=str, default="deepseek-r1:1.5b", help="Model ID"
     )
+    parser.add_argument(
+        "--profile",
+        type=str,
+        help="Nome do perfil de LLM configurado em config.yaml",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument(
         "--version",
@@ -518,6 +542,28 @@ def setup_logging(args):
 def initialize_components(args):
     """Initialize all M.I.A components and return them in a dictionary."""
     components = {}
+    configuration_error_cls = globals().get('ConfigurationError', Exception)
+
+    # Load configuration first so the rest of the pipeline can consume overrides
+    config_manager = None
+    if ConfigManager:
+        try:
+            config_manager = ConfigManager()
+            config_manager.load_config()
+            if getattr(args, "profile", None):
+                try:
+                    config_manager.activate_llm_profile(args.profile)
+                except configuration_error_cls as exc:
+                    logger.warning("Requested profile '%s' unavailable: %s", args.profile, exc)
+            elif config_manager.config and config_manager.config.default_llm_profile:
+                try:
+                    config_manager.activate_llm_profile(config_manager.config.default_llm_profile)
+                except configuration_error_cls as exc:
+                    logger.warning("Failed to activate default profile '%s': %s", config_manager.config.default_llm_profile, exc)
+        except Exception as exc:  # pragma: no cover - defensive load
+            logger.warning("Configuration manager failed to load config: %s", exc)
+            config_manager = None
+    components['config_manager'] = config_manager
 
     # Initialize device
     device = "cpu"
@@ -527,8 +573,17 @@ def initialize_components(args):
     logger.info(f"Using device: {device}")
 
     # Initialize LLM Manager lazily via provider registry
+    llm_kwargs: Dict[str, Any] = {}
+    if getattr(args, 'model_id', None):
+        llm_kwargs['model_id'] = args.model_id
+    if config_manager:
+        llm_kwargs['config_manager'] = config_manager
+        if config_manager.active_llm_profile:
+            llm_kwargs['profile'] = config_manager.active_llm_profile
+    elif getattr(args, 'profile', None):
+        llm_kwargs['profile'] = args.profile
     try:
-        components['llm'] = provider_registry.create('llm', model_id=getattr(args, 'model_id', None))
+        components['llm'] = provider_registry.create('llm', **llm_kwargs)
         if components['llm']:
             logger.info("LLM Manager initialized successfully")
         else:
@@ -544,15 +599,46 @@ def initialize_components(args):
     components['audio_available'] = False
     components['audio_utils'] = None
     components['speech_processor'] = None
+    components['speech_generator'] = None
+    components['hotword_detector'] = None
+    audio_config = getattr(getattr(config_manager, 'config', None), 'audio', None)
+    components['audio_config'] = audio_config
 
     if args.mode in ("audio", "mixed", "auto"):
         try:
             audio_utils = provider_registry.create('audio', 'utils')
-            speech_processor = provider_registry.create('audio', 'processor')
+            if config_manager:
+                speech_processor = provider_registry.create('audio', 'processor', config_manager=config_manager)
+                speech_generator = provider_registry.create(
+                    'audio',
+                    'generator',
+                    config_manager=config_manager,
+                    audio_config=audio_config,
+                )
+            else:
+                speech_processor = provider_registry.create('audio', 'processor')
+                speech_generator = provider_registry.create('audio', 'generator')
             components['audio_utils'] = audio_utils
             components['speech_processor'] = speech_processor
+            components['speech_generator'] = speech_generator
+            if audio_utils and audio_config:
+                audio_utils.configure(
+                    sample_rate=getattr(audio_config, 'sample_rate', None),
+                    chunk_size=getattr(audio_config, 'chunk_size', None),
+                    device_id=getattr(audio_config, 'device_id', None),
+                    input_threshold=getattr(audio_config, 'input_threshold', None),
+                )
             components['audio_available'] = bool(audio_utils and speech_processor)
             if components['audio_available']:
+                if audio_config and audio_config.hotword:
+                    try:
+                        components['hotword_detector'] = HotwordDetector(
+                            audio_config.hotword,
+                            sensitivity=audio_config.hotword_sensitivity or 0.5,
+                            energy_floor=getattr(audio_config, 'input_threshold', 0.01) or 0.01,
+                        )
+                    except Exception as exc:
+                        logger.warning("Hotword detector initialization failed: %s", exc)
                 logger.info("Audio components initialized successfully")
             else:
                 logger.warning("Audio components unavailable or returned None")
@@ -562,6 +648,26 @@ def initialize_components(args):
         except Exception as e:
             logger.warning(f"Audio components failed to initialize: {e}")
             components['audio_available'] = False
+
+    # Initialize security manager
+    try:
+        security_manager = provider_registry.create('security', config_manager=config_manager)
+    except ProviderLookupError:
+        security_manager = None
+    except Exception as exc:
+        logger.warning("Security manager failed to initialize: %s", exc)
+        security_manager = None
+    components['security_manager'] = security_manager
+
+    # Initialize RAG pipeline
+    try:
+        rag_pipeline = provider_registry.create('rag', 'pipeline', config_manager=config_manager)
+    except ProviderLookupError:
+        rag_pipeline = None
+    except Exception as exc:
+        logger.warning("RAG pipeline unavailable: %s", exc)
+        rag_pipeline = None
+    components['rag_pipeline'] = rag_pipeline
 
     # Initialize vision processor
     try:
@@ -581,7 +687,10 @@ def initialize_components(args):
     try:
         components['action_executor'] = provider_registry.create(
             'actions',
-            consent_callback=prompt_user_consent
+            consent_callback=prompt_user_consent,
+            config_manager=config_manager,
+            security_manager=security_manager,
+            rag_pipeline=rag_pipeline,
         )
         if components['action_executor']:
             logger.info("Action executor initialized successfully")
@@ -628,6 +737,8 @@ def display_status(components, args):
     device = components.get('device', 'cpu')
     performance_monitor = components.get('performance_monitor')
     cache_manager = components.get('cache_manager')
+    config_manager = components.get('config_manager')
+    active_profile = getattr(config_manager, 'active_llm_profile', None) if config_manager else None
 
     status = (
         green(_('status_connected'))
@@ -648,6 +759,8 @@ def display_status(components, args):
         "auto": cyan("Auto"),
     }.get(args.mode, cyan("Mixed"))
     print(f"  {bold('Mode:')} {mode_label}")
+    if active_profile:
+        print(f"  {bold('Perfil LLM:')} {cyan(active_profile)}")
     print(f"  {bold('Model:')} {yellow(llm.model_id if llm else getattr(args, 'model_id', ''))}")
     print(
         f"  {bold('LLM:')} {(green('Connected') if llm and hasattr(llm, 'is_available') and llm.is_available() else red('Disconnected'))}"
@@ -689,45 +802,91 @@ def process_image_input(args, components):
 
 def process_audio_input(args, components):
     """Process audio input and return transcribed text."""
-    if (args.mode == "audio" and
-        components.get('speech_processor') and
-        components.get('audio_available') and
-        components.get('audio_utils')):
+    audio_utils = components.get('audio_utils')
+    speech_processor = components.get('speech_processor')
+    audio_config = components.get('audio_config')
+    hotword_detector = components.get('hotword_detector')
 
-        try:
-            print(bold("🎤 Listening... (speak now or press Ctrl+C to switch to text)"))
-            audio_utils = components['audio_utils']
-            speech_processor = components['speech_processor']
+    if not (
+        args.mode == "audio"
+        and components.get('audio_available')
+        and audio_utils
+        and speech_processor
+    ):
+        return None, {}
 
-            mic = audio_utils.record_audio(speech_processor, 2.0, 0.25)
-            audio_chunk = next(mic)
-            transcription = speech_processor.transcribe_audio_data(
-                audio_chunk.tobytes(), 16000
-            )
-            user_input = (
-                transcription.strip()
-                if isinstance(transcription, str)
-                else ""
-            )
-
-            if not user_input:
-                print(red("🔇 No speech detected, try speaking louder or closer to the microphone"))
+    try:
+        if audio_config and audio_config.hotword_enabled and hotword_detector:
+            print(bold(_msg("audio_waiting_hotword", "🪄 Diga '{hotword}' para ativar", hotword=audio_config.hotword)))
+            if not _await_hotword(audio_utils, speech_processor, hotword_detector, audio_config):
+                print(yellow(_msg("audio_hotword_timeout", "⏱️ Tempo limite aguardando hotword.")))
                 return None, {}
 
-            print(green(f"🎙️  You said: {user_input}"))
-            return user_input, {"audio": user_input}
+        if audio_config and audio_config.push_to_talk:
+            prompt = _msg("audio_push_to_talk", "Pressione e segure espaço para falar")
+            if not audio_utils.wait_for_push_to_talk(prompt=prompt):
+                print(yellow(_msg("audio_push_to_talk_cancel", "🔕 Captura cancelada.")))
+                return None, {}
 
-        except KeyboardInterrupt:
-            print(bold("\n🔥 Switching to text mode..."))
-            args.mode = "text"
-            return None, {}
-        except Exception as e:
-            logger.error(f"Error processing audio: {e}")
-            print(red("❌ Audio processing failed. Switching to text mode."))
-            args.mode = "text"
+        print(bold(_msg("audio_listening", "🎤 Escutando... (Ctrl+C para texto)")))
+        audio_buffer = audio_utils.capture_with_vad(
+            speech_processor=speech_processor,
+            audio_config=audio_config,
+        )
+
+        if audio_buffer is None or audio_buffer.size == 0:
+            print(red(_msg("audio_no_speech", "🔇 Nenhuma fala detectada.")))
             return None, {}
 
-    return None, {}
+        transcription = speech_processor.transcribe_audio_data(
+            audio_buffer.astype(np.float32).tobytes(),
+            audio_utils.sample_rate,
+        )
+
+        user_input = transcription.strip() if isinstance(transcription, str) else ""
+        if not user_input:
+            print(red(_msg("audio_transcription_failed", "❌ Não foi possível transcrever o áudio.")))
+            return None, {}
+
+        print(green(f"🎙️  You said: {user_input}"))
+        return user_input, {"audio": user_input}
+
+    except KeyboardInterrupt:
+        print(bold("\n🔥 Switching to text mode..."))
+        args.mode = "text"
+        return None, {}
+    except Exception as e:
+        logger.error(f"Error processing audio: {e}")
+        print(red("❌ Audio processing failed. Switching to text mode."))
+        args.mode = "text"
+        return None, {}
+
+
+def _await_hotword(audio_utils, speech_processor, hotword_detector, audio_config) -> bool:
+    """Listen for the configured hotword within the timeout window."""
+    timeout = getattr(audio_config, 'hotword_timeout', 15.0) or 15.0
+    window_s = max(0.75, getattr(audio_config, 'chunk_size', 1024) / float(audio_utils.sample_rate))
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+        chunk = audio_utils.capture_chunk(duration_s=window_s)
+        if chunk is None or chunk.size == 0:
+            continue
+
+        transcription = speech_processor.transcribe_audio_data(
+            chunk.astype(np.float32).tobytes(),
+            audio_utils.sample_rate,
+        )
+        if not transcription:
+            continue
+
+        detection = hotword_detector.detect(transcription, chunk)
+        if detection:
+            confidence_pct = int(detection.confidence * 100)
+            print(green(_msg("audio_hotword_detected", "🔊 Hotword detectada ({confidence}%)", confidence=confidence_pct)))
+            return True
+
+    return False
 
 
 def get_text_input(args):
@@ -759,6 +918,10 @@ def process_command(cmd, args, components):
         return True, display_status(components, args)
     elif cmd == "models":
         return True, display_models(args)
+    elif cmd == "profiles":
+        return True, display_profiles(components)
+    elif cmd.startswith("switch-profile"):
+        return True, switch_llm_profile(cmd, components)
     elif cmd == "clear":
         return True, clear_context(components)
     elif cmd == "audio" and components.get('speech_processor'):
@@ -788,6 +951,8 @@ def display_help(args, components):
 
     print(cyan(_("status_help")))
     print(cyan(_("models_help")))
+    print(cyan("profiles - listar perfis LLM configurados"))
+    print(cyan("switch-profile <nome> - trocar perfil LLM em tempo real"))
     print(cyan(_("clear_help")))
 
     # Agent commands
@@ -830,6 +995,81 @@ def display_models(args):
     print(bold("─" * 40))
 
 
+def display_profiles(components):
+    """Display configured LLM profiles."""
+    config_manager = components.get('config_manager')
+    if not config_manager or not getattr(config_manager, 'config', None):
+        print(red("Nenhum perfil configurado."))
+        return
+
+    profiles = config_manager.list_llm_profiles()
+    active = getattr(config_manager, 'active_llm_profile', None)
+    if not profiles:
+        print(yellow("Nenhum perfil foi encontrado em config.yaml."))
+        return
+
+    print(bold("\n🎯 Perfis de LLM configurados"))
+    print(bold("─" * 40))
+    for name in profiles:
+        profile = config_manager.get_llm_profile(name)
+        label = getattr(profile, 'label', None) or name
+        marker = green(" (ativo)") if name == active else ""
+        description = getattr(profile, 'description', None)
+        provider = getattr(profile, 'provider', '') or config_manager.config.llm.provider
+        model_id = getattr(profile, 'model_id', '') or config_manager.config.llm.model_id
+        print(cyan(f"  • {label}{marker}"))
+        print(f"    Provider: {provider} — Model: {model_id}")
+        if description:
+            print(f"    {description}")
+    print(bold("─" * 40))
+
+
+def switch_llm_profile(cmd, components):
+    """Switch to a different LLM profile at runtime."""
+    config_manager = components.get('config_manager')
+    if not config_manager or not getattr(config_manager, 'config', None):
+        return red("Configuração não disponível para troca de perfil.")
+
+    # Parse command: "switch-profile <profile_name>"
+    parts = cmd.split()
+    if len(parts) < 2:
+        return red("Uso: switch-profile <nome_do_perfil>")
+
+    profile_name = parts[1]
+    profiles = config_manager.list_llm_profiles()
+
+    if profile_name not in profiles:
+        available = ", ".join(profiles) if profiles else "nenhum"
+        return red(f"Perfil '{profile_name}' não encontrado. Disponíveis: {available}")
+
+    try:
+        # Apply profile to config manager
+        config_manager.active_llm_profile = profile_name
+        profile = config_manager.get_llm_profile(profile_name)
+
+        # Update LLM component if available
+        llm = components.get('llm')
+        if llm and hasattr(llm, 'update_config'):
+            profile_config = profile.apply_overrides(config_manager.config.llm)
+            llm.update_config(profile_config)
+
+        label = getattr(profile, 'label', None) or profile_name
+        description = getattr(profile, 'description', None)
+        provider = getattr(profile, 'provider', '') or config_manager.config.llm.provider
+        model_id = getattr(profile, 'model_id', '') or config_manager.config.llm.model_id
+
+        result = green(f"🔄 Perfil alterado para: {label}")
+        result += f"\n   Provider: {provider} — Model: {model_id}"
+        if description:
+            result += f"\n   {description}"
+
+        return result
+
+    except Exception as exc:
+        logger.error(f"Failed to switch LLM profile: {exc}")
+        return red(f"Erro ao trocar perfil: {exc}")
+
+
 def clear_context(components):
     """Clear conversation context and optimize performance."""
     cache_manager = components.get('cache_manager')
@@ -845,9 +1085,20 @@ def clear_context(components):
 
 
 def process_with_llm(user_input, inputs, components):
-    """Process user input with LLM and return response."""
+    """Process user input with LLM and return a structured response payload."""
     llm = components.get('llm')
     action_executor = components.get('action_executor')
+
+    result: Dict[str, Any] = {
+        "response": None,
+        "streamed": False,
+        "citations": None,
+        "error": None,
+    }
+
+    if not user_input:
+        result["error"] = yellow(_("no_input"))
+        return result
 
     # Check for agent commands first
     if user_input and action_executor:
@@ -855,25 +1106,94 @@ def process_with_llm(user_input, inputs, components):
             user_input, action_executor
         )
         if agent_executed:
-            return agent_result
+            result["response"] = agent_result
+            result["streamed"] = False
+            return result
 
-    # Regular LLM processing
-    if llm and hasattr(llm, "query"):
-        if user_input:
-            print(cyan(_("thinking")))
-            try:
-                response = llm.query(user_input)
-                if response:
-                    return cyan("🤖 M.I.A: ") + response
-                else:
-                    return red(_("no_response"))
-            except Exception as e:
-                logger.error(f"LLM query error: {e}")
-                return red(_("llm_error", error=str(e)))
+    if not llm or not hasattr(llm, "query"):
+        result["error"] = red(_("llm_unavailable"))
+        return result
+
+    rag_pipeline = components.get('rag_pipeline')
+    rag_prompt = None
+    if rag_pipeline and hasattr(rag_pipeline, 'build_prompt'):
+        try:
+            rag_prompt = rag_pipeline.build_prompt(user_input)
+            if rag_prompt and rag_prompt.citations:
+                result["citations"] = rag_prompt.format_citations()
+        except Exception as exc:
+            logger.debug("RAG prompt construction failed: %s", exc)
+            rag_prompt = None
+
+    stream_kwargs: Dict[str, Any] = {}
+    if rag_prompt:
+        stream_kwargs['messages'] = rag_prompt.messages
+
+    print(cyan(_("thinking")))
+
+    try:
+        supports_stream = hasattr(llm, "stream") and callable(getattr(llm, "stream"))
+        can_stream = supports_stream and getattr(llm, "stream_enabled", True)
+        supports_stream_fn = getattr(llm, "supports_streaming", None)
+        if callable(supports_stream_fn):
+            can_stream = can_stream and supports_stream_fn()
         else:
-            return yellow(_("no_input"))
-    else:
-        return red(_("llm_unavailable"))
+            can_stream = False
+
+        if can_stream:
+            print(cyan("🤖 M.I.A: "), end="", flush=True)
+            tokens: List[str] = []
+            for chunk in llm.stream(user_input, **stream_kwargs):
+                if chunk is None:
+                    continue
+                tokens.append(str(chunk))
+                sys.stdout.write(str(chunk))
+                sys.stdout.flush()
+            print()
+            response_text = "".join(tokens).strip()
+            result["streamed"] = True
+        else:
+            response_text = llm.query(user_input, **stream_kwargs) or ""
+
+        if not response_text:
+            result["error"] = red(_("no_response"))
+            return result
+
+        result["response"] = response_text
+
+        if rag_pipeline and hasattr(rag_pipeline, 'remember'):
+            try:
+                rag_pipeline.remember(
+                    response_text,
+                    metadata={
+                        "source": "conversation",
+                        "question": user_input,
+                        "timestamp": time.time(),
+                    },
+                )
+            except Exception as exc:
+                logger.debug("Failed to store conversation in RAG: %s", exc)
+
+        # Optionally speak the response
+        audio_config = components.get('audio_config')
+        speech_generator = components.get('speech_generator')
+        audio_utils = components.get('audio_utils')
+        if (
+            audio_config
+            and getattr(audio_config, 'tts_enabled', False)
+            and speech_generator
+        ):
+            try:
+                speech_generator.enqueue_speech(response_text)
+            except Exception as exc:
+                logger.debug("TTS enqueue failed: %s", exc)
+
+        return result
+
+    except Exception as exc:
+        logger.error(f"LLM processing error: {exc}")
+        result["error"] = red(_("llm_error", error=str(exc)))
+        return result
 
 
 def cleanup_resources(components):
@@ -918,17 +1238,22 @@ def collect_user_inputs(args, components):
     inputs.update(image_inputs)
     
     # Process audio input
-    user_input, audio_inputs = process_audio_input(args, components)
-    if user_input is None:  # No speech detected
+    audio_text, audio_inputs = process_audio_input(args, components)
+    if audio_inputs:
+        inputs.update(audio_inputs)
+
+    user_input = audio_text
+
+    # If audio mode is active but yielded no input, prompt again next loop
+    if user_input is None and args.mode == "audio":
         return None, {}
-    inputs.update(audio_inputs)
-    
-    # Get text input if no audio input
+
+    # Get text input if still empty
     if user_input is None:
         user_input = get_text_input(args)
         if not user_input:
             return None, {}
-    
+
     return user_input, inputs
 
 
@@ -961,9 +1286,30 @@ def process_user_request(user_input, inputs, components):
         bool: True if processing was successful, False otherwise
     """
     try:
-        response = process_with_llm(user_input, inputs, components)
-        if response:
-            print(response)
+        payload = process_with_llm(user_input, inputs, components)
+        if not payload:
+            return False
+
+        error_msg = payload.get("error") if isinstance(payload, dict) else None
+        if error_msg:
+            print(error_msg)
+            return False
+
+        if isinstance(payload, dict):
+            response_text = payload.get("response")
+            streamed = payload.get("streamed", False)
+            citations = payload.get("citations")
+
+            if response_text and not streamed:
+                text_str = str(response_text)
+                if text_str.startswith("🤖"):
+                    print(cyan(text_str))
+                else:
+                    print(cyan("🤖 M.I.A: ") + text_str)
+
+            if citations:
+                print(cyan(str(citations)))
+
         return True
     except Exception as e:
         logger.error(f"Error processing with LLM: {e}")

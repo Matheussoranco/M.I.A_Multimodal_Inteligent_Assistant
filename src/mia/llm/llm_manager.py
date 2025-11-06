@@ -2,14 +2,16 @@
 LLM Manager: Unified interface for multiple LLM APIs (OpenAI, HuggingFace, Local, etc.)
 """
 import os
-import requests
+import json
 import logging
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, Iterable, Generator, Tuple, List
+
+import requests
 
 # Import custom exceptions and error handling
 from ..exceptions import LLMProviderError, NetworkError, ConfigurationError, InitializationError
 from ..error_handler import global_error_handler, with_error_handling
-from ..config_manager import ConfigManager
+from ..config_manager import ConfigManager, LLMConfig, LLMProfileConfig
 
 # Optional imports with error handling
 try:
@@ -261,14 +263,25 @@ class LLMManager:
         except Exception:
             return False
     
-    def __init__(self, provider: Optional[str] = None, model_id: Optional[str] = None, api_key: Optional[str] = None, url: Optional[str] = None, local_model_path: Optional[str] = None, config_manager: Optional[Any] = None, auto_detect: bool = True, **kwargs: Any) -> None:
+    def __init__(self, provider: Optional[str] = None, model_id: Optional[str] = None, api_key: Optional[str] = None, url: Optional[str] = None, local_model_path: Optional[str] = None, config_manager: Optional[Any] = None, auto_detect: bool = True, profile: Optional[str] = None, stream: Optional[bool] = None, **kwargs: Any) -> None:
         # Initialize configuration manager
         self.config_manager = config_manager or ConfigManager()
-        
+        if getattr(self.config_manager, 'config', None) is None:
+            try:
+                self.config_manager.load_config()
+            except ConfigurationError:
+                pass
+
+        self.profile_name: Optional[str] = profile
+        self.profile_metadata: Dict[str, Any] = {}
+        self.allowed_scopes: List[str] = []
+        self.system_prompt: Optional[str] = None
+        self.stream_enabled: bool = stream if stream is not None else True
+
         # Auto-detect provider if not specified and not in testing mode
         import sys
         is_testing = 'pytest' in sys.modules or os.getenv('TESTING') == 'true'
-        
+
         if auto_detect and not provider and not is_testing:
             try:
                 detected = self.detect_available_providers(interactive=True)
@@ -279,29 +292,40 @@ class LLMManager:
                 logger.info(f"Auto-detected provider: {provider}")
             except Exception as e:
                 logger.warning(f"Auto-detection failed: {e}, falling back to config")
-        
-        # Use configuration values if not provided (with safe access)
+
         config = self.config_manager.config
-        if config and hasattr(config, 'llm'):
-            self.provider = provider or config.llm.provider
-            self.model_id = model_id or config.llm.model_id
-            self.api_key = api_key or config.llm.api_key or os.getenv('OPENAI_API_KEY')
-            self.url = url or config.llm.url
-            self.max_tokens = config.llm.max_tokens
-            self.temperature = config.llm.temperature
-            self.timeout = config.llm.timeout
-        else:
-            # Default values if config is not available
-            self.provider = provider or 'openai'
-            self.model_id = model_id or 'gpt-3.5-turbo'
-            self.api_key = api_key or os.getenv('OPENAI_API_KEY')
-            self.url = url or 'https://api.openai.com/v1'
-            self.max_tokens = 2048
-            self.temperature = 0.7
-            self.timeout = 30
-        
+        base_llm = config.llm if config and hasattr(config, 'llm') else LLMConfig()
+
+        resolved_llm = base_llm
+        profile_config: Optional[LLMProfileConfig] = None
+        if config and hasattr(self.config_manager, 'resolve_llm_config'):
+            try:
+                resolved_llm, profile_config = self.config_manager.resolve_llm_config(profile)
+            except ConfigurationError:
+                resolved_llm = base_llm
+
+        self.provider = provider or resolved_llm.provider
+        self.model_id = model_id or resolved_llm.model_id
+        self.api_key = api_key or resolved_llm.api_key or os.getenv('OPENAI_API_KEY')
+        self.url = url or resolved_llm.url or self._fallback_url_for_provider(self.provider)
+        self.max_tokens = resolved_llm.max_tokens
+        self.temperature = resolved_llm.temperature
+        self.timeout = resolved_llm.timeout
+
+        if profile_config:
+            self.profile_name = profile_config.name
+            self.system_prompt = profile_config.system_prompt
+            self.profile_metadata = dict(profile_config.metadata or {})
+            self.allowed_scopes = list(profile_config.scopes or [])
+            if stream is None and profile_config.stream is not None:
+                self.stream_enabled = bool(profile_config.stream)
+            try:
+                self.config_manager.activate_llm_profile(profile_config.name)
+            except ConfigurationError:
+                pass
+
         self.local_model_path = local_model_path
-        
+
         self.client: Optional[Union[Any, object]] = None
         self.model: Optional[Any] = None
         self.tokenizer: Optional[Any] = None
@@ -330,6 +354,148 @@ class LLMManager:
             if 'pytest' in sys.modules or os.getenv('TESTING') == 'true':
                 raise e
     
+    def _fallback_url_for_provider(self, provider: Optional[str]) -> Optional[str]:
+        mapping = {
+            'openai': 'https://api.openai.com/v1',
+            'ollama': os.getenv('OLLAMA_URL') or 'http://localhost:11434/api/generate',
+            'nanochat': os.getenv('NANOCHAT_URL') or 'http://localhost:8081/api/generate',
+            'minimax': os.getenv('MINIMAX_URL') or 'https://api.minimax.chat/v1/text/chatcompletion',
+        }
+        return mapping.get(provider or '', None)
+
+    def supports_streaming(self) -> bool:
+        return self.provider in {'openai', 'ollama'}
+
+    def _build_messages(self, prompt: str, kwargs: Dict[str, Any]) -> List[Dict[str, str]]:
+        existing = kwargs.get('messages')
+        if isinstance(existing, list) and existing:
+            return existing
+        messages: List[Dict[str, str]] = []
+        system_prompt = kwargs.get('system_prompt') or self.system_prompt
+        if system_prompt:
+            messages.append({'role': 'system', 'content': str(system_prompt)})
+        messages.append({'role': 'user', 'content': prompt})
+        return messages
+
+    def _apply_system_prompt_to_text(self, prompt: str, kwargs: Dict[str, Any]) -> str:
+        if kwargs.get('messages'):
+            return prompt
+        system_prompt = kwargs.get('system_prompt') or self.system_prompt
+        if not system_prompt:
+            return prompt
+        prefix = str(system_prompt).strip()
+        if not prefix:
+            return prompt
+        return f"{prefix}\n\n{prompt}"
+
+    def _chunk_text(self, text: str, min_chars: int = 32) -> Iterable[str]:
+        if not text:
+            return []
+        buffer: List[str] = []
+        length = 0
+        for token in text.split():
+            buffer.append(token)
+            length += len(token) + 1
+            if length >= min_chars:
+                yield ' '.join(buffer)
+                buffer = []
+                length = 0
+        if buffer:
+            yield ' '.join(buffer)
+
+    def stream(self, prompt: str, **kwargs: Any) -> Iterable[str]:
+        if not prompt:
+            raise ValueError("Empty prompt provided")
+        if not prompt.strip():
+            raise ValueError("Prompt contains only whitespace")
+
+        if kwargs.pop('stream', None) is False:
+            response = self._query_sync_fallback(prompt, **kwargs)
+            if response:
+                yield response
+            return
+
+        try:
+            if self.provider == 'openai':
+                yield from self._stream_openai(prompt, **kwargs)
+                return
+            if self.provider == 'ollama':
+                yield from self._stream_ollama(prompt, **kwargs)
+                return
+        except Exception as exc:
+            logger.debug("Streaming provider error (%s), falling back to sync query: %s", self.provider, exc)
+
+        response = self._query_sync_fallback(self._apply_system_prompt_to_text(prompt, kwargs), **kwargs)
+        if response:
+            yield from self._chunk_text(response)
+
+    def _stream_openai(self, prompt: str, **kwargs: Any) -> Iterable[str]:
+        if not HAS_OPENAI or self.client is None:
+            raise LLMProviderError("OpenAI streaming requires openai package", "CLIENT_NOT_AVAILABLE")
+
+        chat_attr = getattr(self.client, 'chat', None)
+        if chat_attr is None:
+            raise LLMProviderError("OpenAI client missing chat attribute", "CLIENT_MALFORMED")
+
+        completions_attr = getattr(chat_attr, 'completions', None)
+        if completions_attr is None:
+            raise LLMProviderError("OpenAI client missing completions attribute", "CLIENT_MALFORMED")
+
+        messages = self._build_messages(prompt, kwargs)
+        stream_kwargs = {
+            'model': self.model_id or 'gpt-3.5-turbo',
+            'messages': messages,
+            'max_tokens': kwargs.get('max_tokens', self.max_tokens),
+            'temperature': kwargs.get('temperature', self.temperature),
+            'stream': True,
+        }
+
+        response = completions_attr.create(**stream_kwargs)
+        for chunk in response:
+            choices = getattr(chunk, 'choices', [])
+            for choice in choices:
+                delta = getattr(choice, 'delta', None)
+                if not delta:
+                    continue
+                content = getattr(delta, 'content', None)
+                if content:
+                    yield content
+
+    def _stream_ollama(self, prompt: str, **kwargs: Any) -> Iterable[str]:
+        target_url = self.url or self._fallback_url_for_provider('ollama')
+        if not target_url:
+            raise LLMProviderError("Ollama URL not configured", "OLLAMA_NO_URL")
+
+        payload = {
+            'model': self.model_id,
+            'prompt': self._apply_system_prompt_to_text(prompt, kwargs),
+            'stream': True,
+        }
+        if 'options' in kwargs and isinstance(kwargs['options'], dict):
+            payload['options'] = kwargs['options']
+
+        timeout = kwargs.get('timeout', self.timeout or 30)
+        response = requests.post(target_url, json=payload, stream=True, timeout=timeout)
+        response.raise_for_status()
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+            try:
+                decoded = line.decode('utf-8')
+            except Exception:
+                continue
+            try:
+                data = json.loads(decoded)
+            except json.JSONDecodeError:
+                logger.debug("Non-JSON line from Ollama stream: %s", decoded)
+                continue
+            token = data.get('response')
+            if token:
+                yield token
+            if data.get('done'):
+                break
+
     def _initialize_provider(self) -> None:
         """Initialize the specific provider with comprehensive error handling."""
         try:
@@ -569,17 +735,13 @@ class LLMManager:
             if completions_attr is None:
                 raise LLMProviderError("OpenAI client missing completions attribute", "CLIENT_MALFORMED")
                 
-            chat_messages = kwargs.get('messages')
-            if isinstance(chat_messages, list) and chat_messages:
-                formatted_messages = chat_messages
-            else:
-                formatted_messages = [{"role": "user", "content": prompt}]
+            formatted_messages = self._build_messages(prompt, kwargs)
 
             response = completions_attr.create(
                 model=self.model_id or 'gpt-3.5-turbo',
                 messages=formatted_messages,
-                max_tokens=kwargs.get('max_tokens', 1024),
-                temperature=kwargs.get('temperature', 0.7)
+                max_tokens=kwargs.get('max_tokens', self.max_tokens),
+                temperature=kwargs.get('temperature', self.temperature)
             )
             
             if not response.choices:
@@ -696,14 +858,16 @@ class LLMManager:
             headers = {'Content-Type': 'application/json'}
             data = {
                 'model': self.model_id or 'mistral:instruct',
-                'prompt': prompt,
+                'prompt': self._apply_system_prompt_to_text(prompt, kwargs),
                 'stream': False
             }
+            if 'options' in kwargs and isinstance(kwargs['options'], dict):
+                data['options'] = kwargs['options']
             
             if self.api_key and self.api_key != 'ollama':
                 headers['Authorization'] = f'Bearer {self.api_key}'
                 
-            url = self.url or 'http://localhost:11434/api/generate'
+            url = self.url or self._fallback_url_for_provider('ollama') or 'http://localhost:11434/api/generate'
             
             try:
                 response = requests.post(url, headers=headers, json=data, timeout=30)

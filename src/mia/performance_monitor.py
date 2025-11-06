@@ -127,7 +127,7 @@ class PerformanceMonitor:
         gpu_usage = None
         gpu_memory_used = None
         try:
-            import GPUtil
+            import GPUtil  # type: ignore
             gpus = GPUtil.getGPUs()
             if gpus:
                 gpu = gpus[0]

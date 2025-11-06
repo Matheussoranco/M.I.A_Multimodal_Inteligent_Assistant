@@ -88,7 +88,7 @@ class DocumentGenerator:
 
         width, height = LETTER
         x_margin = 72
-        y = height - 72
+        y = int(height - 72)
 
         c.setFont("Helvetica-Bold", 16)
         c.drawString(x_margin, y, context.get("title", template_name.title()))

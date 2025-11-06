@@ -11,6 +11,84 @@ llm:
   temperature: 0.7              # Response creativity (0.0-2.0)
   timeout: 30                   # Request timeout in seconds
 
+# LLM Profiles for task-specific behavior
+llm_profiles:
+  reason:
+    label: "Raciocínio Profundo"
+    description: "Perfil otimizado para raciocínio e cadeia de pensamentos utilizando DeepSeek R1 local."
+    provider: ollama
+    model_id: deepseek-r1:1.5b
+    url: http://localhost:11434
+    temperature: 0.2
+    max_tokens: 2048
+    stream: true
+    scopes:
+      - reasoning
+      - system
+  chat:
+    label: "Conversa Geral"
+    description: "Perfil padrão orientado a diálogo com Qwen 2.5 de 3B quantizado via Ollama."
+    provider: ollama
+    model_id: qwen2.5:3b-instruct-q4_K_M
+    url: http://localhost:11434
+    temperature: 0.7
+    max_tokens: 1024
+    stream: true
+    scopes:
+      - messaging
+      - files.read
+  code:
+    label: "Assistente de Código"
+    description: "Perfil especializado para programação usando Qwen2.5-Coder local."
+    provider: ollama
+    model_id: qwen2.5-coder:3b-q4_0
+    url: http://localhost:11434
+    temperature: 0.25
+    max_tokens: 1536
+    stream: true
+    scopes:
+      - code
+      - files.read
+      - files.write
+  creative:
+    label: "Criativo"
+    description: "Perfil para geração criativa e escrita com alta temperatura."
+    provider: ollama
+    model_id: qwen2.5:3b-instruct-q4_K_M
+    url: http://localhost:11434
+    temperature: 0.9
+    max_tokens: 2048
+    stream: true
+    scopes:
+      - creative
+      - writing
+  analysis:
+    label: "Análise de Dados"
+    description: "Perfil otimizado para análise de dados e relatórios."
+    provider: ollama
+    model_id: qwen2.5:3b-instruct-q4_K_M
+    url: http://localhost:11434
+    temperature: 0.3
+    max_tokens: 1536
+    stream: true
+    scopes:
+      - analysis
+      - data
+  fast:
+    label: "Respostas Rápidas"
+    description: "Perfil para respostas rápidas e concisas."
+    provider: ollama
+    model_id: qwen2.5:0.5b
+    url: http://localhost:11434
+    temperature: 0.5
+    max_tokens: 512
+    stream: true
+    scopes:
+      - fast
+      - concise
+
+default_llm_profile: chat
+
 # Audio Configuration
 audio:
   enabled: true                 # Enable audio processing
@@ -32,6 +110,12 @@ audio:
   vad_aggressiveness: 2        # 0 (least aggressive) to 3 (most aggressive)
   vad_frame_duration_ms: 30    # Frame size in milliseconds (10, 20, 30)
   vad_silence_duration_ms: 600 # Minimum active speech duration before accepting audio
+  playback_enabled: true       # Enable playback of synthesized audio
+  push_to_talk: true           # Require push-to-talk key press for capture
+  hotword_enabled: true        # Enable hotword detection
+  hotword: mia                 # Hotword used to wake the assistant
+  hotword_sensitivity: 0.5     # Sensitivity for hotword detection (0-1)
+  hotword_timeout: 20.0        # Seconds to keep session open after detecting hotword
 
 # Vision Configuration
 vision:

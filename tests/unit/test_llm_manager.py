@@ -1,11 +1,19 @@
 import asyncio
 import os
+import sys
 import unittest
+from pathlib import Path
+
+# Add src directory to Python path for imports
+project_root = Path(__file__).parent.parent.parent
+src_dir = project_root / 'src'
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock, mock_open
-from mia.llm.llm_manager import LLMManager
-from mia.exceptions import LLMProviderError, ConfigurationError, InitializationError
+from mia.llm.llm_manager import LLMManager  # type: ignore
+from mia.exceptions import LLMProviderError, ConfigurationError, InitializationError  # type: ignore
 
 
 class TestLLMManager(unittest.TestCase):
@@ -26,6 +34,12 @@ class TestLLMManager(unittest.TestCase):
         self.mock_config.config.llm.max_tokens = 1000
         self.mock_config.config.llm.temperature = 0.7
         self.mock_config.config.llm.timeout = 30
+        self.mock_config.config.default_llm_profile = None
+        self.mock_config.config.llm_profiles = {}
+
+        self.mock_config.load_config.return_value = None
+        self.mock_config.resolve_llm_config.return_value = (self.mock_config.config.llm, None)
+        self.mock_config.active_llm_profile = None
 
     @patch('mia.llm.llm_manager.ConfigManager')
     def test_init_with_config(self, mock_config_class):

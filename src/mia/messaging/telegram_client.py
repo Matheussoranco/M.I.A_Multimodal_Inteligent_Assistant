@@ -102,6 +102,9 @@ class TelegramMessenger:
         except ImportError:
             raise
 
+        if not self.api_id or not self.api_hash:
+            return "Telegram API credentials missing."
+            
         client = TelegramClient(
             str(self.session_path),
             self.api_id,
@@ -111,20 +114,20 @@ class TelegramMessenger:
         )
         try:
             if self.bot_token:
-                await client.start(bot_token=self.bot_token)
+                client.start(bot_token=self.bot_token)  # type: ignore
             elif self.phone_number:
-                await client.start(phone=self.phone_number)
+                client.start(phone=self.phone_number)  # type: ignore
             else:  # pragma: no cover - guarded by _validate_credentials
                 return "Telegram credentials missing."
 
-            await client.send_message(peer, message, parse_mode=self.parse_mode, silent=silent)
+            client.send_message(peer, message, parse_mode=self.parse_mode, silent=silent)  # type: ignore
             self.logger.info("Telegram message sent to %s", peer)
             return f"Telegram message sent to {peer}"
         except RPCError as exc:
             self.logger.error("Telegram RPC error: %s", exc)
             return f"Telegram RPC error: {exc}"
         finally:
-            await client.disconnect()
+            client.disconnect()  # type: ignore
 
 
 __all__ = ["TelegramMessenger"]

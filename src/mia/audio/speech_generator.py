@@ -1,8 +1,10 @@
-"""Speech generation module with TTS and LLM capabilities."""
-import base64
+import threading
+import queue
+import time
 import logging
 import os
-from typing import Any, Dict, Optional
+import base64
+from typing import Dict, Any, Optional
 
 import requests
 
@@ -31,6 +33,13 @@ try:
 except ImportError:
     SOUNDDEVICE_AVAILABLE = False
     sounddevice = None
+
+try:
+    import pyttsx3
+    HAS_PYTTSX3 = True
+except ImportError:
+    pyttsx3 = None
+    HAS_PYTTSX3 = False
 
 try:
     import torch
@@ -106,11 +115,37 @@ class SpeechGenerator:
         self._init_llm()
         self._init_api_providers()
         
+        # Initialize TTS playback queue
+        self.tts_queue = queue.Queue()
+        self.tts_thread = None
+        self.tts_thread_running = False
+        self._start_tts_queue_processor()
+        
     def _init_tts(self):
         """Initialize TTS pipeline."""
-        # Disable TTS pipeline due to unsupported task
-        logger.warning("TTS pipeline disabled - unsupported task 'text-to-speech'")
-        self.synthesiser = None
+        if HAS_PYTTSX3 and pyttsx3:
+            try:
+                self.synthesiser = pyttsx3.init()
+                # Configure voice settings
+                voices = self.synthesiser.getProperty('voices')
+                if voices and hasattr(voices, '__iter__'):
+                    # Try to set a female voice if available
+                    for voice in voices:  # type: ignore
+                        if hasattr(voice, 'name') and hasattr(voice, 'id'):
+                            if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
+                                self.synthesiser.setProperty('voice', voice.id)
+                                break
+                # Set speech rate
+                self.synthesiser.setProperty('rate', 180)
+                # Set volume
+                self.synthesiser.setProperty('volume', 0.8)
+                logger.info("Local TTS engine initialized with pyttsx3")
+            except Exception as e:
+                logger.error(f"Failed to initialize pyttsx3 TTS: {e}")
+                self.synthesiser = None
+        else:
+            logger.warning("pyttsx3 not available - local TTS disabled")
+            self.synthesiser = None
             
     def _init_embeddings(self):
         """Initialize speaker embeddings."""
@@ -233,6 +268,64 @@ class SpeechGenerator:
                     'format': getattr(self.audio_config, 'tts_format', None)
                 }
 
+    def _start_tts_queue_processor(self):
+        """Start the TTS queue processing thread."""
+        if self.tts_thread is not None:
+            return
+        
+        self.tts_thread_running = True
+        self.tts_thread = threading.Thread(target=self._process_tts_queue, daemon=True)
+        self.tts_thread.start()
+        logger.info("TTS queue processor started")
+
+    def _process_tts_queue(self):
+        """Process TTS requests from the queue."""
+        while self.tts_thread_running:
+            try:
+                # Get TTS request from queue with timeout
+                tts_request = self.tts_queue.get(timeout=1.0)
+                if tts_request is None:  # Shutdown signal
+                    break
+                
+                text, provider, kwargs = tts_request
+                self._execute_tts(text, provider, **kwargs)
+                
+            except queue.Empty:
+                continue
+            except Exception as exc:
+                logger.error(f"Error processing TTS queue: {exc}")
+
+    def _execute_tts(self, text: str, provider: Optional[str] = None, **kwargs):
+        """Execute TTS for a single request."""
+        try:
+            if provider and provider != 'local':
+                # Use API provider
+                payload = self.generate_speech_via_api(text, provider=provider, **kwargs)
+                if payload:
+                    # For API providers, we assume they handle playback
+                    logger.info(f"TTS API request completed for provider: {provider}")
+                    return
+            
+            # Use local TTS
+            if HAS_PYTTSX3 and self.synthesiser:
+                self.synthesiser.say(text)
+                self.synthesiser.runAndWait()
+                logger.info("Local TTS playback completed")
+            else:
+                logger.warning("No TTS provider available")
+                
+        except Exception as exc:
+            logger.error(f"TTS execution failed: {exc}")
+
+    def enqueue_speech(self, text: str, provider: Optional[str] = None, **kwargs):
+        """Enqueue text for speech synthesis and playback."""
+        if not text or not text.strip():
+            logger.warning("Empty text provided for TTS enqueue")
+            return
+        
+        self.tts_queue.put((text, provider or self.tts_provider, kwargs))
+        logger.debug(f"TTS request enqueued: {len(text)} characters")
+
     def _get_tts_provider_config(self, provider: Optional[str]) -> Optional[Dict[str, Any]]:
         if not provider or provider == 'local':
             return None
@@ -299,11 +392,14 @@ class SpeechGenerator:
             return None
 
         try:
-            if self.speaker_embedding is not None:
-                speech = self.synthesiser(text, forward_params={"speaker_embeddings": self.speaker_embedding})
+            # Use pyttsx3 for local TTS
+            if HAS_PYTTSX3 and self.synthesiser:
+                self.synthesiser.say(text)
+                self.synthesiser.runAndWait()
+                return {"provider": "local", "text": text, "status": "played"}
             else:
-                speech = self.synthesiser(text)
-            return speech
+                logger.error("Local TTS not available")
+                return None
         except Exception as exc:
             logger.error(f"Failed to generate speech: {exc}")
             return None

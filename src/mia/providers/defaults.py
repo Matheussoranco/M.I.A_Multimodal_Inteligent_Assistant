@@ -18,6 +18,9 @@ def register_default_providers() -> None:
     provider_registry.register_lazy('memory', 'knowledge', 'mia.memory.knowledge_graph', 'AgentMemory', default=True)
     provider_registry.register_lazy('memory', 'long_term', 'mia.memory.long_term_memory', 'LongTermMemory')
     provider_registry.register_lazy('memory', 'manager', 'mia.memory.memory_manager', 'UnifiedMemory')
+    provider_registry.register_lazy('rag', 'pipeline', 'mia.memory.rag_pipeline', 'RAGPipeline', default=True)
+
+    provider_registry.register_lazy('web', 'agent', 'mia.web.web_agent', 'WebAgent', default=True)
 
     provider_registry.register_lazy('langchain', 'verifier', 'mia.langchain.langchain_verifier', 'LangChainVerifier')
     provider_registry.register_lazy('system', 'control', 'mia.system.system_control', 'SystemControl')

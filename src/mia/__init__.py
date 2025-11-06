@@ -21,21 +21,6 @@ __all__ = [
     "get_llm_manager", 
     "get_agent_memory",
     "get_error_handler",
-    # Lazy-loaded classes and exceptions
-    "MIACognitiveCore",
-    "SecurityManager",
-    "AgentMemory",
-    "MIAException",
-    "LLMProviderError",
-    "AudioProcessingError",
-    "VisionProcessingError",
-    "SecurityError",
-    "ConfigurationError",
-    "ActionExecutionError",
-    "InitializationError",
-    "NetworkError",
-    "ValidationError",
-    "MIAMemoryError",
 ]
 
 

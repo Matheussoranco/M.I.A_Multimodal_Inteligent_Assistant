@@ -3,9 +3,12 @@ Integration tests for M.I.A main application flow
 Tests end-to-end functionality with mocked external services
 """
 
+import io
 import unittest
 import sys
 import os
+from contextlib import redirect_stdout
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock, mock_open
 from pathlib import Path
 
@@ -15,11 +18,47 @@ src_dir = project_root / 'src'
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
-from mia.main import (
+from mia.main import (  # type: ignore
     parse_arguments, setup_logging, initialize_components,
     process_image_input, process_audio_input, get_text_input,
     process_command, process_with_llm, cleanup_resources
 )
+
+
+def configure_config_manager(mock_config_class):
+    """Configure a ConfigManager mock with default test settings."""
+    config_obj = SimpleNamespace()
+    config_obj.llm = SimpleNamespace(
+        provider='openai',
+        model_id='test-model',
+        api_key='test-key',
+        url='http://test-url',
+        max_tokens=1000,
+        temperature=0.7,
+        timeout=30,
+    )
+    config_obj.audio = SimpleNamespace(
+        hotword=None,
+        hotword_enabled=False,
+        hotword_sensitivity=0.5,
+        push_to_talk=False,
+        sample_rate=16000,
+        chunk_size=1024,
+        device_id=None,
+        input_threshold=0.01,
+        tts_enabled=False,
+    )
+    config_obj.default_llm_profile = None
+    config_obj.llm_profiles = {}
+
+    mock_config = MagicMock()
+    mock_config.config = config_obj
+    mock_config.active_llm_profile = None
+    mock_config.load_config.return_value = None
+    mock_config.resolve_llm_config.return_value = (config_obj.llm, None)
+    mock_config.activate_llm_profile.side_effect = lambda name: None
+    mock_config_class.return_value = mock_config
+    return mock_config, config_obj
 
 
 class TestMainIntegration(unittest.TestCase):
@@ -84,59 +123,97 @@ class TestMainIntegration(unittest.TestCase):
         args, kwargs = mock_basic_config.call_args
         self.assertEqual(kwargs['level'], 20)  # INFO level
 
-    @patch('mia.main.LLMManager')
-    @patch('mia.main.AudioUtils')
-    @patch('mia.main.SpeechProcessor')
-    @patch('mia.main.VisionProcessor')
-    @patch('mia.main.ActionExecutor')
+    @patch('mia.main.provider_registry.create')
+    @patch('mia.main.ConfigManager')
     @patch('torch.cuda.is_available', return_value=False)
-    def test_initialize_components_text_mode(self, mock_cuda, mock_action, mock_vision,
-                                           mock_speech, mock_audio, mock_llm):
+    def test_initialize_components_text_mode(self, mock_cuda, mock_config_class, mock_provider_create):
         """Test component initialization in text mode."""
-        # Setup mocks
-        mock_llm.return_value = MagicMock()
-        mock_vision.return_value = MagicMock()
-        mock_action.return_value = MagicMock()
+        configure_config_manager(mock_config_class)
 
-        # Text mode shouldn't initialize audio components
+        llm_instance = MagicMock()
+        vision_instance = MagicMock()
+        action_instance = MagicMock()
+        rag_instance = MagicMock()
+        security_instance = MagicMock()
+
+        def create_side_effect(domain, name=None, **kwargs):
+            if domain == 'llm':
+                return llm_instance
+            if domain == 'vision':
+                return vision_instance
+            if domain == 'actions':
+                return action_instance
+            if domain == 'rag' and name == 'pipeline':
+                return rag_instance
+            if domain == 'security':
+                return security_instance
+            return None
+
+        mock_provider_create.side_effect = create_side_effect
         self.mock_args.mode = "text"
 
         components = initialize_components(self.mock_args)
 
-        # Verify LLM and vision components are initialized
-        self.assertIsNotNone(components['llm'])
-        self.assertIsNotNone(components['vision_processor'])
-        self.assertIsNotNone(components['action_executor'])
+        self.assertIs(components['llm'], llm_instance)
+        self.assertIs(components['vision_processor'], vision_instance)
+        self.assertIs(components['action_executor'], action_instance)
+        self.assertIs(components['rag_pipeline'], rag_instance)
+        self.assertIs(components['security_manager'], security_instance)
 
-        # Audio components should not be initialized in text mode
         self.assertFalse(components['audio_available'])
         self.assertIsNone(components['audio_utils'])
         self.assertIsNone(components['speech_processor'])
 
+    @patch('mia.main.provider_registry.create')
+    @patch('mia.main.ConfigManager')
     @patch('torch.cuda.is_available', return_value=True)
-    @patch('mia.main.VisionProcessor')
-    @patch('mia.main.SpeechProcessor')
-    @patch('mia.main.AudioUtils')
-    @patch('mia.main.LLMManager')
-    def test_initialize_components_audio_mode(self, mock_llm, mock_audio,
-                                            mock_speech, mock_vision, mock_cuda):
+    def test_initialize_components_audio_mode(self, mock_cuda, mock_config_class, mock_provider_create):
         """Test component initialization in audio mode."""
-        # Setup mocks
-        mock_llm.return_value = MagicMock()
-        mock_audio.return_value = MagicMock()
-        mock_speech.return_value = MagicMock()
-        mock_vision.return_value = MagicMock()
+        _, config_obj = configure_config_manager(mock_config_class)
+        config_obj.audio.hotword = None
+
+        llm_instance = MagicMock()
+        audio_utils = MagicMock()
+        audio_utils.configure = MagicMock()
+        audio_utils.sample_rate = 16000
+        speech_processor = MagicMock()
+        speech_generator = MagicMock()
+        vision_instance = MagicMock()
+        action_instance = MagicMock()
+        rag_instance = MagicMock()
+        security_instance = MagicMock()
+
+        def create_side_effect(domain, name=None, **kwargs):
+            if domain == 'llm':
+                return llm_instance
+            if domain == 'audio' and name == 'utils':
+                return audio_utils
+            if domain == 'audio' and name == 'processor':
+                return speech_processor
+            if domain == 'audio' and name == 'generator':
+                return speech_generator
+            if domain == 'vision':
+                return vision_instance
+            if domain == 'actions':
+                return action_instance
+            if domain == 'rag' and name == 'pipeline':
+                return rag_instance
+            if domain == 'security':
+                return security_instance
+            return None
+
+        mock_provider_create.side_effect = create_side_effect
 
         self.mock_args.mode = "audio"
-
         components = initialize_components(self.mock_args)
 
-        # Verify all components are initialized
-        self.assertIsNotNone(components['llm'])
+        self.assertIs(components['llm'], llm_instance)
         self.assertTrue(components['audio_available'])
-        self.assertIsNotNone(components['audio_utils'])
-        self.assertIsNotNone(components['speech_processor'])
-        self.assertIsNotNone(components['vision_processor'])
+        self.assertIs(components['audio_utils'], audio_utils)
+        self.assertIs(components['speech_processor'], speech_processor)
+        self.assertIs(components['speech_generator'], speech_generator)
+        self.assertIs(components['vision_processor'], vision_instance)
+        self.assertIs(components['action_executor'], action_instance)
         self.assertEqual(components['device'], 'cuda')
 
     def test_process_image_input_with_valid_image(self):
@@ -244,18 +321,24 @@ class TestMainIntegration(unittest.TestCase):
 
         result = process_with_llm("create file test.py", {}, self.mock_components)
 
-        self.assertEqual(result, "Agent response")
+        self.assertEqual(result["response"], "Agent response")
+        self.assertFalse(result["streamed"])
+        self.assertIsNone(result["error"])
         mock_detect.assert_called_once()
 
     def test_process_with_llm_regular_query(self):
         """Test regular LLM query processing."""
         mock_llm = MagicMock()
         mock_llm.query.return_value = "LLM response"
+        mock_llm.stream_enabled = False
+        mock_llm.supports_streaming = MagicMock(return_value=False)
         self.mock_components['llm'] = mock_llm
 
         result = process_with_llm("Hello", {}, self.mock_components)
 
-        self.assertIn("LLM response", result)
+        self.assertEqual(result["response"], "LLM response")
+        self.assertFalse(result["streamed"])
+        self.assertIsNone(result["error"])
         mock_llm.query.assert_called_once_with("Hello")
 
     def test_process_with_llm_no_response(self):
@@ -266,7 +349,8 @@ class TestMainIntegration(unittest.TestCase):
 
         result = process_with_llm("Hello", {}, self.mock_components)
 
-        self.assertIn("Could not generate", result)
+        self.assertIsNone(result["response"])
+        self.assertIn("Could not generate", result["error"] or "")
 
     def test_process_with_llm_unavailable(self):
         """Test LLM processing when LLM is unavailable."""
@@ -274,7 +358,45 @@ class TestMainIntegration(unittest.TestCase):
 
         result = process_with_llm("Hello", {}, self.mock_components)
 
-        self.assertIn("not available", result)
+        self.assertIn("not available", result["error"] or "")
+
+    def test_process_with_llm_streaming_with_citations(self):
+        """Streamed responses should set flags and include formatted citations."""
+        rag_prompt = MagicMock()
+        rag_prompt.messages = [{"role": "system", "content": "context"}]
+        rag_prompt.citations = [
+            {"reference": 1, "metadata": {"title": "Doc"}, "score": 0.9}
+        ]
+        rag_prompt.format_citations.return_value = "📚 Fontes: [1] Doc"
+
+        rag_pipeline = MagicMock()
+        rag_pipeline.build_prompt.return_value = rag_prompt
+
+        tokens = ["Hello", " world"]
+
+        def stream_generator(prompt, **kwargs):
+            for token in tokens:
+                yield token
+
+        llm = MagicMock()
+        llm.stream_enabled = True
+        llm.supports_streaming = lambda: True
+        llm.stream = stream_generator
+
+        self.mock_components['llm'] = llm
+        self.mock_components['action_executor'] = None
+        self.mock_components['rag_pipeline'] = rag_pipeline
+        self.mock_components['audio_utils'] = None
+        self.mock_components['audio_config'] = SimpleNamespace(tts_enabled=False)
+        self.mock_components['speech_generator'] = None
+
+        with redirect_stdout(io.StringIO()):
+            result = process_with_llm("Hello", {}, self.mock_components)
+
+        self.assertTrue(result['streamed'])
+        self.assertEqual(result['response'], "Hello world")
+        self.assertEqual(result['citations'], "📚 Fontes: [1] Doc")
+        self.assertIsNone(result['error'])
 
     def test_cleanup_resources_success(self):
         """Test successful resource cleanup."""
@@ -330,10 +452,19 @@ class TestMainEndToEndFlows(unittest.TestCase):
             # So we'll test the individual components instead
             pass
 
-    @patch('mia.main.LLMManager')
-    def test_llm_initialization_error_handling(self, mock_llm_class):
+    @patch('mia.main.provider_registry.create')
+    @patch('mia.main.ConfigManager')
+    @patch('torch.cuda.is_available', return_value=False)
+    def test_llm_initialization_error_handling(self, mock_cuda, mock_config_class, mock_provider_create):
         """Test error handling during LLM initialization."""
-        mock_llm_class.side_effect = Exception("LLM init failed")
+        configure_config_manager(mock_config_class)
+
+        def create_side_effect(domain, name=None, **kwargs):
+            if domain == 'llm':
+                raise Exception("LLM init failed")
+            return None
+
+        mock_provider_create.side_effect = create_side_effect
 
         args = MagicMock()
         args.mode = "text"
@@ -344,11 +475,26 @@ class TestMainEndToEndFlows(unittest.TestCase):
         self.assertIsNone(components['llm'])
         self.assertEqual(components['device'], 'cpu')
 
-    @patch('mia.main.SpeechProcessor')
-    @patch('mia.main.AudioUtils')
-    def test_audio_initialization_error_handling(self, mock_audio_utils, mock_speech_processor):
+    @patch('mia.main.provider_registry.create')
+    @patch('mia.main.ConfigManager')
+    @patch('torch.cuda.is_available', return_value=False)
+    def test_audio_initialization_error_handling(self, mock_cuda, mock_config_class, mock_provider_create):
         """Test error handling during audio component initialization."""
-        mock_audio_utils.side_effect = Exception("Audio init failed")
+        _, config_obj = configure_config_manager(mock_config_class)
+        config_obj.audio.hotword = None
+
+        llm_instance = MagicMock()
+
+        def create_side_effect(domain, name=None, **kwargs):
+            if domain == 'llm':
+                return llm_instance
+            if domain == 'audio' and name == 'utils':
+                raise Exception("Audio init failed")
+            if domain == 'audio' and name in {'processor', 'generator'}:
+                return MagicMock()
+            return None
+
+        mock_provider_create.side_effect = create_side_effect
 
         args = MagicMock()
         args.mode = "audio"
@@ -356,6 +502,7 @@ class TestMainEndToEndFlows(unittest.TestCase):
 
         components = initialize_components(args)
 
+        self.assertIs(components['llm'], llm_instance)
         self.assertFalse(components['audio_available'])
         self.assertIsNone(components['audio_utils'])
         self.assertIsNone(components['speech_processor'])

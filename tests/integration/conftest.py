@@ -2,18 +2,26 @@
 Test fixtures and utilities for integration testing.
 Provides real component instances and test data for comprehensive testing.
 """
+import sys
+from pathlib import Path
+
+# Add src directory to Python path for imports
+project_root = Path(__file__).parent.parent.parent
+src_dir = project_root / 'src'
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
 import pytest
 import tempfile
 import os
 import json
-from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch
 
 # Import actual components for integration testing
-from mia.config_manager import ConfigManager
-from mia.resource_manager import ResourceManager
-from mia.cache_manager import CacheManager
-from mia.performance_monitor import PerformanceMonitor
+from mia.config_manager import ConfigManager  # type: ignore
+from mia.resource_manager import ResourceManager  # type: ignore
+from mia.cache_manager import CacheManager  # type: ignore
+from mia.performance_monitor import PerformanceMonitor  # type: ignore
 
 
 @pytest.fixture(scope="session")

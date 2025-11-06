@@ -1,6 +1,15 @@
 """
 Unit tests for multimodal/processor.py
 """
+import sys
+from pathlib import Path
+
+# Add src directory to Python path for imports
+project_root = Path(__file__).parent.parent.parent
+src_dir = project_root / 'src'
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
+
 import pytest
 import numpy as np
 from PIL import Image
@@ -8,7 +17,7 @@ from unittest.mock import Mock, patch, MagicMock
 from io import BytesIO
 import speech_recognition as sr
 
-from mia.multimodal.processor import MultimodalProcessor
+from mia.multimodal.processor import MultimodalProcessor  # type: ignore
 
 
 class TestMultimodalProcessor:

@@ -52,7 +52,7 @@ class TestCoreIntegration:
     def test_resource_cache_integration(self, resource_manager, cache_manager):
         """Test resource manager and cache integration."""
         # Create a mock resource
-        from mia.resource_manager import ManagedResource
+        from mia.resource_manager import ManagedResource  # type: ignore
 
         class TestResource(ManagedResource):
             def __init__(self):
@@ -85,7 +85,7 @@ class TestCoreIntegration:
 
     def test_error_handling_integration(self, config_manager):
         """Test error handling across components."""
-        from mia.error_handler import safe_execute
+        from mia.error_handler import safe_execute  # type: ignore
 
         def failing_operation():
             raise ValueError("Test error")
@@ -194,7 +194,7 @@ class TestComponentInteraction:
         performance_monitor.start_monitoring()
 
         # Register a resource
-        from mia.resource_manager import ManagedResource
+        from mia.resource_manager import ManagedResource  # type: ignore
 
         class MonitoredResource(ManagedResource):
             def __init__(self):

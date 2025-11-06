@@ -115,6 +115,23 @@ class LLMInference:
             auto_detect=False,
         )
 
+    def update_config(self, config: Any) -> None:
+        """Update the LLM configuration dynamically."""
+        if hasattr(config, 'provider'):
+            self.manager.provider = config.provider
+        if hasattr(config, 'model_id'):
+            self.manager.model_id = config.model_id
+        if hasattr(config, 'api_key'):
+            self.manager.api_key = config.api_key
+        if hasattr(config, 'url'):
+            self.manager.url = config.url
+        if hasattr(config, 'max_tokens'):
+            self.manager.max_tokens = config.max_tokens
+        if hasattr(config, 'temperature'):
+            self.manager.temperature = config.temperature
+        if hasattr(config, 'timeout'):
+            self.manager.timeout = config.timeout
+
     def available_providers(self) -> Dict[str, Any]:
         """Inspect the currently active provider metadata."""
         return self.manager.get_model_info()
