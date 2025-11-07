@@ -1,5 +1,5 @@
 # Multi-stage build for M.I.A v0.1.0
-FROM python:3.9-slim as builder
+FROM python:3.9-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt /tmp/
+COPY requirements*.txt /tmp/
 RUN pip install --upgrade pip && \
     pip install --user -r /tmp/requirements.txt
 
