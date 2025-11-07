@@ -24,6 +24,12 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
+    - name: Set UTF-8 encoding on Windows
+      if: matrix.os == 'windows-latest'
+      run: |
+        chcp 65001
+      shell: cmd
+    
     - name: Cache pip dependencies
       uses: actions/cache@v4
       with:
@@ -62,7 +68,7 @@ jobs:
     
     - name: Smoke test CLI
       run: |
-        python -c "import sys; sys.path.insert(0, 'src'); from mia.main import main; print('✅ M.I.A import successful')"
+        python -c "import sys; sys.path.insert(0, 'src'); from mia.main import main; print('M.I.A import successful')"
     
     - name: Run tests
       run: |
