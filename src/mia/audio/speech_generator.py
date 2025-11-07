@@ -46,6 +46,22 @@ except ImportError:
     HAS_PYTTSX3 = False
 
 try:
+    from piper.voice import PiperVoice
+
+    HAS_PIPER = True
+except ImportError:
+    PiperVoice = None
+    HAS_PIPER = False
+
+try:
+    from TTS.api import TTS
+
+    HAS_COQUI = True
+except ImportError:
+    TTS = None
+    HAS_COQUI = False
+
+try:
     import torch
 
     TORCH_AVAILABLE = True
@@ -142,6 +158,32 @@ class SpeechGenerator:
 
     def _init_tts(self):
         """Initialize TTS pipeline."""
+        # Try Piper TTS first (local, high quality)
+        if HAS_PIPER and PiperVoice:
+            try:
+                # Use a default voice model; can be configured later
+                model_path = os.path.join(os.path.dirname(__file__), "models", "en_US-lessac-medium.onnx")
+                if os.path.exists(model_path):
+                    self.synthesiser = PiperVoice.load(model_path)
+                    self.tts_provider = "piper"
+                    logger.info("Piper TTS initialized")
+                    return
+                else:
+                    logger.warning("Piper model not found, trying Coqui TTS")
+            except Exception as e:
+                logger.error(f"Failed to initialize Piper TTS: {e}")
+
+        # Try Coqui TTS (local, flexible)
+        if HAS_COQUI and TTS:
+            try:
+                self.synthesiser = TTS("tts_models/en/ljspeech/tacotron2-DDC_ph").to(self.device)
+                self.tts_provider = "coqui"
+                logger.info("Coqui TTS initialized")
+                return
+            except Exception as e:
+                logger.error(f"Failed to initialize Coqui TTS: {e}")
+
+        # Fallback to pyttsx3
         if HAS_PYTTSX3 and pyttsx3:
             try:
                 self.synthesiser = pyttsx3.init()
@@ -161,12 +203,13 @@ class SpeechGenerator:
                 self.synthesiser.setProperty("rate", 180)
                 # Set volume
                 self.synthesiser.setProperty("volume", 0.8)
+                self.tts_provider = "pyttsx3"
                 logger.info("Local TTS engine initialized with pyttsx3")
             except Exception as e:
                 logger.error(f"Failed to initialize pyttsx3 TTS: {e}")
                 self.synthesiser = None
         else:
-            logger.warning("pyttsx3 not available - local TTS disabled")
+            logger.warning("No local TTS available, will use online fallback")
             self.synthesiser = None
 
     def _init_embeddings(self):
@@ -504,11 +547,32 @@ class SpeechGenerator:
             return None
 
         try:
-            # Use pyttsx3 for local TTS
-            if HAS_PYTTSX3 and self.synthesiser:
+            # Use Piper TTS
+            if self.tts_provider == "piper" and HAS_PIPER and self.synthesiser:
+                import io
+                wav_file = io.BytesIO()
+                self.synthesiser.synthesize(text, wav_file)
+                wav_file.seek(0)
+                if SOUNDDEVICE_AVAILABLE and sounddevice:
+                    import numpy as np
+                    from scipy.io.wavfile import read
+                    wav_file.seek(0)
+                    sample_rate, audio_data = read(wav_file)
+                    sounddevice.play(audio_data, sample_rate)
+                    sounddevice.wait()
+                return {"provider": "piper", "text": text, "status": "played"}
+            # Use Coqui TTS
+            elif self.tts_provider == "coqui" and HAS_COQUI and self.synthesiser:
+                wav = self.synthesiser.tts(text=text)
+                if SOUNDDEVICE_AVAILABLE and sounddevice:
+                    sounddevice.play(wav, samplerate=22050)
+                    sounddevice.wait()
+                return {"provider": "coqui", "text": text, "status": "played"}
+            # Fallback to pyttsx3
+            elif self.tts_provider == "pyttsx3" and HAS_PYTTSX3 and self.synthesiser:
                 self.synthesiser.say(text)
                 self.synthesiser.runAndWait()
-                return {"provider": "local", "text": text, "status": "played"}
+                return {"provider": "pyttsx3", "text": text, "status": "played"}
             else:
                 logger.error("Local TTS not available")
                 return None

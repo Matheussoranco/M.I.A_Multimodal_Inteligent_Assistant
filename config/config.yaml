@@ -98,10 +98,24 @@ audio:
   input_threshold: 0.01        # Audio input threshold
   speech_model: openai/whisper-base.en  # Speech recognition model
   tts_enabled: true            # Enable text-to-speech
-  tts_provider: local          # Options: local, nanochat, minimax, openai, custom
+  tts_provider: local          # Options: local, piper, coqui, nanochat, minimax, openai, custom
   tts_model_id: null           # Model identifier for selected TTS provider
   tts_api_key: null            # API key for external TTS providers
   tts_url: null                # Base URL for external TTS providers
+  # TTS Profiles for different voices
+  tts_profiles:
+    default:
+      provider: piper
+      model: en_US-lessac-medium
+      voice: null
+    female:
+      provider: coqui
+      model: tts_models/en/ljspeech/tacotron2-DDC_ph
+      voice: null
+    male:
+      provider: piper
+      model: en_US-ryan-medium
+      voice: null
   llm_provider: null           # Override LLM provider for audio workflows (fallback to global LLM when null)
   llm_model_id: null           # Override LLM model for audio workflows
   llm_api_key: null            # Override LLM API key for audio workflows

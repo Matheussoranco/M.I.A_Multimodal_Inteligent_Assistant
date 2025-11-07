@@ -71,6 +71,9 @@ def register_default_providers() -> None:
         "system", "control", "mia.system.system_control", "SystemControl"
     )
     provider_registry.register_lazy(
+        "desktop", "automation", "mia.system.desktop_automation", "DesktopAutomation", default=True
+    )
+    provider_registry.register_lazy(
         "security",
         "default",
         "mia.security.security_manager",

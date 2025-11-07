@@ -16,6 +16,8 @@ pyttsx3>=2.90
 speechrecognition>=3.10.0
 openai-whisper>=20231117
 webrtcvad>=2.0.10
+piper-tts>=1.2.0
+TTS>=0.22.0
 
 # Vision and data analysis
 scipy>=1.10.0
@@ -37,6 +39,7 @@ pyperclip>=1.8.2
 plyer>=2.1.0
 wikipedia>=1.4.0
 psutil>=5.9.0
+pywinauto>=0.6.8
 
 # Messaging
 telethon>=1.36.0

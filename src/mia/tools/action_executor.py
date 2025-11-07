@@ -32,6 +32,10 @@ DEFAULT_SENSITIVE_ACTIONS = {
     "open_directory",
     "create_presentation",
     "add_presentation_slide",
+    "desktop_close_app",
+    "desktop_click",
+    "desktop_send_keys",
+    "desktop_execute_schema",
 }
 
 
@@ -88,6 +92,13 @@ class ActionExecutor:
         "add_presentation_slide": {"files.write"},
         "open_presentation": {"files.read"},
         "calendar_event": {"productivity"},
+        "desktop_open_app": {"desktop"},
+        "desktop_close_app": {"desktop"},
+        "desktop_type_text": {"desktop"},
+        "desktop_click": {"desktop"},
+        "desktop_send_keys": {"desktop"},
+        "desktop_get_text": {"desktop"},
+        "desktop_execute_schema": {"desktop"},
     }
 
     def __init__(
@@ -216,11 +227,13 @@ class ActionExecutor:
             if web_agent is None
             else None
         )
+        self._desktop_factory = self._load_provider_factory("desktop", "automation")
         self._document_generator_instance: Optional[Any] = None
         self._sandbox_instance: Optional[Any] = None
         self._telegram_client: Optional[Any] = None
         self._memory_instance: Optional[Any] = None
         self._web_agent_instance: Optional[Any] = web_agent
+        self._desktop_instance: Optional[Any] = None
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config file or environment variables."""
@@ -489,6 +502,21 @@ class ActionExecutor:
             self._web_agent_instance = False
         return self._web_agent_instance or None
 
+    def _get_desktop_automation(self):
+        if self._desktop_instance is False:
+            return None
+        if self._desktop_instance is not None:
+            return self._desktop_instance
+        if not self._desktop_factory:
+            self._desktop_instance = False
+            return None
+        try:
+            self._desktop_instance = self._desktop_factory(logger_instance=self.logger)
+        except Exception as exc:  # pragma: no cover - optional deps
+            self.logger.warning("Failed to instantiate desktop automation: %s", exc)
+            self._desktop_instance = False
+        return self._desktop_instance or None
+
     def _is_scope_allowed(self, action: str) -> bool:
         required = self.ACTION_SCOPES.get(action)
         if not required:
@@ -718,6 +746,14 @@ class ActionExecutor:
                 "control_temperature": lambda: self.control_temperature(
                     params
                 ),
+                # Desktop automation
+                "desktop_open_app": lambda: self.desktop_open_app(params),
+                "desktop_close_app": lambda: self.desktop_close_app(params),
+                "desktop_type_text": lambda: self.desktop_type_text(params),
+                "desktop_click": lambda: self.desktop_click(params),
+                "desktop_send_keys": lambda: self.desktop_send_keys(params),
+                "desktop_get_text": lambda: self.desktop_get_text(params),
+                "desktop_execute_schema": lambda: self.desktop_execute_schema(params),
             }
 
             # Execute the action if it exists
@@ -2282,3 +2318,132 @@ body {{
         """Control temperature."""
         action = params.get("action", "")
         return f"Temperature control not implemented. Action: {action}"
+
+    # Desktop Automation Methods
+    def desktop_open_app(self, params: Dict[str, Any]) -> str:
+        """Open a desktop application."""
+        desktop = self._get_desktop_automation()
+        if not desktop:
+            return "Desktop automation not available."
+
+        app_path = params.get("app_path", "")
+        if not app_path:
+            return "No app path provided."
+
+        # Check if risky
+        if self._is_risky_desktop_action("open_app", params):
+            if not self.consent_callback("desktop_open_app", params):
+                return "Desktop open app cancelled by user consent."
+
+        return desktop.open_application(app_path)
+
+    def desktop_close_app(self, params: Dict[str, Any]) -> str:
+        """Close a desktop application."""
+        desktop = self._get_desktop_automation()
+        if not desktop:
+            return "Desktop automation not available."
+
+        app_name = params.get("app_name", "")
+        if not app_name:
+            return "No app name provided."
+
+        if self._is_risky_desktop_action("close_app", params):
+            if not self.consent_callback("desktop_close_app", params):
+                return "Desktop close app cancelled by user consent."
+
+        return desktop.close_application(app_name)
+
+    def desktop_type_text(self, params: Dict[str, Any]) -> str:
+        """Type text into a desktop application."""
+        desktop = self._get_desktop_automation()
+        if not desktop:
+            return "Desktop automation not available."
+
+        app_name = params.get("app_name", "")
+        text = params.get("text", "")
+        window = params.get("window")
+
+        if not app_name or not text:
+            return "App name and text required."
+
+        return desktop.type_text(app_name, text, window)
+
+    def desktop_click(self, params: Dict[str, Any]) -> str:
+        """Click an element in a desktop application."""
+        desktop = self._get_desktop_automation()
+        if not desktop:
+            return "Desktop automation not available."
+
+        app_name = params.get("app_name", "")
+        element = params.get("element", "")
+        window = params.get("window")
+
+        if not app_name or not element:
+            return "App name and element required."
+
+        if self._is_risky_desktop_action("click", params):
+            if not self.consent_callback("desktop_click", params):
+                return "Desktop click cancelled by user consent."
+
+        return desktop.click_element(app_name, element, window)
+
+    def desktop_send_keys(self, params: Dict[str, Any]) -> str:
+        """Send keys to a desktop application."""
+        desktop = self._get_desktop_automation()
+        if not desktop:
+            return "Desktop automation not available."
+
+        app_name = params.get("app_name", "")
+        keys = params.get("keys", "")
+        window = params.get("window")
+
+        if not app_name or not keys:
+            return "App name and keys required."
+
+        if self._is_risky_desktop_action("send_keys", params):
+            if not self.consent_callback("desktop_send_keys", params):
+                return "Desktop send keys cancelled by user consent."
+
+        return desktop.send_keys_to_app(app_name, keys, window)
+
+    def desktop_get_text(self, params: Dict[str, Any]) -> str:
+        """Get text from a desktop application window."""
+        desktop = self._get_desktop_automation()
+        if not desktop:
+            return "Desktop automation not available."
+
+        app_name = params.get("app_name", "")
+        window = params.get("window")
+
+        if not app_name:
+            return "App name required."
+
+        return desktop.get_window_text(app_name, window)
+
+    def desktop_execute_schema(self, params: Dict[str, Any]) -> str:
+        """Execute a predefined desktop action schema."""
+        desktop = self._get_desktop_automation()
+        if not desktop:
+            return "Desktop automation not available."
+
+        schema = params.get("schema", {})
+        if not schema:
+            return "No schema provided."
+
+        if self._is_risky_desktop_action("execute_schema", params):
+            if not self.consent_callback("desktop_execute_schema", params):
+                return "Desktop execute schema cancelled by user consent."
+
+        return desktop.execute_action_schema(schema)
+
+    def _is_risky_desktop_action(self, action: str, params: Dict[str, Any]) -> bool:
+        """Check if a desktop action is risky and requires consent."""
+        risky_patterns = [
+            "delete", "remove", "uninstall", "format", "shutdown", "restart",
+            "admin", "sudo", "cmd", "powershell", "terminal", "command"
+        ]
+        for key, value in params.items():
+            if isinstance(value, str):
+                if any(pattern in value.lower() for pattern in risky_patterns):
+                    return True
+        return False

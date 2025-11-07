@@ -2,8 +2,8 @@
 Version information for M.I.A - Multimodal Intelligent Assistant
 """
 
-__version__ = "0.1.0-alpha.1"
-__version_info__ = (0, 1, 0, "alpha", 1)
+__version__ = "0.9.0"
+__version_info__ = (0, 9, 0, "beta", 1)
 
 # Release information
 __title__ = "M.I.A"
@@ -16,8 +16,8 @@ __url__ = (
 )
 
 # Build information
-__build__ = "alpha"
-__status__ = "Alpha"
+__build__ = "beta"
+__status__ = "Beta"
 
 
 def get_version():
