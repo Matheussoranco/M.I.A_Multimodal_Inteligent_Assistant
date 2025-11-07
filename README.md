@@ -1,318 +1,251 @@
-# M.I.A — Assistente Inteligente Multimodal
+# M.I.A — Intelligent Multimodal Personal Assistant (on‑device)
 
-> Uma plataforma de IA multimodal que integra linguagem, áudio e visão sob uma arquitetura cognitiva unificada, com memória de longo prazo, automação e API.
+M.I.A is a multimodal, local‑first, extensible, and auditable personal assistant designed to run 100% on your device (with the option to use external APIs when desired). It combines natural language understanding, speech, computer vision, long‑term memory, and a toolchain to perform real tasks: send messages and emails, create documents (spreadsheets, presentations, text, and PDFs), automate the OS, search and browse the web (with Selenium), analyze data, program in multiple languages, send local notifications, open apps, and interact with IoT devices.
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)](https://python.org)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-red?style=flat-square&logo=pytorch)](https://pytorch.org)
-[![Transformers](https://img.shields.io/badge/Transformers-4.35%2B-yellow?style=flat-square&logo=huggingface)](https://huggingface.co/transformers)
-[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Store-green?style=flat-square)](https://chromadb.com)
-[![FastAPI](https://img.shields.io/badge/FastAPI-API%20Server-teal?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
+Design principles:
 
-
-## Visão geral
-
-M.I.A é um assistente inteligente multimodal com foco em:
-
-- Entendimento e geração de linguagem natural (LLM local/remoto)
-- Processamento de áudio em tempo real (fala para texto e síntese de voz)
-- Processamento de imagens (análise e grounding visual)
-- Memória e contexto (vetores e grafo de conhecimento)
-- Automação (comandos do agente, execução de ações) e API
-
-Ele oferece uma CLI interativa, componentes desacoplados e um servidor HTTP leve para verificação de saúde. A ideia do projeto é demonstrar uma arquitetura cognitiva prática — que combina raciocínio passo-a-passo com memória e módulos multimodais — e, ao mesmo tempo, ser extensível para casos de uso reais (assistentes de produtividade, copilotos de código, análise multimodal, etc.).
+- Local by default: LLMs, vectors, memory, logs, and inference run locally; switching to API providers is optional.
+- Security and control: action execution with confirmation, isolation of sensitive tools, and audit trails.
+- Extensible: layered modular architecture with pluggable “tools” and swappable providers.
+- Observable: latency/usage metrics, logs, and an optional admin console.
 
 
-## Problema e motivação
+## Core capabilities
 
-Sistemas de IA práticos precisam ir além de “perguntas e respostas” de texto:
-
-- Unificar múltiplas entradas (voz, imagem, texto) num único fluxo cognitivo.
-- Manter memória útil (curto e longo prazo) para personalização e continuidade.
-- Conectar ferramentas/ações para executar tarefas no mundo real, com segurança.
-- Operar tanto com modelos locais (privacidade) quanto com provedores externos.
-
-O M.I.A aborda isso por meio de uma arquitetura modular com “importações opcionais”, permitindo que cada ambiente carregue apenas o que precisa.
-
-
-## Objetivos do projeto
-
-- Fornecer um “núcleo cognitivo” simples de integrar e testar.
-- Isolar componentes multimodais (áudio/visão) e de memória para evoluir de forma independente.
-- Suportar execução local (Ollama/transformers) e remota (OpenAI etc.).
-- Disponibilizar uma CLI amigável e uma API mínima para orquestração.
+- Natural conversation via text and voice (in/out), with hotword activation and VAD.
+- Multimodal vision: images and documents (OCR, description, visual Q&A).
+- Short‑ and long‑term contextual memory (episodic, semantic, and local knowledge graph).
+- Planning, reasoning, and multi‑step task execution (advanced cognition with tool calls).
+- Document generation:
+	- Word/Docx (python‑docx),
+	- PowerPoint (python‑pptx),
+	- Spreadsheets (openpyxl/pandas),
+	- PDFs (ReportLab or optional headless LibreOffice conversion).
+- Messaging: email sending (SMTP/Graph API) and WhatsApp Web automation (Selenium) on desktop.
+- System automation: open apps, interact with windows, keyboard shortcuts, and local notifications.
+- Web search and browsing with Selenium (search, pagination, scroll, clicks, result harvesting).
+- Programming and code execution (Python and other languages) in an isolated environment.
+- IoT control via MQTT (Home Assistant/Zigbee2MQTT) and local REST integrations.
 
 
-## Princípios de design
+## Architecture
 
-- Modularidade e extensibilidade (camadas bem definidas, plugins opcionais)
-- “Fail-soft” (funcionar em modo texto mesmo sem visão/áudio/LLM)
-- Observabilidade (status, logs enxutos, métricas de performance)
-- Portabilidade (Windows/Linux/macOS; CPU/GPU quando possível)
-
-
-## Arquitetura (alto nível)
+M.I.A uses a layered architecture with LLM orchestration, memory, and tools. The main components already exist under `src/mia` and can be extended.
 
 ```
-┌────────────┐   ┌──────────────────┐   ┌──────────────┐
-│ Entrada    │ → │ Núcleo Cognitivo │ → │ Camada LLM   │
-│ (texto/    │   │ (razão + orques.)│   │ (local/remoto)│
-│ áudio/img) │   └──────────────────┘   └──────────────┘
-	│                 │                         │
-	│                 ↓                         │
-	│           Memória/Contexto                │
-	│         (vetores + grafo)                 │
-	│                 │                         │
-	└──────────────→ Ações/Plugins ─────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                           Interaction Layers                          │
+│  • CLI / TUI • API (FastAPI) • Voice (VAD/Hotword/TTS/STT) • Messages │
+└───────────────▲───────────────────────────────────────────────▲───────┘
+								│                                               │
+					 I/O streams                                     Webhooks/Apps
+								│                                               │
+┌───────────────┴───────────────────────────────────────────────┴───────┐
+│                           LLM Orchestrator                             │
+│  • Planning & Tools • Reasoning Chains • Guardrails                    │
+│  • Model selection (local/API) • Prompting • Streaming                 │
+└───────────────▲───────────────────────────────▲────────────────────────┘
+								│                               │
+				 Multimodal perception            Memory & Context
+								│                               │
+┌───────────────┴──────────────┐      ┌─────────┴─────────────────────┐
+│  Audio (STT, TTS, VAD)       │      │  Short‑term (buffer)          │
+│  Image/Docs (OCR/VQA)        │      │  Long‑term (Chroma/SQLite)    │
+│  Multimodal Fusion           │      │  Knowledge Graph               │
+└───────────────▲──────────────┘      └─────────▲─────────────────────┘
+								│                               │
+								└─────────┬───────────┬─────────┘
+													│           │
+									 ┌──────┴──────┐ ┌──┴──────────────────────┐
+									 │  System/OS  │ │  Tools (Plugins)        │
+									 │  Automation │ │  • Email • WhatsApp     │
+									 │  Notifications││  • Office • Selenium    │
+									 │  Apps/Process│ │  • IoT (MQTT) • Web     │
+									 └──────────────┘ └─────────────────────────┘
 ```
 
-Componentes principais (diretório `src/mia`):
+Mapping to existing modules (high‑level):
 
-- `llm/LLMManager`: encapsula consultas a modelos (ex.: Ollama, OpenAI).
-- `multimodal/processor` e `vision_processor`: pipeline de visão/imagens.
-- `audio/speech_processor` e `speech_generator`: STT/TTS (realtime-friendly).
-- `memory/knowledge_graph` e `long_term_memory`: contexto e recordação.
-- `plugins/action_executor`: automação (criar arquivo, analisar código, etc.).
-- `api/server.py`: servidor FastAPI minimalista com `/health` e `/ready`.
-- `performance_monitor`, `cache_manager`, `resource_manager`: suporte.
-
-
-## Fluxos de uso
-
-1) Texto → LLM → resposta (com consulta opcional à memória)
-2) Áudio → (captura + transcrição) → LLM → síntese de voz
-3) Imagem → (pré-processamento/visão) → LLM com grounding visual
-4) Comandos do agente → executor de ações (ex.: criar arquivo, analisar código)
-
-A CLI admite comandos como `help`, `status`, `clear`, `models`, `quit` e comandos do agente (ex.: “create file notas.txt”).
-
-### "Jarvis" — capacidades de automação (atual/planejado)
-
-O M.I.A inclui um executor de ações (`ActionExecutor`) que concentra automações úteis — algumas já disponíveis, outras planejadas — para aproximar a experiência de um "Jarvis":
-
-- Mensageria
-	- WhatsApp (via `pywhatkit` → WhatsApp Web no PC) — atual: envio imediato
-	- Telegram (via Bot API ou Telegram Desktop por automação) — atual (via Bot API)
-	- SMS (via provedor externo, p.ex. Twilio) — planejado
-- E‑mail
-	- Envio SMTP (Gmail/SMTP) — atual
-- Web
-	- Busca e raspagem simples (`web_search`, `web_scrape`) — atual
-	- Automação via Selenium (`web_automation`) — atual (requer driver/GUI)
-- Arquivos e produtividade
-	- Criar/ler/escrever planilhas `.xlsx`/`.csv` (OpenPyXL/CSV) — atual
-	- Criar apresentações PowerPoint `.pptx` (python-pptx) — atual
-	- Criação simples de documentos (ex.: Markdown) — atual (notas)
-	- Geração de código inicial (Python/JS/Java/HTML/CSS) — atual
-	- Análise básica de código (contagem de linhas, linguagem) — atual
-- Smart home
-	- Gatilhos e stubs para Home Assistant — atual (requer URL/TOKEN)
-- Sistema
-	- Notificações locais, área de transferência, abrir apps, rodar comandos — atual
-- Voz
-	- Entrada por voz (Whisper/Google SR) — atual (dependências opcionais)
-	- Saída por voz (TTS via APIs: OpenAI/Minimax/Nanochat) — atual; TTS local desativado por padrão
-- "Máquina virtual" interna
-	- Planejado: sandbox/tarefas isoladas (WASM/WASI ou microVM/container) com permissões e orçamento de recursos
-
-> Observação: alguns módulos exigem dependências de SO, GUI e/ou credenciais. Em ambientes headless, use `opencv-python-headless` e ajuste permissões.
+- LLM orchestration: `src/mia/llm/llm_manager.py`, `src/mia/llm/llm_inference.py`, `src/mia/adaptive_intelligence/hybrid_llm_orchestration.py`
+- Cognition and planning: `src/mia/core/cognitive_architecture.py`, `src/mia/adaptive_intelligence/workflow_automation_composer.py`
+- Memory (local): `src/mia/memory/long_term_memory.py`, `src/mia/memory/knowledge_graph.py`, vector DB `memory/chroma.sqlite3`
+- Multimodal perception: audio in `src/mia/audio/*` (hotword, VAD, TTS, STT); vision in `src/mia/multimodal/vision_processor.py`
+- API/Service: `src/mia/api/server.py`
+- Observability: `src/mia/performance_monitor.py`, `src/mia/adaptive_intelligence/observability_admin_console.py`
+- Messaging: `src/mia/messaging/telegram_client.py` (example already implemented)
+- Tools/Plugins: `src/mia/tools/`, `src/mia/plugins/` (extension points)
+- Security: `src/mia/security/` (policies and utilities)
 
 
-## Estado do projeto
+### Model providers (local and API)
 
-- Versão atual: `0.1.0-alpha.1` (status: Alpha)
-- Foco atual: prova de conceito estável em modo texto e estruturação da arquitetura.
-- Módulos multimodais e de automação estão disponíveis de forma **opcional** e podem exigir dependências específicas do SO.
+- Local (preferred):
+	- Text LLM: Ollama (llama, phi, mistral), llama.cpp (GGUF), LM Studio.
+	- Multimodal vision: LLaVA, BakLLaVA, MiniCPM‑V (via Ollama/gguf), or local bridges.
+	- STT: Whisper.cpp, Vosk.
+	- TTS: Piper, Coqui TTS.
+- API (optional): OpenAI, Azure OpenAI, Anthropic, Google, etc.
 
-
-## Requisitos
-
-- Python 3.8+
-- Recomendado: PyTorch 2.0+ (CPU ou GPU)
-- Para LLM local: Ollama ou modelos via `transformers`
-- Para memória vetorial: ChromaDB
-- Para áudio: PortAudio/sounddevice; para TTS/STT, libs específicas
-- Para visão: Pillow; (OpenCV pode ser necessário em alguns fluxos)
-
-> Observação (Windows): em ambientes sem GUI ou com restrições, prefira `opencv-python-headless` e avalie fixar `numpy<2` para compatibilidade com algumas libs nativas.
+Backend and model selection are controlled by configuration (see `config/config.yaml`).
 
 
-## Instalação
+### Action execution and security
 
-### Clonar e instalar dependências (modo simples)
+- Permissions: each tool can require confirmation (ask‑before‑act mode).
+- Isolation: code execution in an isolated subprocess; Docker/WSL2 optional for stronger isolation.
+- Secrets: `.env` for keys (never version control); accessed via the config manager.
+- Auditing: structured logs for tool calls, errors, and action timelines.
 
-```powershell
-git clone https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis.git
-cd M.I.A-The-successor-of-pseudoJarvis
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+
+## Installation (Windows)
+
+Prerequisites:
+
+- Windows 10/11 64‑bit
+- Python 3.10+ and Git
+- FFmpeg (audio), Tesseract OCR (vision), Google Chrome/Edge and matching WebDriver
+- Optional: CUDA/cuDNN (GPU), Docker Desktop (sandbox), Ollama (local LLM)
+
+Quick steps:
+
+1) Clone the repository and create a virtual environment
+
+2) Install core or development dependencies
+
+3) Copy `config/.env.example` to `.env` and set credentials (email, optional APIs, etc.)
+
+4) Review `config/config.yaml` and select local backends (LLM/STT/TTS/Vision)
+
+Note: for WhatsApp Web automation, ensure Chrome/Edge is installed and the WebDriver version matches the browser.
+
+
+## Configuration
+
+`.env` file (typical examples):
+
+- SMTP email: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`
+- Optional providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
+- Local services toggles: ports, paths, and feature switches for tools
+
+`config/config.yaml` (example keys):
+
+- `llm.provider`: `ollama` | `llamacpp` | `openai` | `azure` ...
+- `llm.model`: local model name (e.g., `llama3:8b`, `mistral:7b`)
+- `audio.stt`: `whisper.cpp` | `vosk`; `audio.tts`: `piper` | `coqui`
+- `vision.provider`: local `llava` (or OCR + captioning);
+- `memory.vector_store`: `chroma`; database paths and context limits
+- `tools.enabled`: list of enabled tools (email, whatsapp, office, selenium, iot, os, notifications)
+- `security.confirm_before_action`: true/false
+
+
+## How to run
+
+- CLI (interactive): `python -m mia.main` or `python .` (root `main.py` triggers initialization)
+- API (FastAPI): module `src/mia/api/server.py` (serve with Uvicorn/Gunicorn)
+- Voice mode: enable hotword/VAD in `config.yaml` and connect mic/speakers
+
+Outputs and logs are stored locally under `cache/` and per observability settings.
+
+
+## Example flows (natural commands)
+
+- “Send a WhatsApp message to Maria saying ‘arriving at 7pm’. If the chat doesn’t exist, open and search for the contact.”
+- “Write an email to team@company.com with subject ‘Meeting’ and a summary of the topics, in a professional tone.”
+- “Create an xlsx spreadsheet with three tabs: goals, budget, and expenses; use the attached data and generate charts.”
+- “Generate a .docx document with a project brief and export a final PDF.”
+- “Read this PDF, extract tables, and give me key insights with statistics.”
+- “Search for the latest AI news, open the first 5 pages, and produce a summary with links.”
+- “Open the calendar app, create an event tomorrow at 9 AM, and remind me 30 minutes earlier.”
+- “Take a photo of the whiteboard, recognize the content, and attach it to the report.”
+- “Write a Python script to rename files by pattern and run it in the sandbox.”
+- “Turn on the living room light to 50% via MQTT.”
+
+
+## Automation and tools
+
+- Email: traditional SMTP (with app passwords) or Microsoft Graph API (OAuth2). Respect provider policies.
+- WhatsApp: automate WhatsApp Web via Selenium (Chrome/Edge) using the user’s session; respect Terms of Use.
+- Office/Docs: create with `python-docx`, `python-pptx`, `openpyxl`; PDFs with `reportlab` or headless conversion.
+- Web/Selenium: search, pagination, clicks, scrolling, and data extraction (BeautifulSoup optional for post‑processing).
+- OS/Apps: launch processes, focus windows, Windows Toast notifications, shortcuts, and clipboard.
+- IoT: MQTT (paho‑mqtt), Home Assistant (REST/WebSocket APIs), Zigbee2MQTT.
+
+
+## Local model execution
+
+- LLM (text): Ollama with quantized models (4‑8 bit) for a good latency/quality balance on CPU/GPU.
+- Vision: multimodal models via Ollama/gguf or a local OCR + captioning + VQA pipeline.
+- STT/TTS: Whisper.cpp and Piper are lightweight, offline, and high‑quality.
+- Caching: reuse embeddings/outputs to reduce latency; tune context length according to RAM.
+
+
+## Security and privacy
+
+- Local‑first: data, documents, history, and memory remain on your machine.
+- Confirmation: sensitive actions (send messages/emails, modify files, IoT) require confirmation.
+- Isolation: code execution and automations can run inside Docker/WSL2 to reduce host impact.
+- Secrets: `.env` for minimal variables and periodic rotation; never commit.
+
+
+## Testing and quality
+
+- Tests: `tests/` folder with unit and integration tests; run with `pytest` (prepared environment).
+- Lint: `.flake8` configured; recommended to integrate in editor/CI.
+- Benchmarks: `src/mia/benchmark_runner.py` and `benchmark_config.py` for performance scenarios.
+
+
+## Project structure (partial)
+
 ```
-
-### Dicas de compatibilidade (opcional)
-
-```powershell
-# Em servidores/CI ou Windows sem GUI, pode ajudar:
-pip install "numpy<2" opencv-python-headless
-```
-
-### Suporte a LLM local (Ollama) — opcional
-
-- Instale o Ollama e baixe um modelo:
-
-```bash
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama pull deepseek-r1:1.5b
-```
-
-
-## Configuração
-
-Crie um arquivo `.env` (ou use `config/.env.example` como referência):
-
-```env
-# Modelos locais (Ollama)
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=deepseek-r1:1.5b
-
-# Provedores remotos (quando em uso)
-# OPENAI_API_KEY=...
-
-# Ajustes gerais
-DEBUG_MODE=false
-
-# Comunicação
-WHATSAPP_PHONE=+5511999999999
-TELEGRAM_BOT_TOKEN=xxxxxxxx:yyyyyyyy
-
-# Email (SMTP)
-EMAIL_USERNAME=seuemail@gmail.com
-EMAIL_PASSWORD=sua_senha_ou_app_password
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=587
-
-# Smart home
-HOME_ASSISTANT_URL=http://homeassistant.local:8123
-HOME_ASSISTANT_TOKEN=seu_token
-
-# TTS (opcionais)
-OPENAI_API_KEY=...
-OPENAI_TTS_MODEL=gpt-4o-mini-tts
-OPENAI_TTS_VOICE=alloy
-OPENAI_TTS_FORMAT=mp3
-```
-
-
-## Como usar (CLI)
-
-```powershell
-# Informações da versão e ambiente
-python .\main.py --info
-
-# Modo texto
-python .\main.py --mode text
-
-# Modo áudio (requer microfone e deps de áudio)
-python .\main.py --mode audio
-
-# Modo misto (padrão)
-python .\main.py --mode mixed
-
-# Alterar modelo (exemplo com outro ID)
-python .\main.py --model-id gemma3:4b-it-qat
-```
-
-Comandos interativos na CLI:
-
-- `help` — ajuda rápida
-- `status` — status do sistema (LLM, áudio, device, cache)
-- `models` — lista de modelos conhecidos
-- `clear` — limpa contexto e otimiza caches
-- `quit` — sair
-
-Comandos do agente (exemplos):
-
-- `create file notas.txt`
-- `analyze code src/mia/main.py`
-- `send whatsapp "+5511999999999" "Olá! Mensagem teste."`
-- `enviar email para exemplo@dominio.com assunto "Orçamento" corpo "Segue em anexo..."`
-- `abrir https://example.com`
-- `criar planilha relatorio.xlsx`
- - `send telegram para 123456789 "Olá do M.I.A"`
- - `criar apresentação briefing.pptx "Estratégia 2026"`
-
-### Exemplos programáticos (ActionExecutor)
-
-```python
-from mia.tools.action_executor import ActionExecutor
-
-agent = ActionExecutor()
-agent.execute("send_whatsapp", {"recipient": "+5511999999999", "message": "Olá!"})
-agent.execute("send_email", {"to": "exemplo@dominio.com", "subject": "Oi", "body": "Tudo bem?"})
-agent.execute("create_sheet", {"filename": "dados.xlsx", "data": [["A","B"],[1,2]]})
-agent.execute("web_automation", {"url": "https://example.com"})
-agent.execute("create_presentation", {"filename": "demo.pptx", "title": "Plano 2026", "content": "Resumo executivo"})
+M.I.A_Multimodal_Inteligent_Assistant/
+├─ main.py                 # local execution bootstrap
+├─ config/
+│  ├─ .env.example         # environment variables
+│  └─ config.yaml          # main configuration
+├─ src/mia/
+│  ├─ main.py              # core entrypoint
+│  ├─ llm/                 # model management and inference
+│  ├─ audio/               # STT/TTS/VAD/Hotword
+│  ├─ multimodal/          # vision and multimodal fusion
+│  ├─ memory/              # long‑term memory and knowledge graph
+│  ├─ adaptive_intelligence/ # orchestration, planning, feedback
+│  ├─ api/                 # FastAPI server
+│  ├─ tools/               # pluggable tools (OS, web, docs, etc.)
+│  ├─ security/            # security policies/guardrails
+│  └─ system/              # OS integration and local resources
+└─ tests/                  # unit and integration tests
 ```
 
 
-## API (servidor mínimo)
+## Extensibility
 
-O servidor expõe endpoints de saúde e prontidão.
-
-```powershell
-# Iniciar via entrypoint do pacote (se instalado com extras de API)
-mia-api
-
-# ou iniciar o módulo diretamente
-python -m mia.api.server
-```
-
-Endpoints:
-
-- `GET /health` → `{ "status": "ok", "version": "..." }`
-- `GET /ready`  → `{ "status": "ready" }`
-
-Variáveis de ambiente:
-
-- `MIA_API_HOST` (padrão: `0.0.0.0`)
-- `MIA_API_PORT` (padrão: `8080`)
+- Plugins/Tools: add modules under `src/mia/tools` with a tool contract (name, input/output schema, permissions).
+- Providers: implement adapters under `src/mia/llm` for new backends (e.g., another local model server).
+- Channels: new inputs/outputs (e.g., inbound email, Slack, SMS) can be added as “connectors”.
 
 
-## Testes
+## License
 
-```powershell
-# Executar testes
-pytest tests/
-
-# Cobertura
-pytest --cov=src tests/
-```
+See the `LICENSE` file at the project root.
 
 
-## Roadmap (resumo)
+## Intentions not yet implemented (not a roadmap)
 
-- [ ] Lazy import para módulos pesados (visão/automação) para melhorar `--info` e compatibilidade
-- [ ] Separar dependências em core/dev/api/audio/vision com arquivos de requisitos claros
-- [ ] Modo áudio mais robusto (tratamento de queda de microfone e fallback)
-- [x] Memória: consolidação entre vetores e grafo + ferramentas de depuração
-- [ ] Expandir API (rotas de chat e de visão) mantendo o servidor minimalista por padrão
-- [ ] Docker images “text-only” e “full”
-- [ ] Sandbox/VM interna (WASM/WASI ou microVM/container) com limites de recursos e permissões
-- [ ] Agente: ampliar parser de comandos (WhatsApp/email/web/sheets) e confirmar ações sensíveis (consentimento)
+- Execution in an isolated microVM on Windows (via Windows Sandbox/WSL2/Docker with automated restrictive policies).
+- Direct integration with official WhatsApp Business APIs (on‑prem model) while keeping local privacy.
+- Navigation agent with fine‑tuning for long goals (live replanning and web‑specific memory).
+- Embedded local IDE with structured code editing, refactors, and agent‑guided tests.
+- Low‑latency streaming speech recognition with full on‑device multi‑speaker diarization.
+- Deep integration with local calendar/contacts (private indexing and personal insights), without cloud.
+- Native support for more languages/toolchains (Rust, Go, C/C++/CUDA) with isolated execution and build caching.
+- Full graphical observability dashboard with distributed tracing and session replay.
+- Local continual learning with human feedback (RLHF) preserving privacy.
 
-
-## Limitações e notas
-
-- Alguns módulos opcionais (ex.: automação com `pyautogui`/`opencv`) exigem GUI e podem não funcionar bem em servidores headless sem ajustes.
-- Dependências de áudio/visão variam entre SOs; verifique as dicas de compatibilidade.
-- Em status “Alpha”, pode haver mudanças de API/CLI sem aviso em versões iniciais.
-
-
-## Licença
+## Licence
 
 AGPL-3.0-or-later — consulte `LICENSE`.
 
 
-## Autoria
+## Autor
 
 Matheus Pullig Soranço de Carvalho — matheussoranco@gmail.com
-
-Se este projeto te ajudou, considere abrir uma issue com feedback ou sugestões.
