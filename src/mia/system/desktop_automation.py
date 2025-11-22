@@ -27,27 +27,30 @@ class DesktopAutomation:
 
     def __init__(self, logger_instance: Optional[logging.Logger] = None):
         self.logger = logger_instance or logging.getLogger(__name__)
-        if not PYWINAUTO_AVAILABLE:
+        if not PYWINAUTO_AVAILABLE or Desktop is None:
             raise RuntimeError("pywinauto not installed. Install with 'pip install pywinauto'.")
 
-        self.desktop = Desktop(backend="uia")
-        self.apps: Dict[str, Application] = {}
+        self.desktop = Desktop(backend="uia")  # type: ignore
+        self.apps: Dict[str, Any] = {}
 
-    def _get_app(self, app_name: str) -> Optional[Application]:
+    def _get_app(self, app_name: str) -> Optional[Any]:
         """Get or connect to an application."""
         if app_name in self.apps:
             return self.apps[app_name]
 
+        if not PYWINAUTO_AVAILABLE or Application is None or find_windows is None:
+            return None
+
         try:
             # Try to find running application
-            windows = find_windows(title_re=f".*{app_name}.*")
+            windows = find_windows(title_re=f".*{app_name}.*")  # type: ignore
             if windows:
-                app = Application(backend="uia").connect(handle=windows[0])
+                app = Application(backend="uia").connect(handle=windows[0])  # type: ignore
                 self.apps[app_name] = app
                 return app
 
             # Try to start application
-            app = Application(backend="uia").start(app_name)
+            app = Application(backend="uia").start(app_name)  # type: ignore
             self.apps[app_name] = app
             return app
         except Exception as e:
@@ -75,13 +78,13 @@ class DesktopAutomation:
                 return f"Closed application: {app_name}"
             else:
                 # Find and close
-                windows = find_windows(title_re=f".*{app_name}.*")
-                if windows:
-                    app = Application(backend="uia").connect(handle=windows[0])
-                    app.kill()
-                    return f"Closed application: {app_name}"
-                else:
-                    return f"Application not found: {app_name}"
+                if find_windows and Application:
+                    windows = find_windows(title_re=f".*{app_name}.*")  # type: ignore
+                    if windows:
+                        app = Application(backend="uia").connect(handle=windows[0])  # type: ignore
+                        app.kill()
+                        return f"Closed application: {app_name}"
+                return f"Application not found: {app_name}"
         except Exception as e:
             return f"Error closing application: {e}"
 
@@ -157,8 +160,11 @@ class DesktopAutomation:
     def execute_action_schema(self, schema: Dict[str, Any]) -> str:
         """Execute a predefined action schema."""
         action_type = schema.get("type")
-        app_name = schema.get("app")
+        app_name = str(schema.get("app", ""))
         params = schema.get("params", {})
+
+        if not app_name:
+            return "Missing app name in schema"
 
         if action_type == "open":
             return self.open_application(params.get("path", app_name))

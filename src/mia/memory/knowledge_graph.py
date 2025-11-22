@@ -87,7 +87,7 @@ class AgentMemory:
     def store_experience(
         self,
         text: str,
-        embedding: List[float],
+        embedding: Optional[List[float]] = None,
         doc_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -98,10 +98,7 @@ class AgentMemory:
         if not isinstance(text, str):
             raise ValidationError("Text must be a string", "INVALID_TEXT_TYPE")
             
-        if not embedding:
-            raise ValidationError("Empty embedding provided", "EMPTY_EMBEDDING")
-            
-        if not isinstance(embedding, list):
+        if embedding is not None and not isinstance(embedding, list):
             raise ValidationError("Embedding must be a list", "INVALID_EMBEDDING_TYPE")
         
         if not self.enable_vector or not self.collection:
@@ -118,7 +115,7 @@ class AgentMemory:
                 
             self.collection.add(
                 documents=[text],
-                embeddings=[embedding],
+                embeddings=[embedding] if embedding else None,
                 ids=[doc_id],
                 metadatas=[metadata or {}],
             )

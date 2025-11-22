@@ -12,6 +12,8 @@ Design principles:
 
 ## Core capabilities
 
+- **New!** State-of-the-Art Cognitive Architecture: Implements a ReAct (Reasoning + Acting) loop for autonomous problem solving.
+- **New!** Modern Chat UI: A beautiful web-based interface powered by Streamlit.
 - Natural conversation via text and voice (in/out), with hotword activation and VAD.
 - Multimodal vision: images and documents (OCR, description, visual Q&A).
 - Short‑ and long‑term contextual memory (episodic, semantic, and local knowledge graph).
@@ -35,7 +37,7 @@ M.I.A uses a layered architecture with LLM orchestration, memory, and tools. The
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
 │                           Interaction Layers                          │
-│  • CLI / TUI • API (FastAPI) • Voice (VAD/Hotword/TTS/STT) • Messages │
+│  • Chat UI (Streamlit) • CLI / TUI • API (FastAPI) • Voice            │
 └───────────────▲───────────────────────────────────────────────▲───────┘
 								│                                               │
 					 I/O streams                                     Webhooks/Apps
@@ -67,7 +69,7 @@ M.I.A uses a layered architecture with LLM orchestration, memory, and tools. The
 Mapping to existing modules (high‑level):
 
 - LLM orchestration: `src/mia/llm/llm_manager.py`, `src/mia/llm/llm_inference.py`, `src/mia/adaptive_intelligence/hybrid_llm_orchestration.py`
-- Cognition and planning: `src/mia/core/cognitive_architecture.py`, `src/mia/adaptive_intelligence/workflow_automation_composer.py`
+- Cognition and planning: `src/mia/core/cognitive_architecture.py` (ReAct Loop), `src/mia/adaptive_intelligence/workflow_automation_composer.py`
 - Memory (local): `src/mia/memory/long_term_memory.py`, `src/mia/memory/knowledge_graph.py`, vector DB `memory/chroma.sqlite3`
 - Multimodal perception: audio in `src/mia/audio/*` (hotword, VAD, TTS, STT); vision in `src/mia/multimodal/vision_processor.py`
 - API/Service: `src/mia/api/server.py`

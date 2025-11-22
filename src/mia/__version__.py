@@ -2,8 +2,8 @@
 Version information for M.I.A - Multimodal Intelligent Assistant
 """
 
-__version__ = "0.9.0"
-__version_info__ = (0, 9, 0, "beta", 1)
+__version__ = "1.0.0"
+__version_info__ = (1, 0, 0, "final", 0)
 
 # Release information
 __title__ = "M.I.A"

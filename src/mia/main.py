@@ -192,7 +192,7 @@ def choose_mode():
 
 
 def detect_and_execute_agent_commands(
-    user_input: str, action_executor
+    user_input: str, action_executor, llm=None
 ) -> Tuple[bool, str]:
     """
     Detects and executes agent commands based on user input.
@@ -200,6 +200,7 @@ def detect_and_execute_agent_commands(
     Args:
         user_input: User input text
         action_executor: ActionExecutor instance
+        llm: Optional LLM instance for content generation
 
     Returns:
         Tuple (command_executed, result_message)
@@ -208,6 +209,75 @@ def detect_and_execute_agent_commands(
         return False, ""
 
     user_input_lower = user_input.lower()
+
+    # Desktop Automation: "Write [content] in [app]"
+    # Example: "Write a poem about cats in notepad"
+    if "write" in user_input_lower and "in" in user_input_lower and any(app in user_input_lower for app in ["notepad", "editor", "wordpad", "sublime", "vscode", "code"]):
+        try:
+            import re
+            # Regex to capture content and app
+            # Matches "write {content} in {app}"
+            match = re.search(r"write\s+(.+?)\s+in\s+(\w+)", user_input_lower, re.IGNORECASE)
+            if match:
+                content_description = match.group(1)
+                app_name = match.group(2)
+                
+                # Map common names to executables/window titles
+                app_map = {
+                    "notepad": "notepad.exe",
+                    "editor": "notepad.exe",
+                    "wordpad": "wordpad.exe",
+                    "code": "code",
+                    "vscode": "code"
+                }
+                target_app = app_map.get(app_name, app_name)
+
+                # Generate content using LLM if available
+                generated_content = content_description
+                if llm and hasattr(llm, "query"):
+                    print(f"Generating content for '{content_description}'...")
+                    generated_content = llm.query(f"Write {content_description}. Return only the content, no intro/outro.")
+
+                # Execute actions
+                action_executor.execute("desktop_open_app", {"app_path": target_app})
+                
+                # Small delay to ensure app is open
+                import time
+                time.sleep(2)
+                
+                action_executor.execute("desktop_type_text", {"app_name": target_app, "text": generated_content})
+                
+                return True, f"Opened {app_name} and wrote: {content_description}"
+        except Exception as e:
+            return True, f"Error executing desktop automation: {e}"
+
+    # Web Automation: "Search for [query] on the web" or "Go to [url]"
+    if "search" in user_input_lower and ("web" in user_input_lower or "internet" in user_input_lower or "google" in user_input_lower):
+        try:
+            import re
+            # Extract query
+            # Matches "search for {query} on..." or "search {query} on..."
+            match = re.search(r"search\s+(?:for\s+)?(.+?)\s+(?:on|in)\s+(?:the\s+)?(?:web|internet|google)", user_input_lower, re.IGNORECASE)
+            if match:
+                query = match.group(1)
+                action_executor.execute("web_automation", {"action": "search", "query": query})
+                return True, f"Searching the web for: {query}"
+        except Exception as e:
+            return True, f"Error executing web search: {e}"
+
+    if "go to" in user_input_lower or "open url" in user_input_lower or "visit" in user_input_lower:
+        try:
+            import re
+            # Extract URL
+            match = re.search(r"(?:go to|open url|visit)\s+(https?://\S+|www\.\S+|\S+\.\w+)", user_input_lower, re.IGNORECASE)
+            if match:
+                url = match.group(1)
+                if not url.startswith("http"):
+                    url = "https://" + url
+                action_executor.execute("web_automation", {"action": "browse", "url": url})
+                return True, f"Visiting: {url}"
+        except Exception as e:
+            return True, f"Error executing web visit: {e}"
 
     # File creation command detection
     if any(
@@ -1314,7 +1384,7 @@ def process_with_llm(user_input, inputs, components):
     # Check for agent commands first
     if user_input and action_executor:
         agent_executed, agent_result = detect_and_execute_agent_commands(
-            user_input, action_executor
+            user_input, action_executor, llm
         )
         if agent_executed:
             result["response"] = agent_result

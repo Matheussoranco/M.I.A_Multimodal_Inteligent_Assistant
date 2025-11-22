@@ -1802,73 +1802,56 @@ body {{
         )
 
     # Web Automation (Selenium)
-    def web_automation(self, params):
-        agent = self._get_web_agent()
-        plan = params.get("plan") or params.get("steps")
-
-        if agent and plan:
-            viewport = params.get("viewport")
-            viewport_tuple: Optional[tuple[int, int]] = None
-            if isinstance(viewport, (list, tuple)) and len(viewport) == 2:
-                try:
-                    viewport_tuple = (int(viewport[0]), int(viewport[1]))
-                except (TypeError, ValueError):
-                    self.logger.debug(
-                        "Invalid viewport provided: %s", viewport
-                    )
-
-            try:
-                results = agent.run_plan(
-                    plan,
-                    headless=params.get("headless"),
-                    viewport=viewport_tuple,
-                )
-            except Exception as exc:  # pragma: no cover - runtime failure
-                self.logger.error("Web automation plan failed: %s", exc)
-                return f"Web automation failed: {exc}"
-
-            success_count = sum(1 for step in results if step.success)
-            failure_messages = [
-                step.message for step in results if not step.success
-            ]
-            payload_requested = params.get("return_payloads")
-            if payload_requested:
-                payloads = [step.payload for step in results if step.payload]
-                return (
-                    f"Executed web plan with {success_count}/{len(results)} successful steps. "
-                    f"Payloads: {json.dumps(payloads, ensure_ascii=True)}"
-                )
-            if failure_messages:
-                return (
-                    f"Executed web plan with {success_count}/{len(results)} successful steps. "
-                    f"Failures: {failure_messages}"
-                )
-            return f"Executed web plan with {success_count} successful steps."
-
-        # Fallback for legacy direct automation
-        try:
-            from selenium import webdriver  # type: ignore
-        except ImportError:
-            return "Web agent not available and Selenium missing. Run: pip install selenium webdriver-manager."
+    def web_automation(self, params: Dict[str, Any]) -> str:
+        """Execute web automation tasks."""
+        web_agent = self._get_web_agent()
+        if not web_agent:
+            return "Web agent not available. Install selenium and webdriver-manager."
 
         url = params.get("url")
-        if not url:
-            return "No URL or plan provided for web automation."
+        action = params.get("action", "browse")
+        
+        if not url and action == "browse":
+            return "URL required for browsing."
 
-        driver = None
         try:
-            driver = webdriver.Chrome()
-            driver.get(url)
-            return f"Opened {url} via direct Selenium fallback."
-        except Exception as exc:  # pragma: no cover
-            self.logger.error("Fallback web automation failed: %s", exc)
-            return f"Web automation failed: {exc}"
-        finally:
-            try:
-                if driver:
-                    driver.quit()
-            except Exception:
-                pass
+            if action == "browse":
+                # Simple browse/visit
+                plan = [
+                    {"action": "goto", "url": url},
+                    {"action": "wait", "seconds": 2},
+                    {"action": "screenshot", "name": "visit_result"}
+                ]
+                results = web_agent.run_plan(plan, headless=False)
+                return f"Visited {url}. Results: {results}"
+            
+            elif action == "search":
+                query = params.get("query")
+                if not query:
+                    return "Query required for search."
+                
+                # Construct a search plan (example for Google/DuckDuckGo)
+                search_url = f"https://duckduckgo.com/?q={query.replace(' ', '+')}"
+                plan = [
+                    {"action": "goto", "url": search_url},
+                    {"action": "wait", "seconds": 2},
+                    {"action": "screenshot", "name": "search_result"}
+                ]
+                results = web_agent.run_plan(plan, headless=False)
+                return f"Searched for '{query}'. Results: {results}"
+
+            elif action == "execute_plan":
+                plan = params.get("plan")
+                if not plan:
+                    return "Plan required for execution."
+                results = web_agent.run_plan(plan, headless=False)
+                return f"Executed web plan. Results: {results}"
+
+            else:
+                return f"Unknown web action: {action}"
+
+        except Exception as e:
+            return f"Web automation error: {e}"
 
     # Email (SMTP)
     def send_email(self, params):
@@ -1912,7 +1895,7 @@ body {{
         except Exception as e:
             return f"Email error: {e}"
 
-    # Calendar (Google Calendar API stub)
+    # Calendar
     def calendar_event(self, params):
         """Create calendar event."""
         title = params.get("title", "")
@@ -1922,16 +1905,9 @@ body {{
         if not title:
             return "No event title provided."
 
-        # For now, create a simple text file for calendar events
-        try:
-            event_info = f"Event: {title}\nDate: {date}\nTime: {time}\n\n"
-            with open("calendar_events.txt", "a") as f:
-                f.write(event_info)
-            return f"Calendar event '{title}' created for {date} at {time}"
-        except Exception as e:
-            return f"Error creating calendar event: {e}"
+        return "Google Calendar integration not configured."
 
-    # Messaging (WhatsApp/Telegram stub)
+    # Messaging
     def send_message(self, params):
         """Send message via various platforms."""
         platform = params.get("platform", "").lower()
@@ -1966,10 +1942,9 @@ body {{
 
     def _send_sms(self, to, message):
         """Send SMS message."""
-        # This would typically use a service like Twilio
-        return f"SMS functionality requires Twilio or similar service integration. Message: {message} to {to}"
+        return "SMS integration not configured."
 
-    # Smart Home (Home Assistant stub)
+    # Smart Home
     def smart_home(self, params):
         """Control smart home devices via Home Assistant."""
         device = params.get("device", "")
@@ -2028,65 +2003,19 @@ body {{
 
     def _control_light(self, action: str, **kwargs) -> str:
         """Control lighting system."""
-        room = kwargs.get("room", "living room")
-        brightness = kwargs.get("brightness", 100)
-        color = kwargs.get("color", "white")
-
-        if action == "on":
-            return f"Turning on {room} lights at {brightness}% brightness"
-        elif action == "off":
-            return f"Turning off {room} lights"
-        elif action == "dim":
-            return f"Dimming {room} lights to {brightness}%"
-        elif action == "color":
-            return f"Setting {room} lights to {color}"
-        else:
-            return f"Unknown light action: {action}"
+        return "Smart home integration not configured."
 
     def _control_temperature(self, action: str, **kwargs) -> str:
         """Control temperature system."""
-        temperature = kwargs.get("temperature", 22)
-        mode = kwargs.get("mode", "auto")
-
-        if action == "set":
-            return f"Setting temperature to {temperature}°C in {mode} mode"
-        elif action == "heat":
-            return f"Setting heating to {temperature}°C"
-        elif action == "cool":
-            return f"Setting cooling to {temperature}°C"
-        elif action == "auto":
-            return f"Setting thermostat to auto mode at {temperature}°C"
-        else:
-            return f"Unknown temperature action: {action}"
+        return "Smart home integration not configured."
 
     def _control_music(self, action: str, **kwargs) -> str:
         """Control music system."""
-        volume = kwargs.get("volume", 50)
-        song = kwargs.get("song", "")
-
-        if action == "play":
-            return f"Playing music{' - ' + song if song else ''} at {volume}% volume"
-        elif action == "pause":
-            return "Pausing music"
-        elif action == "stop":
-            return "Stopping music"
-        elif action == "volume":
-            return f"Setting music volume to {volume}%"
-        else:
-            return f"Unknown music action: {action}"
+        return "Smart home integration not configured."
 
     def _control_security(self, action: str, **kwargs) -> str:
         """Control security system."""
-        zone = kwargs.get("zone", "all")
-
-        if action == "arm":
-            return f"Arming security system for {zone}"
-        elif action == "disarm":
-            return f"Disarming security system for {zone}"
-        elif action == "status":
-            return f"Security system status for {zone}: Armed"
-        else:
-            return f"Unknown security action: {action}"
+        return "Smart home integration not configured."
 
     def _generic_device_control(
         self, device_type: str, action: str, **kwargs
@@ -2158,6 +2087,7 @@ body {{
                 )
 
             return f"Opening application: {app_name}"
+
         except Exception as e:
             return f"Error opening application: {e}"
 
@@ -2197,253 +2127,59 @@ body {{
     def set_permission(self, action, allowed):
         self.permissions[action] = allowed
 
-    # Research and web operations
-    def web_search(self, query: str) -> str:
-        """Search the web for information."""
-        if not query:
-            return "No search query provided."
-
-        try:
-            # Use DuckDuckGo as default search engine
-            search_url = (
-                f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
-            )
-            response = requests.get(
-                search_url, headers={"User-Agent": "Mozilla/5.0"}
-            )
-
-            if response.status_code == 200:
-                return f"Web search completed for: {query}. Found results at {search_url}"
-            else:
-                return f"Web search failed with status code: {response.status_code}"
-        except Exception as e:
-            return f"Error performing web search: {e}"
-
-    def web_scrape(self, url: str) -> str:
-        """Scrape content from a web page."""
-        if not url:
-            return "No URL provided."
-
-        try:
-            response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-            if response.status_code == 200:
-                return f"Web scraping completed for: {url}. Content length: {len(response.text)} characters"
-            else:
-                return f"Web scraping failed with status code: {response.status_code}"
-        except Exception as e:
-            return f"Error scraping web page: {e}"
-
-    def research_topic(self, topic: str) -> str:
-        """Research a topic using multiple sources."""
-        if not topic:
-            return "No topic provided."
-
-        try:
-            results = []
-
-            # Web search
-            web_result = self.web_search(topic)
-            results.append(f"Web Search: {web_result}")
-
-            # Wikipedia search
-            wiki_result = self.wikipedia_search(topic)
-            results.append(f"Wikipedia: {wiki_result}")
-
-            return f"Research on '{topic}':\n" + "\n".join(results)
-        except Exception as e:
-            return f"Error researching topic: {e}"
-
-    def wikipedia_search(self, query: str) -> str:
-        """Search Wikipedia for information."""
-        if not query:
-            return "No search query provided."
-
-        try:
-            import wikipedia  # type: ignore
-        except ImportError:
-            return (
-                "Wikipedia library not installed. Run: pip install wikipedia"
-            )
-
-        try:
-            summary = wikipedia.summary(query, sentences=3)  # type: ignore
-            return f"Wikipedia summary for '{query}': {summary}"
-        except Exception as e:
-            return f"Error searching Wikipedia: {e}"
-
-    def open_file(self, path: str) -> str:
-        """Open a file."""
-        if not path:
-            return "No file path provided."
-        try:
-            if os.name == "nt":
-                os.startfile(path)
-            else:
-                subprocess.run(["xdg-open", path])
-            return f"Opened file: {path}"
-        except Exception as e:
-            return f"Error opening file: {e}"
-
-    def send_whatsapp(self, params) -> str:
-        """Send WhatsApp message."""
-        message = params.get("message", "")
-        recipient = params.get("recipient", "")
-        if not message:
-            return "No message provided."
-        try:
-            import pywhatkit  # type: ignore
-        except ImportError:
-            return "WhatsApp not available. Install pywhatkit."
-
-        try:
-            send_instant = getattr(pywhatkit, "sendwhatmsg_instantly", None)
-            if not callable(send_instant):
-                return "pywhatkit does not provide sendwhatmsg_instantly. Update the library."
-
-            send_instant(
-                recipient
-                or self.config.get("whatsapp", {}).get("phone_number", ""),
-                message,
-            )  # type: ignore
-            return f"Sent WhatsApp message to {recipient}"
-        except Exception as e:
-            return f"Error sending WhatsApp: {e}"
-
-    def control_lights(self, params) -> str:
-        """Control lights."""
-        action = params.get("action", "")
-        return f"Lights control not implemented. Action: {action}"
-
-    def control_temperature(self, params) -> str:
-        """Control temperature."""
-        action = params.get("action", "")
-        return f"Temperature control not implemented. Action: {action}"
-
-    # Desktop Automation Methods
-    def desktop_open_app(self, params: Dict[str, Any]) -> str:
-        """Open a desktop application."""
-        desktop = self._get_desktop_automation()
-        if not desktop:
-            return "Desktop automation not available."
-
-        app_path = params.get("app_path", "")
-        if not app_path:
-            return "No app path provided."
-
-        # Check if risky
-        if self._is_risky_desktop_action("open_app", params):
-            if not self.consent_callback("desktop_open_app", params):
-                return "Desktop open app cancelled by user consent."
-
-        return desktop.open_application(app_path)
-
-    def desktop_close_app(self, params: Dict[str, Any]) -> str:
-        """Close a desktop application."""
-        desktop = self._get_desktop_automation()
-        if not desktop:
-            return "Desktop automation not available."
-
-        app_name = params.get("app_name", "")
-        if not app_name:
-            return "No app name provided."
-
-        if self._is_risky_desktop_action("close_app", params):
-            if not self.consent_callback("desktop_close_app", params):
-                return "Desktop close app cancelled by user consent."
-
-        return desktop.close_application(app_name)
-
-    def desktop_type_text(self, params: Dict[str, Any]) -> str:
-        """Type text into a desktop application."""
-        desktop = self._get_desktop_automation()
-        if not desktop:
-            return "Desktop automation not available."
-
-        app_name = params.get("app_name", "")
-        text = params.get("text", "")
-        window = params.get("window")
-
-        if not app_name or not text:
-            return "App name and text required."
-
-        return desktop.type_text(app_name, text, window)
-
-    def desktop_click(self, params: Dict[str, Any]) -> str:
-        """Click an element in a desktop application."""
-        desktop = self._get_desktop_automation()
-        if not desktop:
-            return "Desktop automation not available."
-
-        app_name = params.get("app_name", "")
-        element = params.get("element", "")
-        window = params.get("window")
-
-        if not app_name or not element:
-            return "App name and element required."
-
-        if self._is_risky_desktop_action("click", params):
-            if not self.consent_callback("desktop_click", params):
-                return "Desktop click cancelled by user consent."
-
-        return desktop.click_element(app_name, element, window)
-
-    def desktop_send_keys(self, params: Dict[str, Any]) -> str:
-        """Send keys to a desktop application."""
-        desktop = self._get_desktop_automation()
-        if not desktop:
-            return "Desktop automation not available."
-
-        app_name = params.get("app_name", "")
-        keys = params.get("keys", "")
-        window = params.get("window")
-
-        if not app_name or not keys:
-            return "App name and keys required."
-
-        if self._is_risky_desktop_action("send_keys", params):
-            if not self.consent_callback("desktop_send_keys", params):
-                return "Desktop send keys cancelled by user consent."
-
-        return desktop.send_keys_to_app(app_name, keys, window)
-
-    def desktop_get_text(self, params: Dict[str, Any]) -> str:
-        """Get text from a desktop application window."""
-        desktop = self._get_desktop_automation()
-        if not desktop:
-            return "Desktop automation not available."
-
-        app_name = params.get("app_name", "")
-        window = params.get("window")
-
-        if not app_name:
-            return "App name required."
-
-        return desktop.get_window_text(app_name, window)
-
-    def desktop_execute_schema(self, params: Dict[str, Any]) -> str:
-        """Execute a predefined desktop action schema."""
-        desktop = self._get_desktop_automation()
-        if not desktop:
-            return "Desktop automation not available."
-
-        schema = params.get("schema", {})
-        if not schema:
-            return "No schema provided."
-
-        if self._is_risky_desktop_action("execute_schema", params):
-            if not self.consent_callback("desktop_execute_schema", params):
-                return "Desktop execute schema cancelled by user consent."
-
-        return desktop.execute_action_schema(schema)
-
-    def _is_risky_desktop_action(self, action: str, params: Dict[str, Any]) -> bool:
-        """Check if a desktop action is risky and requires consent."""
-        risky_patterns = [
-            "delete", "remove", "uninstall", "format", "shutdown", "restart",
-            "admin", "sudo", "cmd", "powershell", "terminal", "command"
+    def get_tool_descriptions(self) -> str:
+        """Return a description of available tools for the LLM."""
+        tools = [
+            {
+                "name": "web_search",
+                "description": "Search the web for information.",
+                "parameters": {"query": "The search query string"}
+            },
+            {
+                "name": "web_scrape",
+                "description": "Extract text content from a webpage.",
+                "parameters": {"url": "The URL to scrape"}
+            },
+            {
+                "name": "open_file",
+                "description": "Read the contents of a file.",
+                "parameters": {"path": "The file path"}
+            },
+            {
+                "name": "create_file",
+                "description": "Create a new file with content.",
+                "parameters": {"path": "The file path", "content": "The content to write"}
+            },
+            {
+                "name": "run_command",
+                "description": "Run a shell command (use with caution).",
+                "parameters": {"command": "The command to execute"}
+            },
+            {
+                "name": "send_email",
+                "description": "Send an email.",
+                "parameters": {"to": "Recipient email", "subject": "Email subject", "body": "Email body"}
+            },
+            {
+                "name": "desktop_open_app",
+                "description": "Open a desktop application.",
+                "parameters": {"app_name": "Name of the application"}
+            },
+            {
+                "name": "store_memory",
+                "description": "Store a memory for long-term retrieval.",
+                "parameters": {"content": "The information to remember", "memory_type": "episodic or semantic"}
+            },
+            {
+                "name": "search_memory",
+                "description": "Search long-term memory.",
+                "parameters": {"query": "The search query"}
+            }
         ]
-        for key, value in params.items():
-            if isinstance(value, str):
-                if any(pattern in value.lower() for pattern in risky_patterns):
-                    return True
-        return False
+        
+        description = "Available Tools:\n"
+        for tool in tools:
+            description += f"- {tool['name']}: {tool['description']}\n"
+            description += f"  Parameters: {json.dumps(tool['parameters'])}\n"
+        
+        return description

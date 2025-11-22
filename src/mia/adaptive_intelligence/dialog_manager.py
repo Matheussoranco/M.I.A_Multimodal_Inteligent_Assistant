@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from ..memory.rag_pipeline import RAGPipeline
+# from ..memory.rag_pipeline import RAGPipeline
 from ..providers import provider_registry
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ class DialogManager:
     def __init__(
         self,
         config_manager=None,
-        rag_pipeline: Optional[RAGPipeline] = None,
+        rag_pipeline: Optional[Any] = None,
         intent_classifier=None,
         rules_file: Optional[str] = None,
         *,

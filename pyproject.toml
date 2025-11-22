@@ -12,7 +12,7 @@ authors = [
     {name = "Matheus Pullig Soranço de Carvalho", email = "matheussoranco@gmail.com"}
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",

@@ -1,11 +1,12 @@
 @echo off
-REM M.I.A Installation Script for Windows v0.1.0
+REM M.I.A Installation Script for Windows v1.0.0
 REM This script installs M.I.A and its dependencies via pip
 
 setlocal enablecho To run M.I.A, use one of these commands:
 echo   mia --info         (show version info)
 echo   mia --text-only    (text mode)
 echo   mia --audio-mode   (with audio)
+echo   streamlit run src/mia/ui/app.py (chat interface)
 echo.
 echo Or use the run scripts:
 echo   scripts\run\run.bat
@@ -22,7 +23,7 @@ echo.
 echo =================================
 echo   M.I.A Installation Script
 echo =================================
-echo Installing M.I.A v0.1.0 - Multimodal Intelligent Assistant
+echo Installing M.I.A v1.0.0 - Multimodal Intelligent Assistant
 echo.
 
 REM Check if Python is installed

@@ -551,7 +551,7 @@ class SpeechGenerator:
             if self.tts_provider == "piper" and HAS_PIPER and self.synthesiser:
                 import io
                 wav_file = io.BytesIO()
-                self.synthesiser.synthesize(text, wav_file)
+                self.synthesiser.synthesize(text, wav_file)  # type: ignore
                 wav_file.seek(0)
                 if SOUNDDEVICE_AVAILABLE and sounddevice:
                     import numpy as np
@@ -563,7 +563,7 @@ class SpeechGenerator:
                 return {"provider": "piper", "text": text, "status": "played"}
             # Use Coqui TTS
             elif self.tts_provider == "coqui" and HAS_COQUI and self.synthesiser:
-                wav = self.synthesiser.tts(text=text)
+                wav = self.synthesiser.tts(text=text)  # type: ignore
                 if SOUNDDEVICE_AVAILABLE and sounddevice:
                     sounddevice.play(wav, samplerate=22050)
                     sounddevice.wait()
