@@ -631,9 +631,21 @@ def parse_arguments():
     )
     parser.add_argument(
         "--mode",
-        choices=["text", "audio", "mixed", "auto"],
+        choices=["text", "audio", "mixed", "auto", "web"],
         default="mixed",
-        help="Interaction mode: text|audio|mixed|auto",
+        help="Interaction mode: text|audio|mixed|auto|web",
+    )
+    parser.add_argument(
+        "--web", action="store_true", 
+        help="Start the Ollama-style Web UI"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8080,
+        help="Port for web UI (default: 8080)"
+    )
+    parser.add_argument(
+        "--host", type=str, default="0.0.0.0",
+        help="Host for web UI (default: 0.0.0.0)"
     )
     parser.add_argument(
         "--text-only", action="store_true", help=argparse.SUPPRESS
@@ -1691,6 +1703,19 @@ def main():
             print(f"🐍 Python: {sys.version}")
             print(f"💻 Platform: {sys.platform}")
             return
+
+        # Check for web UI mode
+        if getattr(args, "web", False) or args.mode == "web":
+            try:
+                from .web.webui import run_webui
+                host = getattr(args, "host", "0.0.0.0")
+                port = getattr(args, "port", 8080)
+                run_webui(host=host, port=port)
+                return
+            except ImportError as e:
+                print(red(f"Web UI requires additional dependencies: {e}"))
+                print("Install with: pip install fastapi uvicorn")
+                return
 
         # Determine effective mode (support deprecated flags)
         if getattr(args, "text_only", False):

@@ -12,8 +12,8 @@ Design principles:
 
 ## Core capabilities
 
+- **New!** Ollama-Style Web UI: Beautiful, minimal chat interface with function calling and streaming
 - **New!** State-of-the-Art Cognitive Architecture: Implements a ReAct (Reasoning + Acting) loop for autonomous problem solving.
-- **New!** Modern Chat UI: A beautiful web-based interface powered by Streamlit.
 - Natural conversation via text and voice (in/out), with hotword activation and VAD.
 - Multimodal vision: images and documents (OCR, description, visual Q&A).
 - Short‑ and long‑term contextual memory (episodic, semantic, and local knowledge graph).
@@ -28,6 +28,29 @@ Design principles:
 - Web search and browsing with Selenium (search, pagination, scroll, clicks, result harvesting).
 - Programming and code execution (Python and other languages) in an isolated environment.
 - IoT control via MQTT (Home Assistant/Zigbee2MQTT) and local REST integrations.
+
+
+## 🚀 Quick Start - Ollama-Style Web UI
+
+The fastest way to get started with M.I.A is the new **Ollama-style Web UI**:
+
+```bash
+# Start the web interface
+python -m mia --web
+
+# Or directly
+python -m mia.web.webui
+
+# With custom port
+python -m mia --web --port 8080
+```
+
+Then open http://localhost:8080 in your browser. You'll get:
+- 🧠 Clean, minimal chat interface (just like Ollama)
+- 🔧 Function calling with 12+ built-in tools
+- 🤖 Automatic model detection (Ollama, OpenAI, local models)
+- ⚡ Real-time streaming responses
+- 🎯 AGI-focused agent capabilities
 
 
 ## Architecture

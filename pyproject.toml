@@ -34,6 +34,7 @@ Issues = "https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis/
 [project.scripts]
 mia = "mia.main:main"
 mia-api = "mia.api.server:main"
+mia-web = "mia.web.webui:run_webui"
 
 [tool.setuptools.dynamic]
 version = {attr = "mia.__version__.__version__"}

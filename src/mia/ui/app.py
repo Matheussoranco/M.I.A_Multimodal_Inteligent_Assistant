@@ -19,10 +19,22 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="M.I.A - Multimodal Intelligent Assistant",
-    page_icon="🤖",
+    page_icon="�",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Redirect notice
+st.markdown("""
+<div style="background: linear-gradient(135deg, #1f6feb, #a371f7); padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
+    <h2 style="color: white; margin: 0;">🚀 New Ollama-Style Web UI Available!</h2>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0;">
+        Run <code style="background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px;">mia --web</code> or 
+        <code style="background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px;">python -m mia.web.webui</code> 
+        for the new AGI-focused interface!
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 # Custom CSS for styling
 st.markdown("""
