@@ -63,192 +63,328 @@ class LLMManager:
     """Unified LLM manager supporting multiple providers."""
 
     @classmethod
-    def detect_available_providers(
-        cls, interactive: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Detect available LLM providers based on API keys and test connectivity.
+    def detect_ollama_models(cls) -> List[Dict[str, Any]]:
+        """Detect all models installed in Ollama."""
+        models = []
+        try:
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                for model in data.get("models", []):
+                    models.append({
+                        "name": model.get("name", "unknown"),
+                        "size": model.get("size", 0),
+                        "modified": model.get("modified_at", ""),
+                        "provider": "ollama",
+                    })
+        except Exception:
+            pass
+        return models
 
-        Args:
-            interactive: Whether to allow user selection if multiple providers are available
+    @classmethod
+    def detect_local_models(cls) -> List[Dict[str, Any]]:
+        """Detect local HuggingFace models in common directories."""
+        models = []
+        # Check common HuggingFace cache locations
+        hf_cache_dirs = [
+            os.path.expanduser("~/.cache/huggingface/hub"),
+            os.path.expanduser("~/models"),
+            os.path.join(os.getcwd(), "models"),
+        ]
+        
+        for cache_dir in hf_cache_dirs:
+            if os.path.exists(cache_dir):
+                try:
+                    for item in os.listdir(cache_dir):
+                        item_path = os.path.join(cache_dir, item)
+                        if os.path.isdir(item_path):
+                            # Check if it looks like a model directory
+                            config_file = os.path.join(item_path, "config.json")
+                            if os.path.exists(config_file):
+                                models.append({
+                                    "name": item,
+                                    "path": item_path,
+                                    "provider": "local",
+                                })
+                except Exception:
+                    pass
+        return models
 
-        Returns:
-            Dict with 'provider', 'model_id', 'api_key', 'url' for the selected provider
-        """
-        available_providers = []
-
-        # Define providers and their environment variables
-        provider_configs = {
+    @classmethod
+    def detect_api_providers(cls) -> List[Dict[str, Any]]:
+        """Detect available API providers based on environment variables."""
+        providers = []
+        
+        api_configs = {
             "openai": {
-                "env_vars": ["OPENAI_API_KEY"],
-                "api_key_env": "OPENAI_API_KEY",
-                "default_model": "gpt-4.1",
+                "env_key": "OPENAI_API_KEY",
+                "default_model": "gpt-4o-mini",
                 "url": "https://api.openai.com/v1",
             },
             "anthropic": {
-                "env_vars": ["ANTHROPIC_API_KEY"],
-                "api_key_env": "ANTHROPIC_API_KEY",
+                "env_key": "ANTHROPIC_API_KEY", 
                 "default_model": "claude-3-haiku-20240307",
                 "url": "https://api.anthropic.com",
             },
             "gemini": {
-                "env_vars": ["GOOGLE_API_KEY"],
-                "api_key_env": "GOOGLE_API_KEY",
+                "env_key": "GOOGLE_API_KEY",
                 "default_model": "gemini-pro",
                 "url": "https://generativelanguage.googleapis.com",
             },
             "groq": {
-                "env_vars": ["GROQ_API_KEY"],
-                "api_key_env": "GROQ_API_KEY",
-                "default_model": "llama2-70b-4096",
-                "url": "https://api.groq.com",
+                "env_key": "GROQ_API_KEY",
+                "default_model": "llama-3.1-70b-versatile",
+                "url": "https://api.groq.com/openai/v1",
             },
             "grok": {
-                "env_vars": ["XAI_API_KEY"],
-                "api_key_env": "XAI_API_KEY",
+                "env_key": "XAI_API_KEY",
                 "default_model": "grok-beta",
-                "url": "https://api.x.ai",
-            },
-            "minimax": {
-                "env_vars": ["MINIMAX_API_KEY"],
-                "api_key_env": "MINIMAX_API_KEY",
-                "default_model": "abab5.5-chat",
-                "url": os.getenv("MINIMAX_URL")
-                or "https://api.minimax.chat/v1/text/chatcompletion",
-            },
-            "nanochat": {
-                "env_vars": [],
-                "api_key_env": "NANOCHAT_API_KEY",
-                "default_model": "nanochat-model",
-                "url": os.getenv("NANOCHAT_URL")
-                or "http://localhost:8081/api/generate",
-            },
-            "ollama": {
-                "env_vars": [],  # Ollama doesn't need API key
-                "default_model": "gpt-oss:latest",
-                "url": os.getenv("OLLAMA_URL")
-                or "http://localhost:11434/api/generate",
+                "url": "https://api.x.ai/v1",
             },
         }
+        
+        for name, config in api_configs.items():
+            api_key = os.getenv(config["env_key"])
+            if api_key:
+                providers.append({
+                    "name": name,
+                    "model": config["default_model"],
+                    "url": config["url"],
+                    "api_key": api_key,
+                    "provider": "api",
+                })
+        
+        return providers
 
-        print("Detecting available LLM providers...")
-
-        for provider_name, config in provider_configs.items():
+    @classmethod
+    def interactive_model_selection(cls) -> Dict[str, Any]:
+        """
+        Interactive model selection at startup.
+        User chooses between local models or API providers.
+        """
+        print("\n" + "═" * 60)
+        print("🤖 M.I.A - LLM Model Selection")
+        print("═" * 60)
+        
+        # First, ask user preference
+        print("\nHow would you like to use M.I.A?")
+        print("  1. 🖥️  LOCAL Model (Ollama / HuggingFace)")
+        print("  2. 🌐 External API (OpenAI, Anthropic, etc.)")
+        print("  3. 🔄 Auto-detect (use first available)")
+        
+        while True:
             try:
-                # Check if required environment variables are set
-                has_keys = (
-                    all(os.getenv(var) for var in config["env_vars"])
-                    if config["env_vars"]
-                    else True
-                )
-
-                if not has_keys:
-                    print(f"{provider_name}: No API key found")
-                    continue
-
-                # Test connectivity
-                if cls._test_provider_connectivity(provider_name, config):
-                    api_key_env = config.get("api_key_env")
-                    api_key_value = (
-                        os.getenv(api_key_env)
-                        if api_key_env
-                        else (
-                            os.getenv(config["env_vars"][0])
-                            if config["env_vars"]
-                            else None
-                        )
-                    )
-                    available_providers.append(
-                        {
-                            "name": provider_name,
-                            "model": config["default_model"],
-                            "url": config["url"],
-                            "api_key": api_key_value,
-                        }
-                    )
-                    print(f"{provider_name}: Available")
-                else:
-                    print(f"{provider_name}: Connection test failed")
-
-            except Exception as e:
-                print(f"{provider_name}: Error - {str(e)}")
-
-        if not available_providers:
-            raise ConfigurationError(
-                "No LLM providers available. Please set API keys for at least one provider.",
-                "NO_PROVIDERS_AVAILABLE",
-            )
-
-        # If only one provider, use it
-        if len(available_providers) == 1:
-            selected = available_providers[0]
-            print(f"Using {selected['name']} (only available provider)")
-            return {
-                "provider": selected["name"],
-                "model_id": selected["model"],
-                "api_key": selected["api_key"],
-                "url": selected["url"],
-            }
-
-        # Multiple providers available
-        if interactive:
-            print(f"\nFound {len(available_providers)} available providers:")
-            for i, provider in enumerate(available_providers, 1):
-                print(f"  {i}. {provider['name']} ({provider['model']})")
-
-            while True:
-                try:
-                    choice = input(
-                        "\nSelect provider (1-{}): ".format(
-                            len(available_providers)
-                        )
-                    ).strip()
-                    idx = int(choice) - 1
-                    if 0 <= idx < len(available_providers):
-                        selected = available_providers[idx]
-                        print(f"Selected: {selected['name']}")
-                        return {
-                            "provider": selected["name"],
-                            "model_id": selected["model"],
-                            "api_key": selected["api_key"],
-                            "url": selected["url"],
-                        }
-                    else:
-                        print("Invalid choice. Please select a valid number.")
-                except (ValueError, KeyboardInterrupt):
-                    print("Invalid input. Please enter a number.")
+                choice = input("\nChoice [1-3] (default: 1): ").strip() or "1"
+                if choice in ["1", "2", "3"]:
+                    break
+                print("❌ Invalid choice. Enter 1, 2, or 3.")
+            except (KeyboardInterrupt, EOFError):
+                print("\n⚠️ Using auto-detection...")
+                choice = "3"
+                break
+        
+        if choice == "1":
+            return cls._select_local_model()
+        elif choice == "2":
+            return cls._select_api_provider()
         else:
-            # Non-interactive mode: prefer OpenAI, then others
-            preferred_order = [
-                "openai",
-                "anthropic",
-                "gemini",
-                "groq",
-                "grok",
-                "minimax",
-                "nanochat",
-                "ollama",
-            ]
-            for pref in preferred_order:
-                for provider in available_providers:
-                    if provider["name"] == pref:
-                        print(f"Using {provider['name']} (preferred)")
-                        return {
-                            "provider": provider["name"],
-                            "model_id": provider["model"],
-                            "api_key": provider["api_key"],
-                            "url": provider["url"],
-                        }
+            return cls._auto_detect_best()
 
-            # Fallback to first available
-            selected = available_providers[0]
-            print(f"Using {selected['name']} (fallback)")
+    @classmethod
+    def _select_local_model(cls) -> Dict[str, Any]:
+        """Select a local model (Ollama or HuggingFace)."""
+        print("\n📦 Detecting local models...")
+        
+        ollama_models = cls.detect_ollama_models()
+        local_models = cls.detect_local_models()
+        
+        all_models = []
+        
+        if ollama_models:
+            print(f"\n✅ Ollama: {len(ollama_models)} model(s) found")
+            for model in ollama_models:
+                all_models.append({
+                    "type": "ollama",
+                    "name": model["name"],
+                    "display": f"🦙 Ollama: {model['name']}",
+                })
+        else:
+            print("\n⚠️ Ollama: No models found or service offline")
+        
+        if local_models:
+            print(f"✅ Local/HuggingFace: {len(local_models)} model(s) found")
+            for model in local_models:
+                all_models.append({
+                    "type": "local",
+                    "name": model["name"],
+                    "path": model["path"],
+                    "display": f"🏠 Local: {model['name']}",
+                })
+        
+        if not all_models:
+            print("\n❌ No local models found!")
+            print("💡 Install a model with: ollama pull qwen2.5:3b-instruct-q4_K_M")
+            print("\nWould you like to use an external API? [y/N]: ", end="")
+            try:
+                if input().strip().lower() in ["s", "y", "sim", "yes"]:
+                    return cls._select_api_provider()
+            except (KeyboardInterrupt, EOFError):
+                pass
+            raise ConfigurationError(
+                "No models available. Install a local model or configure an API.",
+                "NO_MODELS_AVAILABLE",
+            )
+        
+        print("\n📋 Available models:")
+        for i, model in enumerate(all_models, 1):
+            print(f"  {i}. {model['display']}")
+        
+        while True:
+            try:
+                choice = input(f"\nSelect model [1-{len(all_models)}] (default: 1): ").strip() or "1"
+                idx = int(choice) - 1
+                if 0 <= idx < len(all_models):
+                    selected = all_models[idx]
+                    break
+                print("❌ Invalid choice.")
+            except (ValueError, KeyboardInterrupt, EOFError):
+                idx = 0
+                selected = all_models[0]
+                break
+        
+        print(f"\n✅ Selected: {selected['display']}")
+        
+        if selected["type"] == "ollama":
             return {
-                "provider": selected["name"],
-                "model_id": selected["model"],
-                "api_key": selected["api_key"],
-                "url": selected["url"],
+                "provider": "ollama",
+                "model_id": selected["name"],
+                "api_key": None,
+                "url": "http://localhost:11434/api/generate",
             }
+        else:
+            return {
+                "provider": "local",
+                "model_id": selected["name"],
+                "api_key": None,
+                "url": None,
+                "local_model_path": selected.get("path"),
+            }
+
+    @classmethod
+    def _select_api_provider(cls) -> Dict[str, Any]:
+        """Select an API provider."""
+        print("\n🌐 Checking available APIs...")
+        
+        api_providers = cls.detect_api_providers()
+        
+        if not api_providers:
+            print("\n❌ No API configured!")
+            print("💡 Configure environment variables:")
+            print("   - OPENAI_API_KEY")
+            print("   - ANTHROPIC_API_KEY")
+            print("   - GOOGLE_API_KEY")
+            print("   - GROQ_API_KEY")
+            print("\nWould you like to use a local model? [Y/n]: ", end="")
+            try:
+                if input().strip().lower() not in ["n", "no", "nao", "não"]:
+                    return cls._select_local_model()
+            except (KeyboardInterrupt, EOFError):
+                pass
+            raise ConfigurationError(
+                "No API available. Configure an API key or use a local model.",
+                "NO_API_AVAILABLE",
+            )
+        
+        print(f"\n✅ {len(api_providers)} API(s) available:")
+        for i, provider in enumerate(api_providers, 1):
+            print(f"  {i}. 🌐 {provider['name'].upper()} ({provider['model']})")
+        
+        while True:
+            try:
+                choice = input(f"\nSelect API [1-{len(api_providers)}] (default: 1): ").strip() or "1"
+                idx = int(choice) - 1
+                if 0 <= idx < len(api_providers):
+                    selected = api_providers[idx]
+                    break
+                print("❌ Invalid choice.")
+            except (ValueError, KeyboardInterrupt, EOFError):
+                idx = 0
+                selected = api_providers[0]
+                break
+        
+        print(f"\n✅ Selected: {selected['name'].upper()}")
+        
+        return {
+            "provider": selected["name"],
+            "model_id": selected["model"],
+            "api_key": selected["api_key"],
+            "url": selected["url"],
+        }
+
+    @classmethod
+    def _auto_detect_best(cls) -> Dict[str, Any]:
+        """Auto-detect the best available provider."""
+        print("\n🔄 Auto-detecting best option...")
+        
+        # Try Ollama first (local, no cost)
+        ollama_models = cls.detect_ollama_models()
+        if ollama_models:
+            model = ollama_models[0]
+            print(f"✅ Using Ollama: {model['name']}")
+            return {
+                "provider": "ollama",
+                "model_id": model["name"],
+                "api_key": None,
+                "url": "http://localhost:11434/api/generate",
+            }
+        
+        # Then try local models
+        local_models = cls.detect_local_models()
+        if local_models:
+            model = local_models[0]
+            print(f"✅ Using local model: {model['name']}")
+            return {
+                "provider": "local",
+                "model_id": model["name"],
+                "api_key": None,
+                "url": None,
+                "local_model_path": model.get("path"),
+            }
+        
+        # Finally try API providers
+        api_providers = cls.detect_api_providers()
+        if api_providers:
+            provider = api_providers[0]
+            print(f"✅ Using API: {provider['name'].upper()}")
+            return {
+                "provider": provider["name"],
+                "model_id": provider["model"],
+                "api_key": provider["api_key"],
+                "url": provider["url"],
+            }
+        
+        raise ConfigurationError(
+            "No LLM provider available.",
+            "NO_PROVIDERS_AVAILABLE",
+        )
+
+    @classmethod
+    def detect_available_providers(
+        cls, interactive: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Detect available LLM providers with interactive selection.
+        
+        Args:
+            interactive: Whether to show interactive selection menu
+            
+        Returns:
+            Dict with 'provider', 'model_id', 'api_key', 'url' for the selected provider
+        """
+        if interactive:
+            return cls.interactive_model_selection()
+        else:
+            return cls._auto_detect_best()
 
     @classmethod
     def _test_provider_connectivity(
@@ -1703,17 +1839,27 @@ class LLMManager:
 
             elif self.provider == "ollama":
                 # Test Ollama connection
-                url = self.url or "http://localhost:11434/api/generate"
-                headers = {"Content-Type": "application/json"}
-                data = {
-                    "model": self.model_id or "mistral:instruct",
-                    "prompt": "Hello",
-                    "stream": False,
-                }
-                response = requests.post(
-                    url, headers=headers, json=data, timeout=5
-                )
-                return response.status_code == 200
+                base_url = self.url or "http://localhost:11434"
+                # Remove /api/generate suffix if present for tags endpoint
+                if base_url.endswith("/api/generate"):
+                    base_url = base_url.replace("/api/generate", "")
+                tags_url = f"{base_url}/api/tags"
+                try:
+                    response = requests.get(tags_url, timeout=5)
+                    return response.status_code == 200
+                except Exception:
+                    # Fallback to generate endpoint test
+                    url = self.url or "http://localhost:11434/api/generate"
+                    headers = {"Content-Type": "application/json"}
+                    data = {
+                        "model": self.model_id or "llama2",
+                        "prompt": "Hi",
+                        "stream": False,
+                    }
+                    response = requests.post(
+                        url, headers=headers, json=data, timeout=5
+                    )
+                    return response.status_code == 200
 
             elif (
                 self.provider == "huggingface"

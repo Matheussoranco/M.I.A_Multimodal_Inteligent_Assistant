@@ -1,214 +1,177 @@
-# M.I.A Configuration File
-# This file contains the default configuration for M.I.A - Multimodal Intelligent Assistant
+# ═══════════════════════════════════════════════════════════════════════════════
+# M.I.A - Multimodal Intelligent Assistant
+# Configuration File (Auto-Detection Enabled)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Este arquivo contém configurações padrão. O M.I.A detecta automaticamente
+# modelos locais disponíveis e permite seleção interativa ao iniciar.
+# NÃO é necessário modificar este arquivo para uso básico.
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# LLM Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ LLM Configuration - Auto-detected at startup                                │
+# └─────────────────────────────────────────────────────────────────────────────┘
+# O M.I.A detecta automaticamente modelos Ollama instalados e APIs configuradas.
+# Na inicialização, você pode escolher entre modelo local ou API externa.
+#
+# API Keys são configuradas via variáveis de ambiente:
+# - OPENAI_API_KEY
+# - ANTHROPIC_API_KEY  
+# - GOOGLE_API_KEY (Gemini)
+# - GROQ_API_KEY
+# - XAI_API_KEY (Grok)
+
 llm:
-  provider: openai              # Options: openai, ollama, huggingface, anthropic, gemini, groq, grok, nanochat, minimax, local
-  model_id: gpt-3.5-turbo       # Model identifier
-  api_key: null                 # API key (can be set via environment variable)
-  url: https://api.openai.com/v1  # API endpoint URL
-  max_tokens: 1024              # Maximum tokens per response
-  temperature: 0.7              # Response creativity (0.0-2.0)
-  timeout: 30                   # Request timeout in seconds
+  selection_mode: interactive   # auto | interactive
+  provider: auto                # auto-detectado na inicialização
+  model_id: null                # auto-detectado
+  api_key: null                 # via variável de ambiente
+  url: null                     # auto-detectado
+  max_tokens: 2048
+  temperature: 0.7
+  timeout: 60
+  stream: true
+  local:
+    enabled: true
+    model_path: null
+    device: auto
+    quantization: null
+    max_memory: null
+  ollama:
+    url: http://localhost:11434
+    auto_detect: true
 
-# LLM Profiles for task-specific behavior
-llm_profiles:
-  reason:
-    label: "Raciocínio Profundo"
-    description: "Perfil otimizado para raciocínio e cadeia de pensamentos utilizando DeepSeek R1 local."
-    provider: ollama
-    model_id: deepseek-r1:1.5b
-    url: http://localhost:11434
-    temperature: 0.2
-    max_tokens: 2048
-    stream: true
-    scopes:
-      - reasoning
-      - system
-  chat:
-    label: "Conversa Geral"
-    description: "Perfil padrão orientado a diálogo com Qwen 2.5 de 3B quantizado via Ollama."
-    provider: ollama
-    model_id: qwen2.5:3b-instruct-q4_K_M
-    url: http://localhost:11434
-    temperature: 0.7
-    max_tokens: 1024
-    stream: true
-    scopes:
-      - messaging
-      - files.read
-  code:
-    label: "Assistente de Código"
-    description: "Perfil especializado para programação usando Qwen2.5-Coder local."
-    provider: ollama
-    model_id: qwen2.5-coder:3b-q4_0
-    url: http://localhost:11434
-    temperature: 0.25
-    max_tokens: 1536
-    stream: true
-    scopes:
-      - code
-      - files.read
-      - files.write
-  creative:
-    label: "Criativo"
-    description: "Perfil para geração criativa e escrita com alta temperatura."
-    provider: ollama
-    model_id: qwen2.5:3b-instruct-q4_K_M
-    url: http://localhost:11434
-    temperature: 0.9
-    max_tokens: 2048
-    stream: true
-    scopes:
-      - creative
-      - writing
-  analysis:
-    label: "Análise de Dados"
-    description: "Perfil otimizado para análise de dados e relatórios."
-    provider: ollama
-    model_id: qwen2.5:3b-instruct-q4_K_M
-    url: http://localhost:11434
-    temperature: 0.3
-    max_tokens: 1536
-    stream: true
-    scopes:
-      - analysis
-      - data
-  fast:
-    label: "Respostas Rápidas"
-    description: "Perfil para respostas rápidas e concisas."
-    provider: ollama
-    model_id: qwen2.5:0.5b
-    url: http://localhost:11434
-    temperature: 0.5
-    max_tokens: 512
-    stream: true
-    scopes:
-      - fast
-      - concise
-
-default_llm_profile: chat
-
-# Audio Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Audio Configuration                                                          │
+# └─────────────────────────────────────────────────────────────────────────────┘
 audio:
-  enabled: true                 # Enable audio processing
-  sample_rate: 16000           # Audio sample rate
-  chunk_size: 1024             # Audio chunk size
-  device_id: null              # Audio device ID (null for default)
-  input_threshold: 0.01        # Audio input threshold
-  speech_model: openai/whisper-base.en  # Speech recognition model
-  tts_enabled: true            # Enable text-to-speech
-  tts_provider: local          # Options: local, piper, coqui, nanochat, minimax, openai, custom
-  tts_model_id: null           # Model identifier for selected TTS provider
-  tts_api_key: null            # API key for external TTS providers
-  tts_url: null                # Base URL for external TTS providers
-  # TTS Profiles for different voices
-  tts_profiles:
-    default:
-      provider: piper
-      model: en_US-lessac-medium
-      voice: null
-    female:
-      provider: coqui
-      model: tts_models/en/ljspeech/tacotron2-DDC_ph
-      voice: null
-    male:
-      provider: piper
-      model: en_US-ryan-medium
-      voice: null
-  llm_provider: null           # Override LLM provider for audio workflows (fallback to global LLM when null)
-  llm_model_id: null           # Override LLM model for audio workflows
-  llm_api_key: null            # Override LLM API key for audio workflows
-  llm_url: null                # Override LLM endpoint for audio workflows
-  vad_enabled: false           # Enable voice activity detection (requires webrtcvad)
-  vad_aggressiveness: 2        # 0 (least aggressive) to 3 (most aggressive)
-  vad_frame_duration_ms: 30    # Frame size in milliseconds (10, 20, 30)
-  vad_silence_duration_ms: 600 # Minimum active speech duration before accepting audio
-  playback_enabled: true       # Enable playback of synthesized audio
-  push_to_talk: true           # Require push-to-talk key press for capture
-  hotword_enabled: true        # Enable hotword detection
-  hotword: mia                 # Hotword used to wake the assistant
-  hotword_sensitivity: 0.5     # Sensitivity for hotword detection (0-1)
-  hotword_timeout: 20.0        # Seconds to keep session open after detecting hotword
+  enabled: true
+  sample_rate: 16000
+  chunk_size: 1024
+  device_id: null
+  input_threshold: 0.01
+  speech_model: openai/whisper-base.en
+  
+  # Text-to-Speech
+  tts_enabled: true
+  tts_provider: local           # local | piper | coqui | pyttsx3 | openai | custom
+  tts_model_id: null
+  tts_api_key: null
+  tts_url: null
+  
+  # Voice Activity Detection
+  vad_enabled: false
+  vad_aggressiveness: 2
+  vad_frame_duration_ms: 30
+  vad_silence_duration_ms: 600
+  
+  # Playback
+  playback_enabled: true
+  push_to_talk: false
+  
+  # Hotword
+  hotword_enabled: true
+  hotword: mia
+  hotword_sensitivity: 0.5
+  hotword_timeout: 20.0
 
-# Vision Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Vision Configuration                                                         │
+# └─────────────────────────────────────────────────────────────────────────────┘
 vision:
-  enabled: true                # Enable vision processing
-  model: openai/clip-vit-base-patch32  # Vision model
-  device: auto                 # Device: auto, cpu, cuda, mps
-  max_image_size: 1024         # Maximum image size in pixels
-  supported_formats:           # Supported image formats
+  enabled: true
+  model: openai/clip-vit-base-patch32
+  device: auto
+  max_image_size: 1024
+  supported_formats:
     - jpg
     - jpeg
     - png
     - bmp
     - gif
+    - webp
 
-# Memory Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Memory Configuration                                                         │
+# └─────────────────────────────────────────────────────────────────────────────┘
 memory:
-  enabled: true                # Enable memory system
-  vector_enabled: true         # Enable vector embeddings via ChromaDB
-  graph_enabled: true          # Enable knowledge-graph relations
-  long_term_enabled: true      # Enable long-term list storage
-  vector_db_path: memory/      # Vector database path
-  max_memory_size: 10000       # Maximum memory entries
-  embedding_dimension: 768     # Embedding dimension
-  similarity_threshold: 0.7    # Similarity threshold for retrieval (lower is closer)
-  max_results: 5               # Default maximum results returned per query
+  enabled: true
+  vector_enabled: true
+  graph_enabled: true
+  long_term_enabled: true
+  vector_db_path: memory/
+  max_memory_size: 10000
+  embedding_dimension: 768
+  similarity_threshold: 0.7
+  max_results: 5
 
-# Security Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Security Configuration                                                       │
+# └─────────────────────────────────────────────────────────────────────────────┘
 security:
-  enabled: true                # Enable security features
-  max_file_size: 10485760      # Maximum file size (10MB)
-  allowed_file_types:          # Allowed file types
+  enabled: true
+  max_file_size: 10485760
+  allowed_file_types:
     - txt
     - md
     - py
     - json
     - yaml
-  blocked_commands:            # Blocked commands
+    - js
+    - ts
+    - html
+    - css
+  blocked_commands:
     - rm -rf
     - del /f
     - format
     - fdisk
-  max_command_length: 1000     # Maximum command length
-  audit_logging: true          # Enable audit logging
+  max_command_length: 1000
+  audit_logging: true
 
-# System Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ System Configuration                                                         │
+# └─────────────────────────────────────────────────────────────────────────────┘
 system:
-  debug: false                 # Enable debug mode
-  log_level: INFO              # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  max_workers: 4               # Maximum worker threads
-  request_timeout: 30          # Request timeout in seconds
-  retry_attempts: 3            # Number of retry attempts
-  cache_enabled: true          # Enable caching
-  cache_ttl: 3600             # Cache TTL in seconds
+  debug: false
+  log_level: INFO
+  max_workers: 4
+  request_timeout: 60
+  retry_attempts: 3
+  cache_enabled: true
+  cache_ttl: 3600
+  language: pt-BR               # Idioma padrão: pt-BR | en-US
 
-# Sandbox Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Sandbox Configuration                                                        │
+# └─────────────────────────────────────────────────────────────────────────────┘
 sandbox:
-  enabled: true               # Enable WASI sandbox execution
-  work_dir: sandbox_runs      # Working directory for sandbox temp files
-  log_dir: logs/sandbox       # Directory for sandbox logs
-  runtime: auto               # auto | wasmtime | wasmer
-  max_memory_mb: 256          # Memory limit per execution (MB)
-  timeout_ms: 10000           # Timeout per execution (milliseconds)
-  fuel: null                  # Optional fuel limit (instructions)
+  enabled: true
+  work_dir: sandbox_runs
+  log_dir: logs/sandbox
+  runtime: auto
+  max_memory_mb: 256
+  timeout_ms: 10000
+  fuel: null
 
-# Document Generation
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Documents Configuration                                                      │
+# └─────────────────────────────────────────────────────────────────────────────┘
 documents:
-  template_dir: templates/documents  # Directory for DOCX/PDF templates
-  output_dir: output/documents       # Directory where generated files are stored
-  default_template: proposal         # Default template key
+  template_dir: templates/documents
+  output_dir: output/documents
+  default_template: proposal
 
-# Telegram Messaging
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Telegram Configuration                                                       │
+# └─────────────────────────────────────────────────────────────────────────────┘
 telegram:
-  enabled: false             # Enable Telegram messaging via Telethon
-  api_id: null               # Telegram API ID (required when enabled)
-  api_hash: null             # Telegram API hash (required when enabled)
-  bot_token: null            # Bot token (set for bot mode)
-  phone_number: null         # Phone number (set for user mode; requires existing session)
-  session_dir: sessions      # Directory for Telethon session files
-  session_name: mia_telegram # Session file name
-  default_peer: null         # Default chat/user to message when none is provided
-  parse_mode: markdown       # Message parse mode (markdown, html, or None)
-  request_timeout: 30        # Telethon timeout in seconds
+  enabled: false
+  api_id: null
+  api_hash: null
+  bot_token: null
+  phone_number: null
+  session_dir: sessions
+  session_name: mia_telegram
+  default_peer: null
+  parse_mode: markdown
+  request_timeout: 30

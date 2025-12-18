@@ -28,23 +28,65 @@ SUPPORTED_LLM_PROVIDERS = {
     "local",
     "nanochat",
     "minimax",
+    "auto",  # Auto-detection mode
 }
+
+
+@dataclass
+class LLMLocalConfig:
+    """Configuration for local models (HuggingFace/Transformers)."""
+    
+    enabled: bool = True
+    model_path: Optional[str] = None
+    device: str = "auto"
+    quantization: Optional[str] = None
+    max_memory: Optional[str] = None
+
+
+@dataclass
+class LLMOllamaConfig:
+    """Configuration for Ollama."""
+    
+    url: str = "http://localhost:11434"
+    auto_detect: bool = True
 
 
 @dataclass
 class LLMConfig:
     """Configuration for LLM providers."""
 
-    provider: str = "ollama"
-    model_id: str = "gpt-oss:latest"
+    selection_mode: str = "interactive"  # auto | interactive
+    provider: str = "auto"
+    model_id: Optional[str] = None
     api_key: Optional[str] = None
     url: Optional[str] = None
-    max_tokens: int = 1024
+    max_tokens: int = 2048
     temperature: float = 0.7
-    timeout: int = 30
+    timeout: int = 60
+    stream: bool = True
+    local: Optional[LLMLocalConfig] = None
+    ollama: Optional[LLMOllamaConfig] = None
+
+    def __post_init__(self):
+        """Initialize nested configs from dicts if needed."""
+        if isinstance(self.local, dict):
+            self.local = LLMLocalConfig(**self.local)
+        elif self.local is None:
+            self.local = LLMLocalConfig()
+            
+        if isinstance(self.ollama, dict):
+            self.ollama = LLMOllamaConfig(**self.ollama)
+        elif self.ollama is None:
+            self.ollama = LLMOllamaConfig()
 
     def validate(self) -> None:
         """Validate LLM configuration."""
+        if self.selection_mode not in {"auto", "interactive"}:
+            raise ValidationError(
+                f"Invalid selection_mode: {self.selection_mode}. Must be 'auto' or 'interactive'",
+                "INVALID_SELECTION_MODE",
+            )
+        
         if not self.provider:
             raise ValidationError("Provider cannot be empty", "EMPTY_PROVIDER")
 
@@ -445,6 +487,7 @@ class SystemConfig:
     retry_attempts: int = 3
     cache_enabled: bool = True
     cache_ttl: int = 3600
+    language: str = "pt-BR"
 
     def validate(self) -> None:
         """Validate system configuration."""

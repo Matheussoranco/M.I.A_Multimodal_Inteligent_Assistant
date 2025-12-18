@@ -46,7 +46,7 @@ except ImportError:
     HAS_PYTTSX3 = False
 
 try:
-    from piper.voice import PiperVoice
+    from piper import PiperVoice
 
     HAS_PIPER = True
 except ImportError:
@@ -434,11 +434,29 @@ class SpeechGenerator:
                     )
                     return
 
-            # Use local TTS
-            if HAS_PYTTSX3 and self.synthesiser:
-                self.synthesiser.say(text)
-                self.synthesiser.runAndWait()
-                logger.info("Local TTS playback completed")
+            # Use local TTS based on provider type
+            if self.tts_provider == "piper" and HAS_PIPER and self.synthesiser:
+                import io
+                wav_file = io.BytesIO()
+                self.synthesiser.synthesize(text, wav_file)  # type: ignore
+                wav_file.seek(0)
+                if SOUNDDEVICE_AVAILABLE and sounddevice:
+                    from scipy.io.wavfile import read
+                    wav_file.seek(0)
+                    sample_rate, audio_data = read(wav_file)
+                    sounddevice.play(audio_data, sample_rate)
+                    sounddevice.wait()
+                logger.info("Piper TTS playback completed")
+            elif self.tts_provider == "coqui" and HAS_COQUI and self.synthesiser:
+                wav = self.synthesiser.tts(text=text)  # type: ignore
+                if SOUNDDEVICE_AVAILABLE and sounddevice:
+                    sounddevice.play(wav, samplerate=22050)
+                    sounddevice.wait()
+                logger.info("Coqui TTS playback completed")
+            elif self.tts_provider == "pyttsx3" and HAS_PYTTSX3 and self.synthesiser:
+                self.synthesiser.say(text)  # type: ignore
+                self.synthesiser.runAndWait()  # type: ignore
+                logger.info("pyttsx3 TTS playback completed")
             else:
                 logger.warning("No TTS provider available")
 
@@ -554,7 +572,6 @@ class SpeechGenerator:
                 self.synthesiser.synthesize(text, wav_file)  # type: ignore
                 wav_file.seek(0)
                 if SOUNDDEVICE_AVAILABLE and sounddevice:
-                    import numpy as np
                     from scipy.io.wavfile import read
                     wav_file.seek(0)
                     sample_rate, audio_data = read(wav_file)
@@ -570,8 +587,8 @@ class SpeechGenerator:
                 return {"provider": "coqui", "text": text, "status": "played"}
             # Fallback to pyttsx3
             elif self.tts_provider == "pyttsx3" and HAS_PYTTSX3 and self.synthesiser:
-                self.synthesiser.say(text)
-                self.synthesiser.runAndWait()
+                self.synthesiser.say(text)  # type: ignore
+                self.synthesiser.runAndWait()  # type: ignore
                 return {"provider": "pyttsx3", "text": text, "status": "played"}
             else:
                 logger.error("Local TTS not available")
