@@ -196,7 +196,7 @@ source venv/bin/activate
 print_status "Starting M.I.A - Your Personal Virtual Assistant"
 print_status "Press Ctrl+C to stop"
 
-python -m main_modules.main "$@"
+python -m mia.main "$@"
 EOF
 
     chmod +x run.sh

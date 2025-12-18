@@ -164,7 +164,7 @@ main() {
     trap 'print_status "Shutting down M.I.A..."; exit 0' INT TERM
     
     # Run the application
-    python -m main_modules.main $ARGS
+    python -m mia.main $ARGS
 }
 
 # Check if script is being sourced or executed

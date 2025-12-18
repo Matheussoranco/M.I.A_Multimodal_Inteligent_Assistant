@@ -121,6 +121,111 @@ Quick steps:
 Note: for WhatsApp Web automation, ensure Chrome/Edge is installed and the WebDriver version matches the browser.
 
 
+## Installation (Linux)
+
+Prerequisites:
+
+- Linux (Ubuntu 20.04+, Debian 11+, Fedora 36+, Arch, or similar)
+- Python 3.8+ with pip and venv
+- Git
+- Audio libraries: PortAudio, ALSA, PulseAudio
+- FFmpeg (for audio processing)
+- Optional: NVIDIA GPU with CUDA (for accelerated inference)
+- Optional: Ollama (for local LLM)
+
+Quick steps:
+
+1) Install system dependencies:
+
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install python3 python3-pip python3-venv python3-dev \
+    portaudio19-dev alsa-utils pulseaudio ffmpeg git
+
+# Fedora
+sudo dnf install python3 python3-pip python3-devel portaudio-devel alsa-utils pulseaudio ffmpeg git
+
+# Arch Linux
+sudo pacman -S python python-pip python-virtualenv portaudio alsa-utils pulseaudio ffmpeg git
+```
+
+2) Clone the repository and set up:
+
+```bash
+git clone https://github.com/yourusername/M.I.A_Multimodal_Inteligent_Assistant.git
+cd M.I.A_Multimodal_Inteligent_Assistant
+chmod +x setup-permissions.sh && ./setup-permissions.sh
+```
+
+3) Install using Make (recommended) or manually:
+
+```bash
+# Using Make (recommended)
+make install
+
+# Or manually
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
+```
+
+4) Copy `config/.env.example` to `.env` and set credentials:
+
+```bash
+cp config/.env.example .env
+nano .env  # Edit with your API keys
+mkdir -p logs memory cache
+```
+
+5) Review `config/config.yaml` and select local backends (LLM/STT/TTS/Vision)
+
+Note: For audio features, ensure your user is in the `audio` group: `sudo usermod -aG audio $USER`
+
+### Running on Linux
+
+```bash
+# Using Make
+make run            # Default mode
+make run-text       # Text-only mode (no audio)
+make run-debug      # Debug mode
+make run-api        # Start API server
+make run-ui         # Start Streamlit UI
+
+# Using scripts
+./scripts/run/run.sh
+./scripts/run/run.sh --text-only
+./scripts/run/run.sh --debug
+
+# Direct Python
+source venv/bin/activate
+python -m mia.main
+```
+
+### Optional: Install Ollama (Local LLM)
+
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama pull mistral:instruct
+ollama serve  # Or: systemctl start ollama
+```
+
+### Optional: Run as Systemd Service
+
+```bash
+sudo cp scripts/linux/mia@.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mia@$USER
+```
+
+### Optional: Docker
+
+```bash
+docker-compose up -d
+```
+
+
 ## Configuration
 
 `.env` file (typical examples):
