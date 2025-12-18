@@ -57,3 +57,16 @@ wasmtime>=12.0.0
 # API server
 fastapi>=0.111.0
 uvicorn[standard]>=0.30.0
+
+# AGI Benchmarks
+swe-bench>=0.1.0
+gitpython>=3.1.30
+unidiff>=0.7.0
+docker>=7.0.0
+gymnasium>=0.29.0
+mss>=9.0.0
+
+# Advanced Reasoning
+networkx>=3.0
+sympy>=1.12
+z3-solver>=4.12.0

@@ -781,6 +781,139 @@ class ActionExecutor:
             device_type, device_action, **filtered_params
         )
 
+    # Missing method stubs for action dispatch
+    def open_file(self, path: str) -> str:
+        """Open a file with the default system application."""
+        try:
+            import os
+            import subprocess
+            import platform
+            
+            if platform.system() == "Windows":
+                os.startfile(path)
+            elif platform.system() == "Darwin":
+                subprocess.run(["open", path], check=True)
+            else:
+                subprocess.run(["xdg-open", path], check=True)
+            return f"Opened file: {path}"
+        except Exception as e:
+            return f"Error opening file: {e}"
+    
+    def web_search(self, query: str) -> str:
+        """Perform a web search."""
+        try:
+            import webbrowser
+            url = f"https://www.google.com/search?q={query}"
+            webbrowser.open(url)
+            return f"Opened web search for: {query}"
+        except Exception as e:
+            return f"Error performing web search: {e}"
+    
+    def web_scrape(self, url: str) -> str:
+        """Scrape content from a URL."""
+        try:
+            import urllib.request
+            with urllib.request.urlopen(url, timeout=10) as response:
+                return response.read().decode('utf-8')[:5000]
+        except Exception as e:
+            return f"Error scraping URL: {e}"
+    
+    def research_topic(self, topic: str) -> str:
+        """Research a topic using web search."""
+        return self.web_search(topic)
+    
+    def wikipedia_search(self, query: str) -> str:
+        """Search Wikipedia for information."""
+        try:
+            import wikipedia
+            return wikipedia.summary(query, sentences=3)
+        except Exception as e:
+            return f"Wikipedia search failed: {e}"
+    
+    def send_whatsapp(self, params: dict) -> str:
+        """Send a WhatsApp message."""
+        try:
+            import pywhatkit
+            phone = params.get("phone", "")
+            message = params.get("message", "")
+            pywhatkit.sendwhatmsg_instantly(phone, message)  # type: ignore
+            return f"WhatsApp message sent to {phone}"
+        except Exception as e:
+            return f"WhatsApp not available: {e}"
+    
+    def control_lights(self, params: dict) -> str:
+        """Control smart lights."""
+        return "Smart home control not configured"
+    
+    def control_temperature(self, params: dict) -> str:
+        """Control thermostat/temperature."""
+        return "Smart home control not configured"
+    
+    def desktop_open_app(self, params: dict) -> str:
+        """Open an application via desktop automation."""
+        app_name = params.get("app_name", params.get("app", ""))
+        return self.open_application(app_name) if app_name else "No app specified"
+    
+    def desktop_close_app(self, params: dict) -> str:
+        """Close an application via desktop automation."""
+        app_name = params.get("app_name", params.get("app", ""))
+        return self.close_app(app_name) if app_name else "No app specified"
+    
+    def desktop_type_text(self, params: dict) -> str:
+        """Type text via desktop automation."""
+        try:
+            desktop_automation = getattr(self, 'desktop_automation', None)
+            if desktop_automation:
+                text = params.get("text", "")
+                return desktop_automation.type_text(text)
+            return "Desktop automation not available"
+        except Exception as e:
+            return f"Error typing text: {e}"
+    
+    def desktop_click(self, params: dict) -> str:
+        """Click at coordinates via desktop automation."""
+        try:
+            desktop_automation = getattr(self, 'desktop_automation', None)
+            if desktop_automation:
+                x = params.get("x", 0)
+                y = params.get("y", 0)
+                return desktop_automation.click(x, y)
+            return "Desktop automation not available"
+        except Exception as e:
+            return f"Error clicking: {e}"
+    
+    def desktop_send_keys(self, params: dict) -> str:
+        """Send keyboard keys via desktop automation."""
+        try:
+            desktop_automation = getattr(self, 'desktop_automation', None)
+            if desktop_automation:
+                keys = params.get("keys", "")
+                return desktop_automation.send_keys(keys)
+            return "Desktop automation not available"
+        except Exception as e:
+            return f"Error sending keys: {e}"
+    
+    def desktop_get_text(self, params: dict) -> str:
+        """Get text from screen via desktop automation."""
+        try:
+            desktop_automation = getattr(self, 'desktop_automation', None)
+            if desktop_automation:
+                return desktop_automation.get_text()
+            return "Desktop automation not available"
+        except Exception as e:
+            return f"Error getting text: {e}"
+    
+    def desktop_execute_schema(self, params: dict) -> str:
+        """Execute a desktop automation schema."""
+        try:
+            desktop_automation = getattr(self, 'desktop_automation', None)
+            if desktop_automation:
+                schema = params.get("schema", {})
+                return desktop_automation.execute_schema(schema)
+            return "Desktop automation not available"
+        except Exception as e:
+            return f"Error executing schema: {e}"
+
     # Enhanced File Operations
     def create_file(self, path: str, content: str = "") -> str:
         """Create a new file with specified content."""
