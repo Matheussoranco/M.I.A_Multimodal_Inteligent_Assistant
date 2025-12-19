@@ -483,21 +483,41 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
         
         user_prompt = messages[-1]["content"] if messages else ""
         
+        # Check if LLM is available
+        if not self.llm:
+            yield f"data: {json.dumps({'error': 'No LLM available. Please make sure Ollama is running or an API key is configured.'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+        
         try:
-            if self.llm:
-                # Check if streaming is supported
-                supports_stream = hasattr(self.llm, "stream") and callable(getattr(self.llm, "stream"))
-                stream_enabled = getattr(self.llm, "stream_enabled", True)
-                can_stream = supports_stream and stream_enabled
-                
-                if can_stream and self.llm is not None:
-                    # Use synchronous generator in thread
-                    llm = self.llm  # Capture reference
-                    def sync_stream():
-                        return list(llm.stream(user_prompt, messages=messages))
-                    
+            # Check if streaming is supported
+            supports_stream = hasattr(self.llm, "stream") and callable(getattr(self.llm, "stream"))
+            stream_enabled = getattr(self.llm, "stream_enabled", True)
+            can_stream = supports_stream and stream_enabled
+            
+            if can_stream and self.llm is not None:
+                # Use synchronous generator in thread
+                llm = self.llm  # Capture reference
+                def sync_stream():
                     try:
-                        tokens = await asyncio.to_thread(sync_stream)
+                        return list(llm.stream(user_prompt, messages=messages))
+                    except Exception as e:
+                        logger.error(f"Stream error: {e}")
+                        return None
+                
+                try:
+                    tokens = await asyncio.to_thread(sync_stream)
+                    
+                    if tokens is None:
+                        # Fallback to non-streaming
+                        response = await asyncio.to_thread(self.llm.query, user_prompt, messages=messages)
+                        if response:
+                            for word in response.split():
+                                yield f"data: {json.dumps({'content': word + ' '})}\n\n"
+                                await asyncio.sleep(0.02)
+                        else:
+                            yield f"data: {json.dumps({'error': 'No response from LLM. Check if the model is loaded correctly.'})}\n\n"
+                    else:
                         full_response = ""
                         for token in tokens:
                             if token:
@@ -505,19 +525,28 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
                                 yield f"data: {json.dumps({'content': str(token)})}\n\n"
                                 await asyncio.sleep(0.01)
                         
-                        # Check for tool calls in response
-                        await self._process_tool_calls(full_response)
-                        
-                    except Exception as stream_error:
-                        logger.warning(f"Streaming failed, falling back: {stream_error}")
-                        # Fallback to non-streaming
+                        if not full_response:
+                            yield f"data: {json.dumps({'error': 'Empty response from model.'})}\n\n"
+                        else:
+                            # Check for tool calls in response
+                            await self._process_tool_calls(full_response)
+                    
+                except Exception as stream_error:
+                    logger.warning(f"Streaming failed, falling back: {stream_error}")
+                    # Fallback to non-streaming
+                    try:
                         response = await asyncio.to_thread(self.llm.query, user_prompt, messages=messages)
                         if response:
                             for word in response.split():
                                 yield f"data: {json.dumps({'content': word + ' '})}\n\n"
                                 await asyncio.sleep(0.02)
-                else:
-                    # Non-streaming query
+                        else:
+                            yield f"data: {json.dumps({'error': f'Query failed: {stream_error}'})}\n\n"
+                    except Exception as fallback_error:
+                        yield f"data: {json.dumps({'error': f'LLM query failed: {fallback_error}'})}\n\n"
+            else:
+                # Non-streaming query
+                try:
                     response = await asyncio.to_thread(
                         self.llm.query,
                         user_prompt,
@@ -532,8 +561,10 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
                         
                         # Check for tool calls
                         await self._process_tool_calls(response)
-            else:
-                yield f"data: {json.dumps({'content': 'LLM not available. Please configure a model.'})}\n\n"
+                    else:
+                        yield f"data: {json.dumps({'error': 'No response from model.'})}\n\n"
+                except Exception as query_error:
+                    yield f"data: {json.dumps({'error': f'Query error: {query_error}'})}\n\n"
                 
         except Exception as e:
             logger.error(f"Chat stream error: {e}")
@@ -1748,9 +1779,19 @@ def get_ollama_style_html() -> str:
                     })
                 });
 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${response.status} - ${errorText}`);
+                }
+
+                if (!response.body) {
+                    throw new Error('No response body received');
+                }
+
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let fullContent = '';
+                let hasReceivedContent = false;
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -1761,24 +1802,36 @@ def get_ollama_style_html() -> str:
 
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
-                            const data = line.slice(6);
-                            if (data === '[DONE]') break;
+                            const data = line.slice(6).trim();
+                            if (data === '[DONE]') {
+                                hasReceivedContent = true;
+                                break;
+                            }
                             
                             try {
                                 const parsed = JSON.parse(data);
                                 if (parsed.content) {
+                                    hasReceivedContent = true;
                                     fullContent += parsed.content;
                                     bodyElement.innerHTML = renderMarkdown(fullContent);
                                     scrollToBottom();
                                 }
                                 if (parsed.error) {
+                                    hasReceivedContent = true;
                                     bodyElement.innerHTML = `<span style="color: var(--error-color)">Error: ${parsed.error}</span>`;
+                                    console.error('Server error:', parsed.error);
                                 }
                             } catch (e) {
-                                // Continue on parse error
+                                console.log('Parse chunk:', data);
                             }
                         }
                     }
+                }
+
+                // If no content received, show error
+                if (!hasReceivedContent || fullContent === '') {
+                    bodyElement.innerHTML = '<span style="color: var(--warning-color)">No response received. Make sure a model is selected and the LLM provider is running (e.g., Ollama).</span>';
+                    return;
                 }
 
                 // Apply syntax highlighting to code blocks
