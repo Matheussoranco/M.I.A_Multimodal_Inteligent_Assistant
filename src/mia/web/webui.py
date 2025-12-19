@@ -12,7 +12,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, AsyncGenerator
+from typing import Any, Dict, List, Optional, AsyncGenerator, Union
 
 # Add src to path for imports
 current_dir = Path(__file__).parent.parent.parent
@@ -53,8 +53,16 @@ class ChatRequest(BaseModel):
     stream: bool = True
     temperature: float = 0.7
     max_tokens: int = 4096
-    tools: Optional[List[Dict[str, Any]]] = None
+    tools: Optional[Union[bool, List[Dict[str, Any]]]] = None
     tool_choice: Optional[str] = "auto"
+    
+    def get_tools_list(self) -> Optional[List[Dict[str, Any]]]:
+        """Convert tools parameter to actual tools list."""
+        if self.tools is True:
+            return AVAILABLE_TOOLS
+        elif isinstance(self.tools, list):
+            return self.tools
+        return None
 
 class ModelInfo(BaseModel):
     name: str
