@@ -37,40 +37,40 @@ def main():
     host = '127.0.0.1'
     
     print("""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                                                                              ║
-║     🧠  M.I.A - Multimodal Intelligent Assistant                            ║
-║         AGI-Focused Web Interface                                            ║
-║                                                                              ║
-║     Starting server...                                                       ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
++------------------------------------------------------------------------------+
+|                                                                              |
+|     M.I.A - Multimodal Intelligent Assistant                                 |
+|     AGI-Focused Web Interface                                                |
+|                                                                              |
+|     Starting server...                                                       |
+|                                                                              |
++------------------------------------------------------------------------------+
     """)
     
     try:
         # Import after path setup
-        from mia.web.webui import app, MIAAgent
+        from mia.web.webui import app, MIAAgent  # type: ignore[import-not-found]
         import uvicorn
         
         # Open browser in background thread
         browser_thread = threading.Thread(target=open_browser, args=(port,), daemon=True)
         browser_thread.start()
         
-        print(f"    🌐 Opening browser at http://{host}:{port}")
-        print(f"    📝 Press Ctrl+C to stop the server")
+        print(f"    [*] Opening browser at http://{host}:{port}")
+        print(f"    [i] Press Ctrl+C to stop the server")
         print()
         
         # Run server
         uvicorn.run(app, host=host, port=port, log_level="warning")
         
     except ImportError as e:
-        print(f"\n❌ Error: Missing dependencies - {e}")
+        print(f"\n[ERROR] Missing dependencies - {e}")
         print("\nPlease ensure all requirements are installed:")
         print("  pip install fastapi uvicorn")
         input("\nPress Enter to exit...")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n[ERROR] {e}")
         input("\nPress Enter to exit...")
         sys.exit(1)
 

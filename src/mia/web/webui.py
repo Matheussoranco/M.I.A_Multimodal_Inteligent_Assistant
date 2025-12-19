@@ -798,6 +798,24 @@ def get_ollama_style_html() -> str:
             color: var(--text-secondary);
         }
 
+        .tools-button {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .tools-button:hover {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
         .status-dot {
             width: 8px;
             height: 8px;
@@ -893,8 +911,20 @@ def get_ollama_style_html() -> str:
         }
 
         .capability-icon {
-            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             margin-bottom: 12px;
+            color: var(--accent-color);
+        }
+
+        .capability-card:hover .capability-icon {
+            background: var(--accent-color);
+            color: var(--bg-primary);
         }
 
         .capability-title {
@@ -1229,11 +1259,21 @@ def get_ollama_style_html() -> str:
         }
 
         .sidebar-close {
-            background: none;
-            border: none;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
             color: var(--text-secondary);
             cursor: pointer;
-            font-size: 24px;
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .sidebar-close:hover {
+            border-color: var(--error-color);
+            color: var(--error-color);
         }
 
         .tool-list {
@@ -1308,7 +1348,14 @@ def get_ollama_style_html() -> str:
     <!-- Header -->
     <header class="header">
         <div class="logo">
-            <div class="logo-icon">🧠</div>
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
+                    <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/>
+                    <path d="M18 14a6 6 0 0 0-12 0v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4z"/>
+                    <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                    <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                </svg>
+            </div>
             <div>
                 <div class="logo-text">M.I.A</div>
                 <div class="logo-subtitle">AGI Agent</div>
@@ -1322,7 +1369,11 @@ def get_ollama_style_html() -> str:
                 <div class="status-dot" id="statusDot"></div>
                 <span id="statusText">Ready</span>
             </div>
-            <button class="sidebar-close" id="toolsButton" title="View Tools">🔧</button>
+            <button class="tools-button" id="toolsButton" title="View Tools">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                </svg>
+            </button>
         </div>
     </header>
 
@@ -1331,7 +1382,14 @@ def get_ollama_style_html() -> str:
         <div class="chat-container" id="chatContainer">
             <!-- Welcome Screen -->
             <div class="welcome-screen" id="welcomeScreen">
-                <div class="welcome-icon">🧠</div>
+                <div class="welcome-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                        <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/>
+                        <path d="M18 14a6 6 0 0 0-12 0v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4z"/>
+                        <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                        <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                    </svg>
+                </div>
                 <h1 class="welcome-title">M.I.A</h1>
                 <p class="welcome-subtitle">
                     Multimodal Intelligent Assistant - An advanced AI agent with reasoning, 
@@ -1339,22 +1397,45 @@ def get_ollama_style_html() -> str:
                 </p>
                 <div class="capabilities-grid">
                     <div class="capability-card" onclick="insertPrompt('Search the web for the latest AI news')">
-                        <div class="capability-icon">🌐</div>
+                        <div class="capability-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                            </svg>
+                        </div>
                         <div class="capability-title">Web Search</div>
                         <div class="capability-desc">Find current information online</div>
                     </div>
                     <div class="capability-card" onclick="insertPrompt('Analyze this code and suggest improvements')">
-                        <div class="capability-icon">💻</div>
+                        <div class="capability-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                                <polyline points="16 18 22 12 16 6"/>
+                                <polyline points="8 6 2 12 8 18"/>
+                            </svg>
+                        </div>
                         <div class="capability-title">Code Analysis</div>
                         <div class="capability-desc">Review and improve code</div>
                     </div>
                     <div class="capability-card" onclick="insertPrompt('Create a Python script that...')">
-                        <div class="capability-icon">📁</div>
+                        <div class="capability-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                <polyline points="10 9 9 9 8 9"/>
+                            </svg>
+                        </div>
                         <div class="capability-title">File Operations</div>
                         <div class="capability-desc">Read, write, and manage files</div>
                     </div>
                     <div class="capability-card" onclick="insertPrompt('Help me reason through this problem step by step')">
-                        <div class="capability-icon">🧩</div>
+                        <div class="capability-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                            </svg>
+                        </div>
                         <div class="capability-title">Deep Reasoning</div>
                         <div class="capability-desc">Complex problem solving</div>
                     </div>
@@ -1392,8 +1473,18 @@ def get_ollama_style_html() -> str:
     <!-- Tools Sidebar -->
     <div class="sidebar" id="toolsSidebar">
         <div class="sidebar-header">
-            <h2 class="sidebar-title">🔧 Available Tools</h2>
-            <button class="sidebar-close" id="closeSidebar">×</button>
+            <h2 class="sidebar-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="vertical-align: middle; margin-right: 8px;">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                </svg>
+                Available Tools
+            </h2>
+            <button class="sidebar-close" id="closeSidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
         <div class="tool-list" id="toolList">
             <!-- Tools will be populated here -->
@@ -1605,7 +1696,9 @@ def get_ollama_style_html() -> str:
             messageDiv.className = `message ${role}`;
             messageDiv.id = id;
             
-            const avatar = role === 'user' ? '👤' : '🧠';
+            const avatar = role === 'user' 
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M18 14a6 6 0 0 0-12 0v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>';
             const roleName = role === 'user' ? 'You' : 'M.I.A';
             
             messageDiv.innerHTML = `
@@ -1721,15 +1814,15 @@ def get_ollama_style_html() -> str:
 def run_webui(host: str = "0.0.0.0", port: int = 8080):
     """Run the M.I.A Web UI server."""
     print(f"""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                                                                              ║
-║     🧠  M.I.A - Multimodal Intelligent Assistant                            ║
-║         AGI-Focused Web Interface                                            ║
-║                                                                              ║
-║     Server starting at: http://{host}:{port}                                   ║
-║     Open your browser to interact with M.I.A                                 ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
++------------------------------------------------------------------------------+
+|                                                                              |
+|     M.I.A - Multimodal Intelligent Assistant                                 |
+|     AGI-Focused Web Interface                                                |
+|                                                                              |
+|     Server starting at: http://{host}:{port}                                   |
+|     Open your browser to interact with M.I.A                                 |
+|                                                                              |
++------------------------------------------------------------------------------+
     """)
     uvicorn.run(app, host=host, port=port)
 

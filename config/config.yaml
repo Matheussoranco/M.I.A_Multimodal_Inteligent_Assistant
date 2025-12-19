@@ -75,6 +75,51 @@ audio:
   hotword_timeout: 20.0
 
 # ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Embedding Configuration                                                      │
+# └─────────────────────────────────────────────────────────────────────────────┘
+# Embedding models para semantic search, RAG, clustering, e fine-tuning.
+# Provedores: sentence-transformers (local), openai, ollama, cohere, voyageai
+
+embedding:
+  enabled: true
+  provider: auto                # auto | sentence-transformers | openai | ollama | cohere | voyageai
+  model_id: null                # auto-detectado (ex: all-MiniLM-L6-v2, text-embedding-3-small)
+  api_key: null                 # via variável de ambiente
+  url: null                     # para providers customizados
+  dimension: 768                # dimensão do embedding (auto-ajustado pelo modelo)
+  batch_size: 32                # tamanho do batch para processamento
+  normalize: true               # normalizar embeddings (cosine similarity)
+  cache_enabled: true           # cache de embeddings computados
+  device: auto                  # auto | cpu | cuda | mps
+  max_length: 512               # comprimento máximo do texto
+  pooling_strategy: mean        # mean | cls | max
+
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ OCR Configuration                                                            │
+# └─────────────────────────────────────────────────────────────────────────────┘
+# OCR para extração de texto de imagens com integração LLM.
+# Provedores locais: tesseract, easyocr, paddleocr, trocr
+# Provedores cloud: openai (GPT-4V), anthropic (Claude Vision), google, azure
+
+ocr:
+  enabled: true
+  provider: auto                # auto | tesseract | easyocr | paddleocr | trocr | openai | anthropic
+  languages:                    # idiomas para reconhecimento
+    - en
+    - pt
+  model_id: null                # modelo específico (ex: microsoft/trocr-base-printed)
+  api_key: null                 # via variável de ambiente para cloud providers
+  device: auto                  # auto | cpu | cuda
+  confidence_threshold: 0.5     # confiança mínima para texto reconhecido
+  preprocessing: true           # pré-processar imagem antes do OCR
+  deskew: true                  # corrigir inclinação da imagem
+  denoise: true                 # remover ruído
+  binarize: false               # converter para preto e branco
+  enhance_contrast: true        # melhorar contraste
+  detect_orientation: true      # detectar orientação do texto
+  llm_enhanced: true            # usar LLM para extração estruturada
+
+# ┌─────────────────────────────────────────────────────────────────────────────┐
 # │ Vision Configuration                                                         │
 # └─────────────────────────────────────────────────────────────────────────────┘
 vision:

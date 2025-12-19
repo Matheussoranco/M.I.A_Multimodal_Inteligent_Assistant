@@ -21,6 +21,9 @@ __all__ = [
     # Lazy accessors
     "get_main",
     "get_llm_manager",
+    "get_embedding_manager",
+    "get_ocr_processor",
+    "get_document_intelligence",
     "get_agent_memory",
     "get_error_handler",
 ]
@@ -39,6 +42,27 @@ def get_llm_manager():
     from .llm.llm_manager import LLMManager
 
     return LLMManager
+
+
+def get_embedding_manager():
+    """Return the EmbeddingManager class lazily."""
+    from .llm.embedding_manager import EmbeddingManager
+
+    return EmbeddingManager
+
+
+def get_ocr_processor():
+    """Return the OCRProcessor class lazily."""
+    from .multimodal.ocr_processor import OCRProcessor
+
+    return OCRProcessor
+
+
+def get_document_intelligence():
+    """Return the DocumentIntelligence class lazily."""
+    from .tools.document_intelligence import DocumentIntelligence
+
+    return DocumentIntelligence
 
 
 def get_agent_memory():
@@ -99,5 +123,21 @@ def __getattr__(name: str) -> Any:  # PEP 562 lazy attribute access
         from . import exceptions as _exc
 
         return _exc.MemoryError
+    
+    # Embedding and OCR classes
+    if name == "EmbeddingManager":
+        from .llm.embedding_manager import EmbeddingManager
+
+        return EmbeddingManager
+    
+    if name == "OCRProcessor":
+        from .multimodal.ocr_processor import OCRProcessor
+
+        return OCRProcessor
+    
+    if name == "DocumentIntelligence":
+        from .tools.document_intelligence import DocumentIntelligence
+
+        return DocumentIntelligence
 
     raise AttributeError(f"module 'mia' has no attribute {name!r}")

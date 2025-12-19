@@ -1,9 +1,11 @@
 ﻿import re
 import json
+import logging
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
+import numpy as np
 
 from ..audio.speech_processor import SpeechProcessor
 from ..tools.action_executor import ActionExecutor
@@ -15,6 +17,14 @@ from ..exceptions import (
     ValidationError,
     VisionProcessingError,
 )
+
+# Import embedding manager for real semantic embeddings
+try:
+    from ..llm.embedding_manager import EmbeddingManager
+    HAS_EMBEDDING_MANAGER = True
+except ImportError:
+    EmbeddingManager = None
+    HAS_EMBEDDING_MANAGER = False
 
 # Suppress transformers warnings
 with warnings.catch_warnings():
@@ -47,6 +57,10 @@ class MIACognitiveCore:
         self.vision_model: Optional[Any] = None
         self.speech_processor: Optional[SpeechProcessor] = None
         self.action_executor = ActionExecutor()
+        
+        # Initialize real embedding manager for semantic embeddings
+        self.embedding_manager: Optional[Any] = None
+        self._init_embedding_manager()
 
         # Initialize vision components with proper error handling
         self._init_vision_components()
@@ -57,6 +71,33 @@ class MIACognitiveCore:
         # Initialize memory systems
         self.long_term_memory = {}
         self.knowledge_graph = {}
+    
+    def _init_embedding_manager(self) -> None:
+        """Initialize the embedding manager for real semantic embeddings."""
+        if not HAS_EMBEDDING_MANAGER:
+            logger.warning(
+                "EmbeddingManager not available - using fallback embeddings"
+            )
+            return
+        
+        try:
+            # Initialize with auto-detection disabled to avoid interactive prompts
+            if EmbeddingManager is not None:
+                self.embedding_manager = EmbeddingManager(
+                    provider="sentence-transformers",
+                    model_id="all-MiniLM-L6-v2",
+                    auto_detect=False,
+                    device=self.device,
+                    normalize=True,
+                    cache_enabled=True,
+                )
+                logger.info(
+                    f"Embedding manager initialized: {self.embedding_manager.provider} "
+                    f"({self.embedding_manager.model_id}), dimension={self.embedding_manager.dimension}"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to initialize embedding manager: {e}")
+            self.embedding_manager = None
 
     def _init_vision_components(self) -> None:
         if not HAS_CLIP:
@@ -259,44 +300,149 @@ class MIACognitiveCore:
             logger.error(f"Reasoning pipeline error: {e}")
             return {"text": "Error in reasoning pipeline"}
 
-    def generate_embeddings(self, text: Optional[str]) -> List[float]:
+    def generate_embeddings(self, text: Optional[str]) -> Union[List[float], np.ndarray]:
+        """Generate semantic embeddings for text using the embedding manager.
+        
+        This method uses state-of-the-art sentence transformers or other
+        embedding providers to generate meaningful semantic vectors.
+        
+        Args:
+            text: The text to embed
+            
+        Returns:
+            List of floats or numpy array representing the embedding
+        """
+        if not text or not text.strip():
+            return []
+        
         try:
-            import hashlib
-
-            if not text or not text.strip():
-                return []
-
-            embeddings = []
-            for i in range(10):  # 10-dimensional embedding
-                hash_obj = hashlib.md5(f"{text}_{i}".encode())
-                hash_int = int(hash_obj.hexdigest(), 16)
-                # Normalize to [-1, 1]
-                normalized = (hash_int % 2000 - 1000) / 1000.0
-                embeddings.append(normalized)
-
-            # Add some text-based features
-            word_count = len(text.split())
-            char_count = len(text)
-            embeddings.extend(
-                [
-                    min(word_count / 100.0, 1.0),  # Normalized word count
-                    min(char_count / 1000.0, 1.0),  # Normalized char count
-                    1.0 if "?" in text else 0.0,  # Question indicator
-                    1.0 if "!" in text else 0.0,  # Exclamation indicator
-                ]
-            )
-
-            return embeddings
+            # Use real embedding manager if available
+            if self.embedding_manager is not None and self.embedding_manager.is_available:
+                embeddings = self.embedding_manager.embed(text)
+                if len(embeddings) > 0:
+                    return embeddings[0].tolist() if hasattr(embeddings[0], 'tolist') else list(embeddings[0])
+            
+            # Fallback to hash-based pseudo-embeddings only if embedding manager unavailable
+            logger.warning("Using fallback hash-based embeddings - semantic search will be degraded")
+            return self._generate_fallback_embedding(text)
 
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
-            return []
+            return self._generate_fallback_embedding(text)
+    
+    def _generate_fallback_embedding(self, text: str) -> List[float]:
+        """Generate fallback hash-based embeddings when real embeddings unavailable.
+        
+        WARNING: These are NOT semantic embeddings and should only be used
+        as a last resort when proper embedding models are unavailable.
+        """
+        import hashlib
+        
+        embeddings = []
+        for i in range(384):  # Match common embedding dimension
+            hash_obj = hashlib.sha256(f"{text}_{i}".encode())
+            hash_int = int(hash_obj.hexdigest()[:8], 16)
+            # Normalize to [-1, 1]
+            normalized = (hash_int % 2000 - 1000) / 1000.0
+            embeddings.append(normalized)
 
-    def _generate_embedding(self, text: Optional[str]) -> list:
+        # Add some text-based features
+        word_count = len(text.split())
+        char_count = len(text)
+        
+        # Normalize features
+        embeddings[0] = min(word_count / 100.0, 1.0)
+        embeddings[1] = min(char_count / 1000.0, 1.0)
+        embeddings[2] = 1.0 if "?" in text else 0.0
+        embeddings[3] = 1.0 if "!" in text else 0.0
+        
+        return embeddings
+    
+    def compute_similarity(self, text1: str, text2: str) -> float:
+        """Compute semantic similarity between two texts.
+        
+        Args:
+            text1: First text
+            text2: Second text
+            
+        Returns:
+            Similarity score between 0 and 1
+        """
+        if self.embedding_manager is not None and self.embedding_manager.is_available:
+            return self.embedding_manager.similarity(text1, text2)
+        
+        # Fallback: basic similarity
+        emb1 = np.array(self.generate_embeddings(text1))
+        emb2 = np.array(self.generate_embeddings(text2))
+        
+        if len(emb1) == 0 or len(emb2) == 0:
+            return 0.0
+        
+        dot_product = np.dot(emb1, emb2)
+        norm1 = np.linalg.norm(emb1)
+        norm2 = np.linalg.norm(emb2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return float(dot_product / (norm1 * norm2))
+    
+    def find_similar_memories(
+        self,
+        query: str,
+        candidates: List[Dict[str, Any]],
+        top_k: int = 5,
+        threshold: float = 0.5,
+    ) -> List[Dict[str, Any]]:
+        """Find memories most similar to a query.
+        
+        Args:
+            query: Query text
+            candidates: List of memory entries with 'text' or 'fact' fields
+            top_k: Number of results to return
+            threshold: Minimum similarity threshold
+            
+        Returns:
+            List of similar memories with similarity scores
+        """
+        if not candidates:
+            return []
+        
+        # Extract texts from candidates
+        texts = []
+        for c in candidates:
+            text = c.get('text') or c.get('fact') or str(c)
+            texts.append(text)
+        
+        if self.embedding_manager is not None and self.embedding_manager.is_available:
+            results = self.embedding_manager.find_most_similar(query, texts, top_k, threshold)
+            return [
+                {**candidates[idx], "similarity": score}
+                for idx, _, score in results
+            ]
+        
+        # Fallback
+        query_emb = np.array(self.generate_embeddings(query))
+        results = []
+        
+        for i, text in enumerate(texts):
+            emb = np.array(self.generate_embeddings(text))
+            if len(emb) > 0 and len(query_emb) > 0:
+                similarity = float(np.dot(query_emb, emb) / (np.linalg.norm(query_emb) * np.linalg.norm(emb) + 1e-9))
+                if similarity >= threshold:
+                    results.append({**candidates[i], "similarity": similarity})
+        
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        return results[:top_k]
+
+    def _generate_embedding(self, text: Optional[str]) -> List[float]:
         """Alias for generate_embeddings for backward compatibility."""
         if text is None:
             return []
-        return self.generate_embeddings(text)
+        result = self.generate_embeddings(text)
+        if isinstance(result, np.ndarray):
+            return result.tolist()
+        return result
 
     def _update_working_memory(self, item: Any) -> None:
         self.working_memory.append(item)

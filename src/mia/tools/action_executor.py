@@ -99,6 +99,12 @@ class ActionExecutor:
         "desktop_send_keys": {"desktop"},
         "desktop_get_text": {"desktop"},
         "desktop_execute_schema": {"desktop"},
+        # OCR and Document Intelligence
+        "ocr_extract_text": {"files.read"},
+        "ocr_analyze_document": {"files.read"},
+        "ocr_extract_structured": {"files.read"},
+        "embed_text": {"files.read"},
+        "embed_similarity": {"files.read"},
     }
 
     def __init__(
@@ -754,6 +760,13 @@ class ActionExecutor:
                 "desktop_send_keys": lambda: self.desktop_send_keys(params),
                 "desktop_get_text": lambda: self.desktop_get_text(params),
                 "desktop_execute_schema": lambda: self.desktop_execute_schema(params),
+                # OCR and Document Intelligence
+                "ocr_extract_text": lambda: self.ocr_extract_text(params),
+                "ocr_analyze_document": lambda: self.ocr_analyze_document(params),
+                "ocr_extract_structured": lambda: self.ocr_extract_structured(params),
+                # Embeddings
+                "embed_text": lambda: self.embed_text(params),
+                "embed_similarity": lambda: self.embed_similarity(params),
             }
 
             # Execute the action if it exists
@@ -2307,6 +2320,31 @@ body {{
                 "name": "search_memory",
                 "description": "Search long-term memory.",
                 "parameters": {"query": "The search query"}
+            },
+            {
+                "name": "ocr_extract_text",
+                "description": "Extract text from an image using OCR.",
+                "parameters": {"image_path": "Path to the image file", "language": "Language code (en, pt, etc.)", "preprocess": "Whether to preprocess image", "return_boxes": "Whether to return bounding boxes"}
+            },
+            {
+                "name": "ocr_analyze_document",
+                "description": "Analyze a document image and extract insights using OCR + LLM.",
+                "parameters": {"image_path": "Path to the image", "custom_prompt": "Custom extraction instructions", "document_type": "Type of document (invoice, receipt, form, etc.)"}
+            },
+            {
+                "name": "ocr_extract_structured",
+                "description": "Extract structured data from a document (invoice, receipt, form, etc.).",
+                "parameters": {"image_path": "Path to the image", "document_type": "Type of document (invoice, receipt, form, etc.)", "schema": "Optional JSON schema for structured extraction"}
+            },
+            {
+                "name": "embed_text",
+                "description": "Generate embeddings for text using sentence-transformers or other providers.",
+                "parameters": {"text": "Text to embed (string or list)", "batch_size": "Batch size for processing", "show_progress": "Whether to show progress bar"}
+            },
+            {
+                "name": "embed_similarity",
+                "description": "Calculate cosine similarity between two texts using embeddings.",
+                "parameters": {"text1": "First text", "text2": "Second text"}
             }
         ]
         
@@ -2316,3 +2354,405 @@ body {{
             description += f"  Parameters: {json.dumps(tool['parameters'])}\n"
         
         return description
+
+    # ========== OCR Methods ==========
+    
+    def _get_ocr_processor(self) -> Optional[Any]:
+        """Get or initialize OCR processor."""
+        if not hasattr(self, "_ocr_processor_instance"):
+            self._ocr_processor_instance: Optional[Any] = None
+        
+        if self._ocr_processor_instance is False:
+            return None
+        if self._ocr_processor_instance is not None:
+            return self._ocr_processor_instance
+        
+        try:
+            from ..multimodal.ocr_processor import OCRProcessor, OCRConfig
+            
+            # Get OCR config from config manager if available
+            ocr_config = None
+            if self._config_manager and hasattr(self._config_manager, "config"):
+                cfg = self._config_manager.config
+                if hasattr(cfg, "ocr") and cfg.ocr:
+                    ocr_config = OCRConfig(
+                        provider=getattr(cfg.ocr, "provider", "tesseract"),
+                        languages=getattr(cfg.ocr, "languages", ["en"]),
+                        model_id=getattr(cfg.ocr, "model_id", None),
+                        device=getattr(cfg.ocr, "device", "cpu"),
+                        confidence_threshold=getattr(cfg.ocr, "confidence_threshold", 0.5),
+                        preprocessing=getattr(cfg.ocr, "preprocessing", True),
+                        deskew=getattr(cfg.ocr, "deskew", True),
+                        denoise=getattr(cfg.ocr, "denoise", True),
+                        binarize=getattr(cfg.ocr, "binarize", False),
+                        enhance_contrast=getattr(cfg.ocr, "enhance_contrast", True),
+                        detect_orientation=getattr(cfg.ocr, "detect_orientation", True),
+                    )
+            
+            self._ocr_processor_instance = OCRProcessor(
+                config=ocr_config,
+                logger=self.logger,
+            )
+        except ImportError as e:
+            self.logger.warning("OCR dependencies not installed: %s", e)
+            self._ocr_processor_instance = None
+        except Exception as exc:
+            self.logger.warning("Failed to instantiate OCR processor: %s", exc)
+            self._ocr_processor_instance = None
+        
+        return self._ocr_processor_instance
+
+    def _get_document_intelligence(self) -> Optional[Any]:
+        """Get or initialize Document Intelligence processor."""
+        if not hasattr(self, "_document_intelligence_instance"):
+            self._document_intelligence_instance: Optional[Any] = None
+        
+        if self._document_intelligence_instance is False:
+            return None
+        if self._document_intelligence_instance is not None:
+            return self._document_intelligence_instance
+        
+        try:
+            from .document_intelligence import DocumentIntelligence
+            
+            # Get LLM manager if available
+            llm_manager = None
+            try:
+                from ..llm import LLMManager
+                llm_manager = LLMManager()
+            except Exception:
+                self.logger.debug("LLM manager not available for document intelligence")
+            
+            self._document_intelligence_instance = DocumentIntelligence(
+                ocr_processor=self._get_ocr_processor(),
+                llm_manager=llm_manager,
+                logger=self.logger,
+            )
+        except ImportError as e:
+            self.logger.warning("Document Intelligence dependencies not installed: %s", e)
+            self._document_intelligence_instance = None
+        except Exception as exc:
+            self.logger.warning("Failed to instantiate Document Intelligence: %s", exc)
+            self._document_intelligence_instance = None
+        
+        return self._document_intelligence_instance
+
+    def ocr_extract_text(self, params: Dict[str, Any]) -> str:
+        """Extract text from an image using OCR.
+        
+        Args:
+            params: Dictionary containing:
+                - image_path: Path to the image file
+                - provider: Optional OCR provider (tesseract, easyocr, paddleocr, etc.)
+                - languages: Optional list of language codes
+                - preprocess: Optional bool to enable preprocessing
+        
+        Returns:
+            Extracted text or error message
+        """
+        image_path = params.get("image_path") or params.get("path")
+        if not image_path:
+            return "Error: image_path is required"
+        
+        if not os.path.exists(image_path):
+            return f"Error: Image file not found: {image_path}"
+        
+        ocr = self._get_ocr_processor()
+        if not ocr:
+            return "Error: OCR processor not available. Install OCR dependencies: pip install pytesseract easyocr"
+        
+        try:
+            preprocess = params.get("preprocess", True)
+            language = params.get("language")
+            return_boxes = params.get("return_boxes", False)
+            
+            result = ocr.extract_text(
+                image_path,
+                preprocess=preprocess,
+                language=language,
+                return_boxes=return_boxes,
+            )
+            
+            if hasattr(result, "text"):
+                # OCRResult object
+                return json.dumps({
+                    "text": result.text,
+                    "boxes": result.boxes if hasattr(result, "boxes") and return_boxes else None,
+                    "confidence": result.confidence if hasattr(result, "confidence") else None,
+                }, indent=2, ensure_ascii=False)
+            return str(result)
+            
+        except Exception as e:
+            self.logger.error("OCR extraction failed: %s", e)
+            return f"Error extracting text: {e}"
+
+    def ocr_analyze_document(self, params: Dict[str, Any]) -> str:
+        """Analyze a document using OCR + LLM integration.
+        
+        Args:
+            params: Dictionary containing:
+                - image_path: Path to the image file
+                - query: Optional query/instruction for analysis
+                - document_type: Optional document type hint
+        
+        Returns:
+            Analysis result as JSON string
+        """
+        image_path = params.get("image_path") or params.get("path")
+        if not image_path:
+            return "Error: image_path is required"
+        
+        if not os.path.exists(image_path):
+            return f"Error: Image file not found: {image_path}"
+        
+        doc_intel = self._get_document_intelligence()
+        if not doc_intel:
+            # Fall back to basic OCR
+            ocr = self._get_ocr_processor()
+            if not ocr:
+                return "Error: Document Intelligence and OCR not available"
+            
+            try:
+                result = ocr.extract_text(image_path)
+                return json.dumps({
+                    "text": result.text if hasattr(result, 'text') else str(result),
+                    "note": "Basic OCR used (LLM integration not available)"
+                }, indent=2, ensure_ascii=False)
+            except Exception as e:
+                return f"Error: {e}"
+        
+        try:
+            custom_prompt = params.get("query") or params.get("custom_prompt")
+            document_type = params.get("document_type")
+            
+            result = doc_intel.analyze_image(
+                image_path,
+                document_type=document_type,
+                custom_prompt=custom_prompt,
+            )
+            
+            if hasattr(result, "to_dict"):
+                return json.dumps(result.to_dict(), indent=2, ensure_ascii=False)
+            elif isinstance(result, dict):
+                return json.dumps(result, indent=2, ensure_ascii=False)
+            return str(result)
+            
+        except Exception as e:
+            self.logger.error("Document analysis failed: %s", e)
+            return f"Error analyzing document: {e}"
+
+    def ocr_extract_structured(self, params: Dict[str, Any]) -> str:
+        """Extract structured data from a document.
+        
+        Args:
+            params: Dictionary containing:
+                - image_path: Path to the image file
+                - document_type: Type of document (invoice, receipt, form, contract, etc.)
+                - schema: Optional JSON schema for structured extraction
+        
+        Returns:
+            Structured data as JSON string
+        """
+        image_path = params.get("image_path") or params.get("path")
+        if not image_path:
+            return "Error: image_path is required"
+        
+        if not os.path.exists(image_path):
+            return f"Error: Image file not found: {image_path}"
+        
+        document_type = params.get("document_type", "general")
+        schema = params.get("schema")
+        
+        doc_intel = self._get_document_intelligence()
+        if doc_intel:
+            try:
+                result = doc_intel.analyze_image(
+                    image_path,
+                    document_type=document_type,
+                    extract_entities=True,
+                    extract_tables=True,
+                    summarize=True,
+                    schema=schema,
+                )
+                
+                if hasattr(result, "to_dict"):
+                    return json.dumps(result.to_dict(), indent=2, ensure_ascii=False)
+                elif isinstance(result, dict):
+                    return json.dumps(result, indent=2, ensure_ascii=False)
+                return str(result)
+                
+            except Exception as e:
+                self.logger.error("Structured extraction via Document Intelligence failed: %s", e)
+        
+        # Fall back to basic OCR text extraction
+        ocr = self._get_ocr_processor()
+        if not ocr:
+            return "Error: OCR processor not available"
+        
+        try:
+            result = ocr.extract_text(image_path, return_boxes=True)
+            
+            output = {
+                "text": result.text if hasattr(result, "text") else str(result),
+                "document_type": document_type,
+                "note": "Basic OCR used (Document Intelligence not available)",
+            }
+            if hasattr(result, "boxes"):
+                output["boxes"] = result.boxes
+            if hasattr(result, "confidence"):
+                output["confidence"] = result.confidence
+            
+            return json.dumps(output, indent=2, ensure_ascii=False)
+            
+        except Exception as e:
+            self.logger.error("OCR extraction failed: %s", e)
+            return f"Error extracting text: {e}"
+
+    # ========== Embedding Methods ==========
+    
+    def _get_embedding_manager(self) -> Optional[Any]:
+        """Get or initialize embedding manager."""
+        if not hasattr(self, "_embedding_manager_instance"):
+            self._embedding_manager_instance: Optional[Any] = None
+        
+        if self._embedding_manager_instance is False:
+            return None
+        if self._embedding_manager_instance is not None:
+            return self._embedding_manager_instance
+        
+        try:
+            from ..llm.embedding_manager import EmbeddingManager, EmbeddingConfig
+            
+            # Get embedding config from config manager if available
+            embed_config = None
+            if self._config_manager and hasattr(self._config_manager, "config"):
+                cfg = self._config_manager.config
+                if hasattr(cfg, "embedding") and cfg.embedding:
+                    dim = getattr(cfg.embedding, "dimension", None)
+                    embed_config = EmbeddingConfig(
+                        provider=getattr(cfg.embedding, "provider", "sentence-transformers"),
+                        model_id=getattr(cfg.embedding, "model_id", "all-MiniLM-L6-v2"),
+                        api_key=getattr(cfg.embedding, "api_key", None),
+                        dimension=dim if dim is not None else 384,  # Default dimension
+                        batch_size=getattr(cfg.embedding, "batch_size", 32),
+                        normalize=getattr(cfg.embedding, "normalize", True),
+                        cache_enabled=getattr(cfg.embedding, "cache_enabled", True),
+                        device=getattr(cfg.embedding, "device", "cpu"),
+                        max_length=getattr(cfg.embedding, "max_length", 512),
+                        pooling_strategy=getattr(cfg.embedding, "pooling_strategy", "mean"),
+                    )
+            
+            self._embedding_manager_instance = EmbeddingManager(
+                config=embed_config,
+                logger=self.logger,
+            )
+        except ImportError as e:
+            self.logger.warning("Embedding dependencies not installed: %s", e)
+            self._embedding_manager_instance = None
+        except Exception as exc:
+            self.logger.warning("Failed to instantiate embedding manager: %s", exc)
+            self._embedding_manager_instance = None
+        
+        return self._embedding_manager_instance
+
+    def embed_text(self, params: Dict[str, Any]) -> str:
+        """Generate embeddings for text.
+        
+        Args:
+            params: Dictionary containing:
+                - text: Text to embed (string or list of strings)
+                - batch_size: Optional batch size for processing (default: 32)
+                - show_progress: Optional bool to show progress bar
+        
+        Returns:
+            Embedding results as JSON string
+        """
+        text = params.get("text")
+        if not text:
+            return "Error: text is required"
+        
+        embedder = self._get_embedding_manager()
+        if not embedder:
+            return "Error: Embedding manager not available. Install: pip install sentence-transformers"
+        
+        try:
+            batch_size = params.get("batch_size", 32)
+            show_progress = params.get("show_progress", False)
+            
+            embeddings = embedder.embed(
+                text,
+                batch_size=batch_size,
+                show_progress=show_progress,
+            )
+            
+            # Convert numpy arrays to lists for JSON serialization
+            import numpy as np
+            if isinstance(embeddings, np.ndarray):
+                embeddings_list = embeddings.tolist()
+            elif isinstance(embeddings, list) and len(embeddings) > 0:
+                if isinstance(embeddings[0], np.ndarray):
+                    embeddings_list = [e.tolist() for e in embeddings]
+                else:
+                    embeddings_list = embeddings
+            else:
+                embeddings_list = embeddings
+            
+            # Calculate dimension from first embedding
+            if isinstance(embeddings_list, list) and embeddings_list:
+                first_emb = embeddings_list[0]
+                dim = len(first_emb) if isinstance(first_emb, list) else len(embeddings_list)
+            else:
+                dim = 0
+            
+            result = {
+                "embeddings": embeddings_list,
+                "dimension": dim,
+                "count": len(embeddings_list) if isinstance(embeddings_list, list) else 1,
+            }
+            
+            return json.dumps(result, indent=2)
+            
+        except Exception as e:
+            self.logger.error("Embedding generation failed: %s", e)
+            return f"Error generating embeddings: {e}"
+
+    def embed_similarity(self, params: Dict[str, Any]) -> str:
+        """Calculate similarity between two texts using embeddings.
+        
+        Args:
+            params: Dictionary containing:
+                - text1: First text
+                - text2: Second text
+        
+        Returns:
+            Similarity score as JSON string
+        """
+        text1 = params.get("text1")
+        text2 = params.get("text2")
+        
+        if not text1 or not text2:
+            return "Error: text1 and text2 are required"
+        
+        embedder = self._get_embedding_manager()
+        if not embedder:
+            return "Error: Embedding manager not available. Install: pip install sentence-transformers"
+        
+        try:
+            similarity = embedder.similarity(text1, text2)
+            
+            # Convert numpy scalar to float if needed
+            if hasattr(similarity, "item"):
+                similarity = similarity.item()
+            
+            result = {
+                "text1": text1[:100] + "..." if len(text1) > 100 else text1,
+                "text2": text2[:100] + "..." if len(text2) > 100 else text2,
+                "similarity": float(similarity),
+                "similarity_percent": f"{float(similarity) * 100:.2f}%",
+            }
+            
+            return json.dumps(result, indent=2)
+            
+        except Exception as e:
+            self.logger.error("Similarity calculation failed: %s", e)
+            return f"Error calculating similarity: {e}"

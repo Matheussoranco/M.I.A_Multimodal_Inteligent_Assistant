@@ -54,11 +54,11 @@ except ImportError:
     HAS_PIPER = False
 
 try:
-    from TTS.api import TTS
+    from TTS.api import TTS  # type: ignore[import-unresolved]
 
     HAS_COQUI = True
 except ImportError:
-    TTS = None
+    TTS = None  # type: ignore[misc, assignment]
     HAS_COQUI = False
 
 try:

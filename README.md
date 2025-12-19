@@ -46,11 +46,41 @@ python -m mia --web --port 8080
 ```
 
 Then open http://localhost:8080 in your browser. You'll get:
-- 🧠 Clean, minimal chat interface (just like Ollama)
-- 🔧 Function calling with 12+ built-in tools
-- 🤖 Automatic model detection (Ollama, OpenAI, local models)
-- ⚡ Real-time streaming responses
-- 🎯 AGI-focused agent capabilities
+- Clean, minimal chat interface (just like Ollama)
+- Function calling with 12+ built-in tools
+- Automatic model detection (Ollama, OpenAI, local models)
+- Real-time streaming responses
+- AGI-focused agent capabilities
+
+
+## 🖥️ Desktop Application (No Browser Required)
+
+Run M.I.A as a **standalone desktop application** with a native window:
+
+```bash
+# Install pywebview (if not already installed)
+pip install pywebview
+
+# Run the desktop app
+python mia_desktop.py
+```
+
+This opens M.I.A in its own native window - no browser needed!
+
+### Build Standalone Executable
+
+Create a portable `.exe` file that runs anywhere:
+
+```bash
+# Windows - run the build script
+build_desktop.bat
+
+# Or manually with PyInstaller
+pip install pyinstaller
+pyinstaller mia_desktop.spec
+```
+
+The executable will be at `dist/MIA-Desktop.exe`.
 
 
 ## Architecture

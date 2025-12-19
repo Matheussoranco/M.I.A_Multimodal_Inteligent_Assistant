@@ -276,6 +276,114 @@ class AudioConfig:
             )
 
 
+SUPPORTED_EMBEDDING_PROVIDERS = {
+    "openai",
+    "sentence-transformers",
+    "huggingface",
+    "local",
+    "ollama",
+    "cohere",
+    "voyageai",
+    "auto",
+}
+
+SUPPORTED_OCR_PROVIDERS = {
+    "tesseract",
+    "easyocr",
+    "paddleocr",
+    "trocr",
+    "openai",
+    "anthropic",
+    "google",
+    "azure",
+    "auto",
+}
+
+
+@dataclass
+class EmbeddingConfig:
+    """Configuration for embedding models."""
+    
+    enabled: bool = True
+    provider: str = "auto"
+    model_id: Optional[str] = None
+    api_key: Optional[str] = None
+    url: Optional[str] = None
+    dimension: int = 768
+    batch_size: int = 32
+    normalize: bool = True
+    cache_enabled: bool = True
+    device: str = "auto"
+    max_length: int = 512
+    pooling_strategy: str = "mean"
+
+    def validate(self) -> None:
+        """Validate embedding configuration."""
+        if self.provider not in SUPPORTED_EMBEDDING_PROVIDERS:
+            raise ValidationError(
+                f"Unsupported embedding provider: {self.provider}",
+                "UNSUPPORTED_EMBEDDING_PROVIDER",
+            )
+        
+        if self.dimension <= 0:
+            raise ValidationError(
+                "Embedding dimension must be positive",
+                "INVALID_EMBEDDING_DIMENSION",
+            )
+        
+        if self.batch_size <= 0:
+            raise ValidationError(
+                "Batch size must be positive",
+                "INVALID_BATCH_SIZE",
+            )
+        
+        if self.device not in ["auto", "cpu", "cuda", "mps"]:
+            raise ValidationError(
+                f"Unsupported embedding device: {self.device}",
+                "UNSUPPORTED_DEVICE",
+            )
+
+
+@dataclass
+class OCRConfig:
+    """Configuration for OCR processing."""
+    
+    enabled: bool = True
+    provider: str = "auto"
+    languages: List[str] = field(default_factory=lambda: ["en"])
+    model_id: Optional[str] = None
+    api_key: Optional[str] = None
+    device: str = "auto"
+    confidence_threshold: float = 0.5
+    preprocessing: bool = True
+    deskew: bool = True
+    denoise: bool = True
+    binarize: bool = False
+    enhance_contrast: bool = True
+    detect_orientation: bool = True
+    llm_enhanced: bool = True  # Use LLM for structured extraction
+
+    def validate(self) -> None:
+        """Validate OCR configuration."""
+        if self.provider not in SUPPORTED_OCR_PROVIDERS:
+            raise ValidationError(
+                f"Unsupported OCR provider: {self.provider}",
+                "UNSUPPORTED_OCR_PROVIDER",
+            )
+        
+        if not 0.0 <= self.confidence_threshold <= 1.0:
+            raise ValidationError(
+                "Confidence threshold must be between 0.0 and 1.0",
+                "INVALID_CONFIDENCE_THRESHOLD",
+            )
+        
+        if self.device not in ["auto", "cpu", "cuda", "mps"]:
+            raise ValidationError(
+                f"Unsupported OCR device: {self.device}",
+                "UNSUPPORTED_DEVICE",
+            )
+
+
 @dataclass
 class VisionConfig:
     """Configuration for vision processing."""
@@ -520,6 +628,8 @@ class MIAConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     llm_profiles: Dict[str, LLMProfileConfig] = field(default_factory=dict)
     default_llm_profile: Optional[str] = None
+    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
+    ocr: OCRConfig = field(default_factory=OCRConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     vision: VisionConfig = field(default_factory=VisionConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
@@ -542,6 +652,8 @@ class MIAConfig:
                 f"Default LLM profile '{self.default_llm_profile}' not found",
                 "DEFAULT_LLM_PROFILE_UNKNOWN",
             )
+        self.embedding.validate()
+        self.ocr.validate()
         self.audio.validate()
         self.vision.validate()
         self.memory.validate()
@@ -707,6 +819,8 @@ class ConfigManager:
                 llm=LLMConfig(**config_data.get("llm", {})),
                 llm_profiles=profiles,
                 default_llm_profile=config_data.get("default_llm_profile"),
+                embedding=EmbeddingConfig(**config_data.get("embedding", {})),
+                ocr=OCRConfig(**config_data.get("ocr", {})),
                 audio=AudioConfig(**config_data.get("audio", {})),
                 vision=VisionConfig(**config_data.get("vision", {})),
                 memory=MemoryConfig(**config_data.get("memory", {})),
@@ -794,6 +908,25 @@ class ConfigManager:
             "TELEGRAM_PARSE_MODE": ("telegram", "parse_mode"),
             "MIA_TELEGRAM_REQUEST_TIMEOUT": ("telegram", "request_timeout"),
             "TELEGRAM_REQUEST_TIMEOUT": ("telegram", "request_timeout"),
+            # Embedding configuration
+            "MIA_EMBEDDING_ENABLED": ("embedding", "enabled"),
+            "MIA_EMBEDDING_PROVIDER": ("embedding", "provider"),
+            "MIA_EMBEDDING_MODEL_ID": ("embedding", "model_id"),
+            "MIA_EMBEDDING_API_KEY": ("embedding", "api_key"),
+            "MIA_EMBEDDING_DIMENSION": ("embedding", "dimension"),
+            "MIA_EMBEDDING_DEVICE": ("embedding", "device"),
+            "MIA_EMBEDDING_BATCH_SIZE": ("embedding", "batch_size"),
+            "MIA_EMBEDDING_NORMALIZE": ("embedding", "normalize"),
+            "MIA_EMBEDDING_CACHE": ("embedding", "cache_enabled"),
+            # OCR configuration
+            "MIA_OCR_ENABLED": ("ocr", "enabled"),
+            "MIA_OCR_PROVIDER": ("ocr", "provider"),
+            "MIA_OCR_MODEL_ID": ("ocr", "model_id"),
+            "MIA_OCR_API_KEY": ("ocr", "api_key"),
+            "MIA_OCR_DEVICE": ("ocr", "device"),
+            "MIA_OCR_PREPROCESSING": ("ocr", "preprocessing"),
+            "MIA_OCR_LLM_ENHANCED": ("ocr", "llm_enhanced"),
+            "MIA_OCR_CONFIDENCE_THRESHOLD": ("ocr", "confidence_threshold"),
         }
 
         default_profile_env = os.getenv("MIA_LLM_PROFILE") or os.getenv(
