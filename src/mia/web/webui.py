@@ -399,9 +399,21 @@ class MIAAgent:
     async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """Execute a tool and return the result."""
         try:
+            # Add timeout to prevent hanging
+            import asyncio
+            
             if self.action_executor:
-                result = self.action_executor.execute(tool_name, arguments)
-                return json.dumps(result) if isinstance(result, dict) else str(result)
+                try:
+                    # Run with timeout
+                    result = await asyncio.wait_for(
+                        asyncio.to_thread(self.action_executor.execute, tool_name, arguments),
+                        timeout=30.0
+                    )
+                    return json.dumps(result) if isinstance(result, dict) else str(result)
+                except asyncio.TimeoutError:
+                    return f"Tool '{tool_name}' timed out after 30 seconds"
+                except Exception as e:
+                    logger.warning(f"Action executor failed: {e}, using fallback")
             
             # Fallback implementations
             if tool_name == "calculator":
@@ -437,8 +449,11 @@ class MIAAgent:
             elif tool_name == "run_command":
                 import subprocess
                 cmd = arguments.get("command", "")
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-                return result.stdout + result.stderr
+                try:
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+                    return result.stdout + result.stderr
+                except subprocess.TimeoutExpired:
+                    return f"Command timed out after 30 seconds"
             
             elif tool_name == "reasoning":
                 problem = arguments.get("problem", "")
@@ -455,8 +470,12 @@ class MIAAgent:
         """Stream chat responses with tool calling support."""
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
         
+        # Check if tools are enabled
+        tools_enabled = request.tools is not None and request.tools
+        
         # Add system prompt for agent behavior
-        system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI agent designed to be helpful, harmless, and honest. You have access to various tools to help users accomplish tasks.
+        if tools_enabled:
+            system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI agent designed to be helpful, harmless, and honest. You have access to various tools to help users accomplish tasks.
 
 Your capabilities include:
 - Web searching for current information
@@ -469,14 +488,16 @@ Your capabilities include:
 
 When a user asks for something that requires action, use the appropriate tools. Think step by step and explain your reasoning. Always aim for accuracy and helpfulness.
 
-You are striving towards AGI - be thoughtful, creative, and thorough in your responses.
-
 IMPORTANT: When you need to use a tool, respond with a JSON block like this:
 ```tool_call
 {"tool": "tool_name", "arguments": {"arg1": "value1"}}
 ```
 
 Available tools: web_search, create_file, read_file, run_command, analyze_code, web_browse, calculator, memory_store, memory_search, send_email, desktop_automation, reasoning"""
+        else:
+            system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI assistant designed to be helpful, harmless, and honest.
+
+You are knowledgeable, thoughtful, and aim to provide accurate, well-reasoned responses. Be concise when appropriate, but thorough when the question demands it."""
 
         if not messages or messages[0].get("role") != "system":
             messages.insert(0, {"role": "system", "content": system_prompt})
@@ -506,11 +527,17 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
                         return None
                 
                 try:
-                    tokens = await asyncio.to_thread(sync_stream)
+                    tokens = await asyncio.wait_for(
+                        asyncio.to_thread(sync_stream),
+                        timeout=120.0  # 2 minute timeout for streaming
+                    )
                     
                     if tokens is None:
                         # Fallback to non-streaming
-                        response = await asyncio.to_thread(self.llm.query, user_prompt, messages=messages)
+                        response = await asyncio.wait_for(
+                            asyncio.to_thread(self.llm.query, user_prompt, messages=messages),
+                            timeout=60.0
+                        )
                         if response:
                             for word in response.split():
                                 yield f"data: {json.dumps({'content': word + ' '})}\n\n"
@@ -527,30 +554,29 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
                         
                         if not full_response:
                             yield f"data: {json.dumps({'error': 'Empty response from model.'})}\n\n"
-                        else:
-                            # Check for tool calls in response
-                            await self._process_tool_calls(full_response)
+                        elif tools_enabled:
+                            # Process tool calls and send results
+                            tool_results = await self._process_tool_calls(full_response)
+                            if tool_results:
+                                tool_header = '\n\n---\n**Tool Results:**\n'
+                                yield f"data: {json.dumps({'content': tool_header})}\n\n"
+                                for tr in tool_results:
+                                    tool_name = tr['tool']
+                                    tool_result = tr['result']
+                                    tool_content = f'- {tool_name}: {tool_result}\n'
+                                    yield f"data: {json.dumps({'content': tool_content})}\n\n"
                     
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'error': 'Request timed out. The model took too long to respond.'})}\n\n"
                 except Exception as stream_error:
-                    logger.warning(f"Streaming failed, falling back: {stream_error}")
-                    # Fallback to non-streaming
-                    try:
-                        response = await asyncio.to_thread(self.llm.query, user_prompt, messages=messages)
-                        if response:
-                            for word in response.split():
-                                yield f"data: {json.dumps({'content': word + ' '})}\n\n"
-                                await asyncio.sleep(0.02)
-                        else:
-                            yield f"data: {json.dumps({'error': f'Query failed: {stream_error}'})}\n\n"
-                    except Exception as fallback_error:
-                        yield f"data: {json.dumps({'error': f'LLM query failed: {fallback_error}'})}\n\n"
+                    logger.warning(f"Streaming failed: {stream_error}")
+                    yield f"data: {json.dumps({'error': f'Streaming error: {stream_error}'})}\n\n"
             else:
                 # Non-streaming query
                 try:
-                    response = await asyncio.to_thread(
-                        self.llm.query,
-                        user_prompt,
-                        messages=messages,
+                    response = await asyncio.wait_for(
+                        asyncio.to_thread(self.llm.query, user_prompt, messages=messages),
+                        timeout=60.0
                     )
                     if response:
                         # Simulate streaming for better UX
@@ -559,10 +585,21 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
                             yield f"data: {json.dumps({'content': word + ' '})}\n\n"
                             await asyncio.sleep(0.02)
                         
-                        # Check for tool calls
-                        await self._process_tool_calls(response)
+                        if tools_enabled:
+                            # Process tool calls
+                            tool_results = await self._process_tool_calls(response)
+                            if tool_results:
+                                tool_header = '\n\n---\n**Tool Results:**\n'
+                                yield f"data: {json.dumps({'content': tool_header})}\n\n"
+                                for tr in tool_results:
+                                    tool_name = tr['tool']
+                                    tool_result = tr['result']
+                                    tool_content = f'- {tool_name}: {tool_result}\n'
+                                    yield f"data: {json.dumps({'content': tool_content})}\n\n"
                     else:
                         yield f"data: {json.dumps({'error': 'No response from model.'})}\n\n"
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'error': 'Request timed out.'})}\n\n"
                 except Exception as query_error:
                     yield f"data: {json.dumps({'error': f'Query error: {query_error}'})}\n\n"
                 
@@ -580,6 +617,9 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
         tool_pattern = r'```tool_call\s*\n?({.*?})\s*\n?```'
         matches = re.findall(tool_pattern, response, re.DOTALL)
         
+        if not matches:
+            return None
+        
         results = []
         for match in matches:
             try:
@@ -588,8 +628,17 @@ Available tools: web_search, create_file, read_file, run_command, analyze_code, 
                 arguments = tool_data.get("arguments", {})
                 
                 if tool_name:
-                    result = await self.execute_tool(tool_name, arguments)
-                    results.append({"tool": tool_name, "result": result})
+                    try:
+                        # Execute with timeout
+                        result = await asyncio.wait_for(
+                            self.execute_tool(tool_name, arguments),
+                            timeout=30.0
+                        )
+                        results.append({"tool": tool_name, "result": result})
+                    except asyncio.TimeoutError:
+                        results.append({"tool": tool_name, "result": "Tool execution timed out"})
+                    except Exception as e:
+                        results.append({"tool": tool_name, "result": f"Error: {e}"})
             except json.JSONDecodeError:
                 continue
         
