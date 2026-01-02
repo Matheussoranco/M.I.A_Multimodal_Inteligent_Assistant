@@ -15,10 +15,19 @@ from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+from dataclasses import dataclass
 
 import requests
+import asyncio
 
 from ..providers import ProviderLookupError, provider_registry
+from ..mcp import MCPManager
+
+@dataclass
+class ToolResult:
+    success: bool
+    output: Any
+    error: Optional[str] = None
 
 DEFAULT_SENSITIVE_ACTIONS = {
     "send_email",
@@ -240,6 +249,13 @@ class ActionExecutor:
         self._memory_instance: Optional[Any] = None
         self._web_agent_instance: Optional[Any] = web_agent
         self._desktop_instance: Optional[Any] = None
+        
+        # Initialize MCP Manager
+        self.mcp_manager = MCPManager(self.config)
+
+    async def initialize(self):
+        """Initialize async components."""
+        await self.mcp_manager.initialize()
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config file or environment variables."""
@@ -581,6 +597,32 @@ class ActionExecutor:
             )
             self._telegram_client = False
         return self._telegram_client or None
+    async def execute_async(self, action: str, params: Optional[Dict[str, Any]]) -> ToolResult:
+        """Execute an action asynchronously, supporting MCP tools."""
+        # Check MCP tools first
+        mcp_client = self.mcp_manager.get_tool_client(action)
+        if mcp_client:
+            try:
+                result = await self.mcp_manager.execute_tool(action, params or {})
+                # Extract text content from MCP result
+                output = ""
+                if hasattr(result, 'content'):
+                    for content in result.content:
+                        if content.type == 'text':
+                            output += content.text + "\n"
+                return ToolResult(success=True, output=output.strip())
+            except Exception as e:
+                return ToolResult(success=False, output=None, error=str(e))
+            
+        # Fallback to synchronous execution
+        try:
+            result = self.execute(action, params)
+            # Heuristic to determine success based on string output
+            if isinstance(result, str) and (result.startswith("Error:") or "Permission denied" in result):
+                return ToolResult(success=False, output=None, error=result)
+            return ToolResult(success=True, output=result)
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
 
     def execute(self, action: str, params: Optional[Dict[str, Any]]):
         """Execute an action with given parameters."""

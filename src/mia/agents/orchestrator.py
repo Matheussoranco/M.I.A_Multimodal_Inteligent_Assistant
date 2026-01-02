@@ -350,7 +350,7 @@ class ToolAgent(BaseAgent):
                 raise ValueError("No tool specified in task metadata")
             
             # Execute tool
-            result = self.action_executor.execute(tool_name, tool_params)
+            result = await self.action_executor.execute_async(tool_name, tool_params)
             
             if result.success:
                 task.status = TaskStatus.COMPLETED

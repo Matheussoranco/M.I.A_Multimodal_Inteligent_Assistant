@@ -220,3 +220,13 @@ telegram:
   default_peer: null
   parse_mode: markdown
   request_timeout: 30
+
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ MCP Configuration                                                           │
+# └─────────────────────────────────────────────────────────────────────────────┘
+mcp_servers:
+  # Example configuration for a filesystem server
+  # filesystem:
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+  #   enabled: false
