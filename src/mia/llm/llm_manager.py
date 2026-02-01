@@ -907,7 +907,7 @@ class LLMManager:
         """Alias for compatibility with main.py and other modules."""
         return self.query(prompt, **kwargs)
 
-    @with_error_handling(global_error_handler, fallback_value=None)
+    @with_error_handling(global_error_handler, fallback_value=None, reraise=True)
     def query(self, prompt: str, **kwargs) -> Optional[str]:
         """Query the selected LLM provider with comprehensive error handling."""
         if not prompt:
@@ -946,7 +946,7 @@ class LLMManager:
         else:
             return self._query_sync_fallback(prompt, **kwargs)
 
-    @with_error_handling(global_error_handler, fallback_value=None)
+    @with_error_handling(global_error_handler, fallback_value=None, reraise=True)
     async def query_async(self, prompt: str, **kwargs) -> Optional[str]:
         """Async version of query method for better performance."""
         if not prompt:

@@ -8,13 +8,22 @@ Runs M.I.A as an always-on background service with pluggable skills and channels
 import asyncio
 import sys
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 # Add src to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
+src_path = Path(__file__).resolve().parent / "src"
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
 
-from mia.gateway.manager import GatewayManager
-from mia.core.channels import BaseChannel, ChannelMessage, ChannelConfig
-from mia.skills.basic_tools import BasicToolsSkill
+if TYPE_CHECKING:
+    from mia.gateway.manager import GatewayManager  # type: ignore[import-not-found]
+    from mia.core.channels import BaseChannel, ChannelMessage, ChannelConfig  # type: ignore[import-not-found]
+    from mia.skills.basic_tools import BasicToolsSkill  # type: ignore[import-not-found]
+else:
+    from mia.gateway.manager import GatewayManager  # type: ignore[import-not-found]
+    from mia.core.channels import BaseChannel, ChannelMessage, ChannelConfig  # type: ignore[import-not-found]
+    from mia.skills.basic_tools import BasicToolsSkill  # type: ignore[import-not-found]
 
 # --- Simple CLI Channel for testing ---
 class ConsoleChannel(BaseChannel):

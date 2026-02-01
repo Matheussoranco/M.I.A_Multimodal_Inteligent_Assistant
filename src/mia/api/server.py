@@ -7,6 +7,7 @@ Run: python -m mia.api.server or mia-api
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 from typing import Any, Dict, List, Optional
@@ -29,6 +30,8 @@ except Exception:
     __version__ = "0.0.0"
 
 from ..providers import ProviderLookupError, provider_registry
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> Any:
@@ -56,7 +59,7 @@ def create_app() -> Any:
         components = initialize_components(args)
     except Exception as exc:
         # Continue without components for basic endpoints
-        pass
+        logger.warning("API component initialization failed: %s", exc)
 
     @app.get("/health")
     def health() -> Dict[str, str]:

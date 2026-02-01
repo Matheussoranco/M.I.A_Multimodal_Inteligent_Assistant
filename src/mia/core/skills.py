@@ -46,8 +46,9 @@ class BaseSkill(ABC):
         # Simple auto-discovery for methods starting with 'tool_'
         for name, method in inspect.getmembers(self, predicate=inspect.ismethod):
             if hasattr(method, "_is_tool"):
-                tool_def = method._tool_def
-                self._tools[tool_def.name] = tool_def
+                tool_def = getattr(method, "_tool_def", None)
+                if tool_def is not None:
+                    self._tools[tool_def.name] = tool_def
 
     def get_tools(self) -> List[ToolDefinition]:
         """Returns list of availables tools for the LLM."""

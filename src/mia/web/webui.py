@@ -97,6 +97,37 @@ AVAILABLE_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "youtube_search",
+            "description": "Search YouTube for a video.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The YouTube search query"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "auto_task",
+            "description": "Interpret a natural-language request and execute it (WhatsApp, Wikipedia, YouTube, or web search).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "request": {"type": "string", "description": "Natural-language request"},
+                    "phone": {"type": "string", "description": "WhatsApp phone number (optional)"},
+                    "message": {"type": "string", "description": "WhatsApp message (optional)"},
+                    "query": {"type": "string", "description": "Search query (optional)"}
+                },
+                "required": ["request"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_file",
             "description": "Create a new file with the specified content.",
             "parameters": {

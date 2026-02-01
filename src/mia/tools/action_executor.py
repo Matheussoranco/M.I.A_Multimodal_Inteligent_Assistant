@@ -80,6 +80,8 @@ class ActionExecutor:
         "web_automation": {"web"},
         "research_topic": {"web"},
         "wikipedia_search": {"web"},
+        "youtube_search": {"web"},
+        "auto_task": {"web", "messaging", "desktop", "system"},
         "control_device": {"iot"},
         "smart_home": {"iot"},
         "control_lights": {"iot"},
@@ -756,6 +758,10 @@ class ActionExecutor:
                 "wikipedia_search": lambda: self.wikipedia_search(
                     params.get("query") or ""
                 ),
+                "youtube_search": lambda: self.youtube_search(
+                    params.get("query") or ""
+                ),
+                "auto_task": lambda: self.auto_task(params),
                 # Smart home integration
                 "control_device": lambda: self._handle_control_device(params),
                 # System integration
@@ -884,6 +890,78 @@ class ActionExecutor:
             return wikipedia.summary(query, sentences=3)
         except Exception as e:
             return f"Wikipedia search failed: {e}"
+
+    def youtube_search(self, query: str) -> str:
+        """Search YouTube for a video."""
+        try:
+            import webbrowser
+            url = f"https://www.youtube.com/results?search_query={query}"
+            webbrowser.open(url)
+            return f"Opened YouTube search for: {query}"
+        except Exception as e:
+            return f"YouTube search failed: {e}"
+
+    def auto_task(self, params: Dict[str, Any]) -> str:
+        """Parse a natural-language request and execute an appropriate action."""
+        request = (
+            params.get("request")
+            or params.get("text")
+            or params.get("task")
+            or ""
+        )
+        if not request:
+            return "No request provided."
+
+        request_lower = request.lower()
+
+        if "whatsapp" in request_lower:
+            phone = params.get("phone") or self._extract_phone(request)
+            message = params.get("message") or self._extract_message(request)
+            if not phone or not message:
+                return "WhatsApp requires phone and message. Provide 'phone' and 'message' or include them in the request."
+            return self.send_whatsapp({"phone": phone, "message": message})
+
+        if "wikipedia" in request_lower or "wikipédia" in request_lower:
+            query = params.get("query") or self._extract_query_after_keyword(request, ["wikipedia", "wikipédia", "sobre", "assunto"]) or request
+            return self.wikipedia_search(query)
+
+        if "youtube" in request_lower or "vídeo" in request_lower or "video" in request_lower:
+            query = params.get("query") or self._extract_query_after_keyword(request, ["youtube", "vídeo", "video", "sobre", "assunto"]) or request
+            return self.youtube_search(query)
+
+        if "pesquise" in request_lower or "pesquisar" in request_lower or "buscar" in request_lower:
+            query = params.get("query") or self._extract_query_after_keyword(request, ["pesquise", "pesquisar", "buscar", "sobre", "assunto"]) or request
+            return self.web_search(query)
+
+        return "Could not determine the task. Try specifying WhatsApp, Wikipedia, or YouTube."
+
+    def _extract_phone(self, text: str) -> Optional[str]:
+        import re
+
+        match = re.search(r"(\+?\d[\d\s\-]{7,}\d)", text)
+        if match:
+            return match.group(1).strip()
+        return None
+
+    def _extract_message(self, text: str) -> Optional[str]:
+        import re
+
+        quoted = re.search(r"['\"]([^'\"]+)['\"]", text)
+        if quoted:
+            return quoted.group(1).strip()
+
+        marker = re.search(r"mensagem\s*(?:para|:)?\s*(.+)$", text, re.IGNORECASE)
+        if marker:
+            return marker.group(1).strip()
+        return None
+
+    def _extract_query_after_keyword(self, text: str, keywords: List[str]) -> Optional[str]:
+        text_lower = text.lower()
+        for keyword in keywords:
+            if keyword in text_lower:
+                idx = text_lower.find(keyword) + len(keyword)
+                return text[idx:].strip(" :,-\n\t")
+        return None
     
     def send_whatsapp(self, params: dict) -> str:
         """Send a WhatsApp message."""
@@ -2324,6 +2402,11 @@ body {{
                 "parameters": {"query": "The search query string"}
             },
             {
+                "name": "youtube_search",
+                "description": "Search YouTube for a video.",
+                "parameters": {"query": "The YouTube search query"}
+            },
+            {
                 "name": "web_scrape",
                 "description": "Extract text content from a webpage.",
                 "parameters": {"url": "The URL to scrape"}
@@ -2347,6 +2430,11 @@ body {{
                 "name": "send_email",
                 "description": "Send an email.",
                 "parameters": {"to": "Recipient email", "subject": "Email subject", "body": "Email body"}
+            },
+            {
+                "name": "auto_task",
+                "description": "Interpret a natural-language request and execute it (WhatsApp, Wikipedia, YouTube, or web search).",
+                "parameters": {"request": "Natural-language request", "phone": "Optional WhatsApp phone", "message": "Optional WhatsApp message", "query": "Optional search query"}
             },
             {
                 "name": "desktop_open_app",

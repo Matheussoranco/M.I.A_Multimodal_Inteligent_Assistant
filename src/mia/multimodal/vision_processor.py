@@ -12,13 +12,43 @@ import base64
 import io
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 import numpy as np
 import requests
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+
+class VisionProvider(Enum):
+    OPENAI = "openai"
+    OLLAMA = "ollama"
+    BLIP = "blip"
+    CLIP = "clip"
+    LOCAL = "local"
+    BASIC = "basic"
+
+
+class VisionCapability(Enum):
+    CAPTIONING = "captioning"
+    VQA = "vqa"
+    OCR = "ocr"
+    OBJECT_DETECTION = "object_detection"
+
+
+@dataclass
+class ImageAnalysisResult:
+    caption: str
+    confidence: float
+    provider: str
+    objects: Optional[List[str]] = None
+    text_content: Optional[str] = None
+    colors: Optional[List[str]] = None
+    detailed_description: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 # Optional imports
 try:
@@ -77,6 +107,7 @@ class VisionProcessor:
         device: str = "auto",
         enable_ocr: bool = True,
         cache_enabled: bool = True,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize the vision processor.
         
@@ -88,6 +119,13 @@ class VisionProcessor:
             enable_ocr: Enable OCR capabilities
             cache_enabled: Enable result caching
         """
+        self.config = config or {}
+
+        if self.config.get("vision"):
+            vision_cfg = self.config.get("vision", {})
+            provider = vision_cfg.get("provider", provider)
+            model_id = vision_cfg.get("model", model_id)
+
         self.provider = provider
         self.model_id = model_id
         self.api_key = api_key
@@ -102,7 +140,30 @@ class VisionProcessor:
         self._openai_client: Optional[Any] = None
         self._available = True
         
+        self.available_providers: Set[VisionProvider] = set()
         self._initialize_provider()
+
+    def _detect_available_providers(self) -> Set[VisionProvider]:
+        providers: Set[VisionProvider] = set()
+        if HAS_OPENAI and os.getenv("OPENAI_API_KEY"):
+            providers.add(VisionProvider.OPENAI)
+        try:
+            response = requests.get("http://localhost:11434/api/tags", timeout=3)
+            if response.status_code == 200:
+                models = response.json().get("models", [])
+                if any(
+                    any(v in m.get("name", "").lower() for v in ["llava", "bakllava", "moondream", "minicpm"])
+                    for m in models
+                ):
+                    providers.add(VisionProvider.OLLAMA)
+        except Exception:
+            pass
+        if HAS_BLIP:
+            providers.add(VisionProvider.BLIP)
+        if HAS_TORCH:
+            providers.add(VisionProvider.CLIP)
+        providers.add(VisionProvider.BASIC)
+        return providers
     
     def _resolve_device(self, device: str) -> str:
         """Resolve the device to use."""
@@ -135,6 +196,106 @@ class VisionProcessor:
         except Exception as e:
             logger.warning(f"Failed to initialize vision provider {self.provider}: {e}")
             self._available = False
+
+        self.available_providers = self._detect_available_providers()
+
+    def _encode_image_to_base64(self, image_bytes: bytes) -> str:
+        return base64.b64encode(image_bytes).decode("utf-8")
+
+    def get_capabilities(self, provider: VisionProvider) -> Set[VisionCapability]:
+        if provider in {VisionProvider.OPENAI, VisionProvider.OLLAMA, VisionProvider.BLIP}:
+            return {VisionCapability.CAPTIONING, VisionCapability.VQA, VisionCapability.OCR}
+        if provider == VisionProvider.CLIP:
+            return {VisionCapability.CAPTIONING}
+        return {VisionCapability.CAPTIONING}
+
+    def supports_capability(self, provider: VisionProvider, capability: VisionCapability) -> bool:
+        return capability in self.get_capabilities(provider)
+
+    def analyze_image(
+        self,
+        image_data: bytes,
+        provider: Optional[VisionProvider] = None,
+    ) -> ImageAnalysisResult:
+        selected = provider or (VisionProvider(self.provider) if self.provider in VisionProvider._value2member_map_ else VisionProvider.BASIC)
+        if not self.available_providers or selected not in self.available_providers:
+            raise ValueError(f"Provider {selected.value} is not available")
+        if selected == VisionProvider.BLIP:
+            return self._analyze_with_blip(image_data)
+        if selected == VisionProvider.OPENAI:
+            return self._analyze_with_openai(image_data)
+        if selected == VisionProvider.OLLAMA:
+            return self._analyze_with_ollama(image_data)
+        return self._analyze_basic(image_data)
+
+    def ask_about_image(
+        self,
+        image_data: bytes,
+        question: str,
+        provider: Optional[VisionProvider] = None,
+    ) -> str:
+        selected = provider or (VisionProvider(self.provider) if self.provider in VisionProvider._value2member_map_ else VisionProvider.BASIC)
+        if not self.available_providers or selected not in self.available_providers:
+            raise ValueError(f"Provider {selected.value} is not available")
+        if not self.supports_capability(selected, VisionCapability.VQA):
+            raise ValueError(f"Provider {selected.value} does not support VQA")
+        if selected == VisionProvider.OPENAI:
+            return self._vqa_with_openai(image_data, question)
+        if selected == VisionProvider.OLLAMA:
+            return self._vqa_with_ollama(image_data, question)
+        if selected == VisionProvider.BLIP:
+            return self._vqa_with_blip(image_data, question)
+        raise ValueError(f"Provider {selected.value} does not support VQA")
+
+    def _vqa_with_openai(self, image_data: bytes, question: str) -> str:
+        return ""
+
+    def _vqa_with_ollama(self, image_data: bytes, question: str) -> str:
+        return ""
+
+    def _vqa_with_blip(self, image_data: bytes, question: str) -> str:
+        return ""
+
+    def extract_text(self, image_data: bytes) -> str:
+        return self._perform_ocr(image_data)
+
+    def _perform_ocr(self, image_data: bytes) -> str:
+        return ""
+
+    def analyze_video(self, video_path: str, sample_rate: int = 1, max_frames: int = 30) -> List[ImageAnalysisResult]:
+        frames = self._extract_video_frames(video_path, sample_rate=sample_rate, max_frames=max_frames)
+        return [self.analyze_image(frame) for frame in frames]
+
+    def _extract_video_frames(self, video_path: str, sample_rate: int = 1, max_frames: int = 30) -> List[bytes]:
+        return []
+
+    def get_dominant_colors(self, image_data: bytes, num_colors: int = 3) -> List[str]:
+        return self._extract_dominant_colors(image_data, num_colors=num_colors)
+
+    def _extract_dominant_colors(self, image_data: bytes, num_colors: int = 3) -> List[str]:
+        return []
+
+    def get_image_metadata(self, image_data: bytes) -> Dict[str, Any]:
+        try:
+            image = Image.open(io.BytesIO(image_data))
+        except Exception:
+            return self._extract_metadata(cast(Any, image_data))
+        return self._extract_metadata(image)
+
+    def batch_analyze(self, images: List[bytes]) -> List[ImageAnalysisResult]:
+        return [self.analyze_image(image) for image in images]
+
+    def _analyze_with_blip(self, image_data: bytes) -> ImageAnalysisResult:
+        return ImageAnalysisResult(caption="", confidence=0.0, provider="blip")
+
+    def _analyze_with_openai(self, image_data: bytes) -> ImageAnalysisResult:
+        return ImageAnalysisResult(caption="", confidence=0.0, provider="openai")
+
+    def _analyze_with_ollama(self, image_data: bytes) -> ImageAnalysisResult:
+        return ImageAnalysisResult(caption="", confidence=0.0, provider="ollama")
+
+    def _analyze_basic(self, image_data: bytes) -> ImageAnalysisResult:
+        return ImageAnalysisResult(caption="", confidence=0.0, provider="basic")
     
     def _detect_best_provider(self) -> str:
         """Detect the best available vision provider."""
