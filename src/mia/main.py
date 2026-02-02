@@ -34,6 +34,7 @@ try:
     from .exceptions import *
     from .performance_monitor import PerformanceMonitor
     from .resource_manager import ResourceManager
+    from .core.cognitive_architecture import MIACognitiveCore
 except ImportError as e:
     print(f"Warning: Some core modules could not be imported: {e}")
     ConfigManager = None
@@ -779,9 +780,28 @@ def initialize_components(args):
             "LLM provider not registered - some features will be disabled"
         )
         components["llm"] = None
+        # Register memory pressure callback
+        if components["llm"] and resource_manager:
+            resource_manager.register_memory_pressure_callback(components["llm"].unload_model)
+            logger.info("Registered LLM unload callback for memory pressure")
+
     except Exception as e:
         logger.error(f"Failed to initialize LLM Manager: {e}")
         components["llm"] = None
+
+    # Initialize Cognitive Core
+    cognitive_core = None
+    if components["llm"]:
+        try:
+            cognitive_core = MIACognitiveCore(
+                llm_client=components["llm"],
+                device=components["device"],
+                action_executor=components.get("action_executor")
+            )
+            logger.info("Cognitive Core initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Cognitive Core: {e}")
+    components["cognitive_core"] = cognitive_core
 
     # Initialize audio components if not text-only mode
     components["audio_available"] = False
@@ -1393,15 +1413,24 @@ def process_with_llm(user_input, inputs, components):
         result["error"] = yellow(_("no_input"))
         return result
 
-    # Check for agent commands first
-    if user_input and action_executor:
-        agent_executed, agent_result = detect_and_execute_agent_commands(
-            user_input, action_executor, llm
-        )
-        if agent_executed:
-            result["response"] = agent_result
+    # Check for agent commands / Cognitive Core processing
+    cognitive_core = components.get("cognitive_core")
+    
+    if cognitive_core:
+        try:
+            # Prepare input context
+            context = {"text": user_input}
+            # Use the SOTA ReAct loop
+            result_text = cognitive_core.execute_task(user_input, context)
+            
+            result["response"] = result_text
             result["streamed"] = False
             return result
+        except Exception as e:
+            logger.error(f"Cognitive Core execution failed: {e}")
+            result["error"] = red(f"Error in cognitive processing: {e}")
+            # Fallback to simple LLM query if core fails
+            pass
 
     if not llm or not hasattr(llm, "query"):
         result["error"] = red(_("llm_unavailable"))

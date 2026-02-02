@@ -50,11 +50,20 @@ try:
 
     import aiohttp
 
+    import aiohttp
+
     HAS_AIOHTTP = True
 except ImportError:
     aiohttp = None
     asyncio = None
     HAS_AIOHTTP = False
+
+try:
+    from llama_cpp import Llama
+    HAS_LLAMA_CPP = True
+except ImportError:
+    Llama = None
+    HAS_LLAMA_CPP = False
 
 logger = logging.getLogger(__name__)
 
@@ -585,6 +594,26 @@ class LLMManager:
             if "pytest" in sys.modules or os.getenv("TESTING") == "true":
                 raise e
 
+    def unload_model(self) -> None:
+        """Unload the current model to free memory."""
+        self.client = None
+        self.model = None
+        self.tokenizer = None
+        
+        # Aggressive cleanup
+        import gc
+        gc.collect()
+        
+        if HAS_TORCH and torch and torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            except Exception:
+                pass
+                
+        logger.info(f"Model {self.model_id} unloaded from memory")
+        self._available = False
+
     def _fallback_url_for_provider(
         self, provider: Optional[str]
     ) -> Optional[str]:
@@ -754,6 +783,34 @@ class LLMManager:
             if data.get("done"):
                 break
 
+    def _initialize_llama(self) -> None:
+        """Initialize Llama.cpp model."""
+        if not HAS_LLAMA_CPP:
+            raise InitializationError(
+                "Llama.cpp not available. Install with: pip install llama-cpp-python",
+                "MISSING_DEPENDENCY",
+            )
+        
+        try:
+            logger.info(f"Loading GGUF model from: {self.model_id}")
+            # Detect GPU layers if cuda available
+            n_gpu_layers = -1  # Default to all layers if supported
+            
+            self.model = Llama(
+                model_path=self.model_path or self.model_id,
+                n_ctx=self.config.get("context_window", 2048),
+                n_threads=os.cpu_count() or 4,
+                n_gpu_layers=n_gpu_layers,
+                verbose=False
+            )
+            self._available = True
+            logger.info("GGUF model loaded successfully")
+        except Exception as e:
+            raise InitializationError(
+                f"Failed to load GGUF model: {str(e)}",
+                "MODEL_LOAD_FAILED"
+            )
+
     def _initialize_provider(self) -> None:
         """Initialize the specific provider with comprehensive error handling."""
         try:
@@ -763,6 +820,8 @@ class LLMManager:
                 self._initialize_huggingface()
             elif self.provider == "local":
                 self._initialize_local()
+            elif self.provider == "gguf":
+                self._initialize_llama()
             elif self.provider in [
                 "grok",
                 "gemini",
@@ -978,6 +1037,8 @@ class LLMManager:
                 )  # Sync for now
             elif self.provider == "local":
                 return self._query_local(prompt, **kwargs)  # Sync for now
+            elif self.provider == "gguf":
+                return self._query_llama(prompt, **kwargs)  # Sync for now
             else:
                 raise LLMProviderError(
                     f"Provider {self.provider} not implemented",
@@ -1024,6 +1085,8 @@ class LLMManager:
                 return self._query_huggingface(prompt, **kwargs)
             elif self.provider == "local":
                 return self._query_local(prompt, **kwargs)
+            elif self.provider == "gguf":
+                return self._query_llama(prompt, **kwargs)
             else:
                 raise LLMProviderError(
                     f"Provider {self.provider} not implemented",
@@ -1162,6 +1225,36 @@ class LLMManager:
                 raise e
             raise LLMProviderError(
                 f"Local model error: {str(e)}", "MODEL_ERROR"
+            )
+
+    def _query_llama(self, prompt: str, **kwargs) -> Optional[str]:
+        """Query GGUF model via Llama.cpp."""
+        if self.model is None:
+            raise LLMProviderError(
+                "GGUF model not initialized", "MODEL_NOT_AVAILABLE"
+            )
+
+        try:
+            # Map common params to llama.cpp params
+            params = {
+                "prompt": prompt,
+                "max_tokens": kwargs.get("max_tokens", 512),
+                "temperature": kwargs.get("temperature", 0.7),
+                "top_p": kwargs.get("top_p", 0.95),
+                "echo": False
+            }
+            
+            output = self.model(**params)
+            
+            # Extract text from standard OpenAI-compatible format
+            if isinstance(output, dict) and "choices" in output:
+                return output["choices"][0]["text"]
+            
+            return str(output)
+            
+        except Exception as e:
+            raise LLMProviderError(
+                f"Llama.cpp inference error: {str(e)}", "INFERENCE_ERROR"
             )
 
     def _query_anthropic(self, prompt: str, **kwargs) -> Optional[str]:

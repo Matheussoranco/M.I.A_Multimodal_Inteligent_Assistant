@@ -46,7 +46,12 @@ logger = logging.getLogger(__name__)
 
 
 class MIACognitiveCore:
-    def __init__(self, llm_client: Any, device: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        llm_client: Any,
+        device: Optional[str] = None,
+        action_executor: Optional[ActionExecutor] = None,
+    ) -> None:
         self.llm = llm_client
         self.device = (
             device
@@ -56,21 +61,19 @@ class MIACognitiveCore:
         self.vision_processor: Optional[Any] = None
         self.vision_model: Optional[Any] = None
         self.speech_processor: Optional[SpeechProcessor] = None
-        self.action_executor = ActionExecutor()
+        self.action_executor = action_executor or ActionExecutor()
         
         # Initialize real embedding manager for semantic embeddings
         self.embedding_manager: Optional[Any] = None
         self._init_embedding_manager()
 
-        # Initialize vision components with proper error handling
-        self._init_vision_components()
-        self._init_speech_processor()
-
-        self.working_memory = []
-
         # Initialize memory systems
         self.long_term_memory = {}
         self.knowledge_graph = {}
+        
+        # Lazy loading states
+        self._vision_initialized = False
+        self._speech_initialized = False
     
     def _init_embedding_manager(self) -> None:
         """Initialize the embedding manager for real semantic embeddings."""
@@ -99,7 +102,11 @@ class MIACognitiveCore:
             logger.warning(f"Failed to initialize embedding manager: {e}")
             self.embedding_manager = None
 
-    def _init_vision_components(self) -> None:
+    def _ensure_vision_components(self) -> None:
+        """Lazy load vision components."""
+        if self._vision_initialized:
+            return
+
         if not HAS_CLIP:
             logger.warning(
                 "CLIP components not available - vision processing disabled"
@@ -118,7 +125,8 @@ class MIACognitiveCore:
                     raise InitializationError(
                         "CLIP components not imported", "IMPORT_ERROR"
                     )
-
+                
+                logger.info("Lazy loading CLIP vision model...")
                 try:
                     self.vision_processor = CLIPProcessor.from_pretrained(
                         "openai/clip-vit-base-patch32"
@@ -153,6 +161,7 @@ class MIACognitiveCore:
                             f"Failed to move vision model to device {self.device}: {e}"
                         )
 
+                self._vision_initialized = True
                 logger.info("Vision components initialized successfully")
 
         except InitializationError:
@@ -163,9 +172,13 @@ class MIACognitiveCore:
                 "VISION_INIT_FAILED",
             )
 
-    def _init_speech_processor(self) -> None:
+    def _ensure_speech_processor(self) -> None:
+        if self._speech_initialized:
+            return
+
         try:
             self.speech_processor = SpeechProcessor()
+            self._speech_initialized = True
             logger.info("Speech processor initialized successfully")
         except Exception as e:
             logger.warning(f"Failed to initialize speech processor: {e}")
@@ -191,30 +204,25 @@ class MIACognitiveCore:
                 processed["text"] = inputs["text"]
 
             # Process image input
-            if "image" in inputs and inputs["image"] is not None:
-                if self.vision_processor is None or self.vision_model is None:
-                    raise VisionProcessingError(
-                        "Vision components not initialized",
-                        "VISION_NOT_AVAILABLE",
+            if "image" in inputs and inputs["image"]:
+                self._ensure_vision_components()
+                if self.vision_processor and self.vision_model:
+                     processed["image_embedding"] = self._get_image_embedding(
+                        inputs["image"]
                     )
-
-                # Process image using CLIP
-                # Note: This is a simplified implementation. In a real scenario,
-                # we would use the vision model to generate a description.
-                # For now, we'll just note that the image was processed.
-                processed["image_description"] = "Image processed by CLIP"
+                     processed["image_description"] = "Image processed by CLIP"
+                else:
+                    logger.warning("Vision components unavailable for image input")
 
             # Process audio input
-            if "audio" in inputs and inputs["audio"] is not None:
-                if self.speech_processor is None:
-                    raise VisionProcessingError(
-                        "Speech processor not available",
-                        "SPEECH_NOT_AVAILABLE",
+            if "audio" in inputs and inputs["audio"]:
+                self._ensure_speech_processor()
+                if self.speech_processor:
+                    processed["audio_transcription"] = (
+                        self.speech_processor.transcribe(inputs["audio"])
                     )
-
-                # Process audio using speech processor
-                # Note: This is a simplified implementation.
-                processed["audio_transcription"] = "Audio processed"
+                else:
+                    logger.warning("Speech processor unavailable for audio input")
 
             # Generate embeddings for the processed content
             if processed:
@@ -485,17 +493,46 @@ class MIACognitiveCore:
         # Get tool descriptions from ActionExecutor
         tool_descriptions = self.action_executor.get_tool_descriptions()
 
-        system_prompt = f"""You are M.I.A, an intelligent assistant.
+        system_prompt = f"""You are M.I.A, a State-of-the-Art intelligent assistant.
 You have access to the following tools:
 {tool_descriptions}
 
-To use a tool, you MUST use the following format:
-Thought: <your reasoning>
-Action: <tool_name>
-Action Input: <json_parameters>
+You MUST use the following format for every step:
 
-If you have the final answer, use:
-Final Answer: <your answer>
+Thought: <your intense reasoning about the current state and what to do next>
+Action: <the name of the tool to use>
+Action Input: <the JSON parameters for the tool>
+
+When you have completed the task or if you cannot complete it, use:
+
+Thought: <reasoning for the final answer>
+Final Answer: <your final response to the user>
+
+IMPORTANT:
+1. Always "Thought:" before "Action:".
+2. "Action Input:" must be valid JSON.
+3. If no tool is needed, just provide "Final Answer:".
+4. Do not make up tools. Only use the ones listed.
+5. If you run a command or create a file, verify it if possible.
+
+Examples:
+
+Task: "Find the latest Python version and save it to python.txt"
+
+Thought: I need to find the latest Python version first. I will use specialized research tools.
+Action: web_search
+Action Input: {"query": "latest python version release"}
+
+Observation: The latest version is Python 3.12.2.
+
+Thought: Now I need to save this information to a file named python.txt.
+Action: create_file
+Action Input: {"path": "python.txt", "content": "The latest Python version is 3.12.2"}
+
+Observation: File created successfully.
+
+Thought: I have completed the task.
+Final Answer: I have found that the latest Python version is 3.12.2 and saved it to python.txt.
 
 Begin!
 """

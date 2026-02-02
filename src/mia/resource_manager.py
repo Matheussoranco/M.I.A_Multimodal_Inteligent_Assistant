@@ -354,6 +354,7 @@ class ResourceManager:
         self._running = False
         self._cleanup_interval = 60  # 60 seconds
         self._max_idle_time = 300  # 5 minutes
+        self._memory_pressure_callbacks: List[Callable] = []
 
     def start(self) -> None:
         """Start the resource manager."""
@@ -367,6 +368,11 @@ class ResourceManager:
             )
             self._cleanup_thread.start()
             logger.info("Resource manager started")
+
+    def register_memory_pressure_callback(self, callback: Callable) -> None:
+        """Register a callback to be called when system memory pressure is high."""
+        with self._lock:
+            self._memory_pressure_callbacks.append(callback)
 
     def stop(self) -> None:
         """Stop the resource manager and clean up all resources."""
@@ -522,14 +528,37 @@ class ResourceManager:
             self.release_resource(resource_id)
 
     def _check_memory_usage(self) -> None:
-        """Check and manage memory usage."""
+        """Check and manage memory usage using psutil if available."""
+        # Check system memory first if psutil is available
+        try:
+            import psutil
+            mem = psutil.virtual_memory()
+            if mem.percent > 90.0:  # High memory pressure
+                logger.warning(f"System memory critical: {mem.percent}% used")
+                self._trigger_memory_pressure_callbacks()
+                self._free_memory()
+                return
+        except ImportError:
+            pass
+
         total_memory = self.get_total_memory_usage()
 
         if total_memory > self.max_memory_bytes:
             logger.warning(
-                f"Memory usage ({total_memory / 1024 / 1024:.1f}MB) exceeds limit"
+                f"Managed memory usage ({total_memory / 1024 / 1024:.1f}MB) exceeds limit"
             )
             self._free_memory()
+
+    def _trigger_memory_pressure_callbacks(self) -> None:
+        """Trigger registered memory pressure callbacks."""
+        with self._lock:
+            callbacks = list(self._memory_pressure_callbacks)
+        
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Memory pressure callback failed: {e}")
 
     def _free_memory(self) -> None:
         """Free memory by releasing least recently used resources."""
@@ -590,7 +619,6 @@ class ResourceManager:
                     logger.error(
                         f"Error getting info for resource {resource.resource_id}: {e}"
                     )
-
             return info_list
 
     def get_stats(self) -> Dict[str, Any]:
