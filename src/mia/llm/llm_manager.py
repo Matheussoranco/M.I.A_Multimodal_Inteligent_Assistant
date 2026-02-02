@@ -59,11 +59,19 @@ except ImportError:
     HAS_AIOHTTP = False
 
 try:
-    from llama_cpp import Llama
+    from llama_cpp import Llama  # type: ignore[import-not-found]
     HAS_LLAMA_CPP = True
 except ImportError:
     Llama = None
     HAS_LLAMA_CPP = False
+
+try:
+    import torch
+
+    HAS_TORCH = True
+except ImportError:
+    torch = None
+    HAS_TORCH = False
 
 logger = logging.getLogger(__name__)
 
@@ -790,15 +798,27 @@ class LLMManager:
                 "Llama.cpp not available. Install with: pip install llama-cpp-python",
                 "MISSING_DEPENDENCY",
             )
+        if Llama is None:
+            raise InitializationError(
+                "Llama.cpp import failed.",
+                "IMPORT_ERROR",
+            )
         
         try:
             logger.info(f"Loading GGUF model from: {self.model_id}")
             # Detect GPU layers if cuda available
             n_gpu_layers = -1  # Default to all layers if supported
+            model_path = self.local_model_path or self.model_id
+            if model_path is None:
+                raise ConfigurationError(
+                    "Model path must be specified for GGUF provider",
+                    "MISSING_MODEL_PATH",
+                )
+            context_window = getattr(self, "max_tokens", 2048)
             
             self.model = Llama(
-                model_path=self.model_path or self.model_id,
-                n_ctx=self.config.get("context_window", 2048),
+                model_path=model_path,
+                n_ctx=context_window,
                 n_threads=os.cpu_count() or 4,
                 n_gpu_layers=n_gpu_layers,
                 verbose=False

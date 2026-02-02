@@ -7,6 +7,14 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import numpy as np
 
+try:
+    from PIL import Image
+
+    HAS_PIL = True
+except ImportError:
+    Image = None
+    HAS_PIL = False
+
 from ..audio.speech_processor import SpeechProcessor
 from ..tools.action_executor import ActionExecutor
 from ..error_handler import global_error_handler, with_error_handling
@@ -70,6 +78,7 @@ class MIACognitiveCore:
         # Initialize memory systems
         self.long_term_memory = {}
         self.knowledge_graph = {}
+        self.working_memory: List[Any] = []
         
         # Lazy loading states
         self._vision_initialized = False
@@ -286,6 +295,58 @@ class MIACognitiveCore:
             prompt_parts.append(f"Audio: {audio_trans}")
 
         return " ".join(prompt_parts) if prompt_parts else "Empty input"
+
+    def _get_image_embedding(self, image_input: Any) -> List[float]:
+        """Generate an image embedding using CLIP."""
+        if not self.vision_processor or not self.vision_model:
+            raise VisionProcessingError(
+                "Vision components not initialized",
+                "VISION_COMPONENTS_MISSING",
+            )
+
+        if not HAS_PIL or Image is None:
+            raise VisionProcessingError(
+                "Pillow is required for image processing",
+                "MISSING_DEPENDENCY",
+            )
+
+        try:
+            if isinstance(image_input, str):
+                image = Image.open(image_input).convert("RGB")
+            elif isinstance(image_input, np.ndarray):
+                image = Image.fromarray(image_input).convert("RGB")
+            elif hasattr(image_input, "read"):
+                image = Image.open(image_input).convert("RGB")
+            else:
+                raise ValidationError(
+                    "Unsupported image input type",
+                    "INVALID_IMAGE_INPUT",
+                )
+
+            inputs = self.vision_processor(
+                images=image, return_tensors="pt"
+            )
+            if hasattr(inputs, "to"):
+                inputs = inputs.to(self.device)
+            else:
+                inputs = {
+                    k: (v.to(self.device) if hasattr(v, "to") else v)
+                    for k, v in inputs.items()
+                }
+
+            with torch.no_grad():
+                features = self.vision_model.get_image_features(**inputs)
+
+            embedding = features[0].detach().cpu().numpy().tolist()
+            return embedding
+
+        except (ValidationError, VisionProcessingError):
+            raise
+        except Exception as exc:
+            raise VisionProcessingError(
+                f"Image embedding failed: {exc}",
+                "IMAGE_EMBEDDING_FAILED",
+            )
 
     def _reasoning_pipeline(self, context: str) -> Dict[str, Any]:
         try:

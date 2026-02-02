@@ -1,6 +1,7 @@
 """Speech processing module for audio transcription and recognition."""
 
 import logging
+import os
 from typing import Any, Dict, Optional
 
 # Import configuration manager
@@ -141,6 +142,21 @@ class SpeechProcessor:
                 self.recognizer = None
         else:
             logger.warning("Speech recognition not available")
+
+    def transcribe(self, audio_input: Any) -> Optional[str]:
+        """Transcribe audio from a file path or raw audio bytes."""
+        if audio_input is None:
+            logger.warning("No audio input provided")
+            return None
+
+        if isinstance(audio_input, (str, os.PathLike)):
+            return self.transcribe_audio_file(str(audio_input))
+
+        if isinstance(audio_input, (bytes, bytearray)):
+            return self.transcribe_audio_data(bytes(audio_input))
+
+        logger.warning("Unsupported audio input type: %s", type(audio_input))
+        return None
 
     def transcribe_audio_file(self, audio_file_path: str) -> Optional[str]:
         """

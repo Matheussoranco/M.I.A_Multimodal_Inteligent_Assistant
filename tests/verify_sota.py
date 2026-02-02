@@ -25,9 +25,9 @@ try:
 except ImportError:
     sys.modules["psutil"] = SafeMock()
 
-from mia.llm.llm_manager import LLMManager
-from mia.core.cognitive_architecture import MIACognitiveCore
-from mia.resource_manager import ResourceManager
+from mia.llm.llm_manager import LLMManager  # type: ignore[import-not-found]
+from mia.core.cognitive_architecture import MIACognitiveCore  # type: ignore[import-not-found]
+from mia.resource_manager import ResourceManager  # type: ignore[import-not-found]
 
 class TestSOTAUpgrade(unittest.TestCase):
     def setUp(self):

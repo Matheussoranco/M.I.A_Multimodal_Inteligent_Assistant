@@ -780,10 +780,6 @@ def initialize_components(args):
             "LLM provider not registered - some features will be disabled"
         )
         components["llm"] = None
-        # Register memory pressure callback
-        if components["llm"] and resource_manager:
-            resource_manager.register_memory_pressure_callback(components["llm"].unload_model)
-            logger.info("Registered LLM unload callback for memory pressure")
 
     except Exception as e:
         logger.error(f"Failed to initialize LLM Manager: {e}")
@@ -956,6 +952,21 @@ def initialize_components(args):
         components["performance_monitor"] = None
         components["cache_manager"] = None
         components["resource_manager"] = None
+
+    resource_manager_instance = components.get("resource_manager")
+    llm_instance = components.get("llm")
+    if llm_instance and hasattr(llm_instance, "unload_model") and resource_manager_instance:
+        try:
+            resource_manager_instance.register_memory_pressure_callback(
+                llm_instance.unload_model
+            )
+            logger.info(
+                "Registered LLM unload callback for memory pressure"
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to register LLM unload callback: %s", exc
+            )
 
     return components
 
