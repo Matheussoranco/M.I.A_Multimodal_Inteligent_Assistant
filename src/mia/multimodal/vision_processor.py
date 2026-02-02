@@ -363,8 +363,8 @@ class VisionProcessor:
         
         if model is not None:
             if self.device == "cuda" and HAS_TORCH and torch is not None and torch.cuda.is_available():
-                model = model.cuda()  # type: ignore[union-attr]
-            model.eval()  # type: ignore[union-attr]
+                model = model.cuda()
+            model.eval()
             self._model = model
         
         # Also load VQA model
@@ -374,8 +374,8 @@ class VisionProcessor:
                 vqa_model = BlipForQuestionAnswering.from_pretrained(vqa_model_name)
                 if vqa_model is not None:
                     if self.device == "cuda" and HAS_TORCH and torch is not None and torch.cuda.is_available():
-                        vqa_model = vqa_model.cuda()  # type: ignore[union-attr]
-                    vqa_model.eval()  # type: ignore[union-attr]
+                        vqa_model = vqa_model.cuda()
+                    vqa_model.eval()
                     self._vqa_model = vqa_model
         except Exception as e:
             logger.warning(f"Failed to load VQA model: {e}")

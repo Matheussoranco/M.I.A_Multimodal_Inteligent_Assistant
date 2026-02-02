@@ -14,7 +14,7 @@ class MultimodalProcessor:
         """Convert speech to text with emotion analysis"""
         try:
             # Use Google Speech Recognition as primary method
-            text = getattr(self.recognizer, "recognize_google")(audio_data)  # type: ignore
+            text = getattr(self.recognizer, "recognize_google")(audio_data)
             return {"text": text, "emotion": self._analyze_emotion(audio_data)}
         except (sr.UnknownValueError, AttributeError):
             return {"error": "Could not understand audio"}
@@ -22,7 +22,7 @@ class MultimodalProcessor:
             # Try alternative recognition methods
             try:
                 # Try Sphinx (offline) as fallback
-                text = getattr(self.recognizer, "recognize_sphinx")(audio_data)  # type: ignore
+                text = getattr(self.recognizer, "recognize_sphinx")(audio_data)
                 return {
                     "text": text,
                     "emotion": self._analyze_emotion(audio_data),

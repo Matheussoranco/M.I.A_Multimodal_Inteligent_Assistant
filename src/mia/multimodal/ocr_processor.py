@@ -30,7 +30,7 @@ try:
 
     HAS_OPENCV = True
 except ImportError:
-    cv2 = None  # type: ignore[misc, assignment]
+    cv2 = None
     HAS_OPENCV = False
 
 try:
@@ -38,23 +38,23 @@ try:
 
     HAS_TESSERACT = True
 except ImportError:
-    pytesseract = None  # type: ignore[misc, assignment]
+    pytesseract = None
     HAS_TESSERACT = False
 
 try:
-    import easyocr  # type: ignore[import-unresolved]
+    import easyocr
 
     HAS_EASYOCR = True
 except ImportError:
-    easyocr = None  # type: ignore[misc, assignment]
+    easyocr = None
     HAS_EASYOCR = False
 
 try:
-    from paddleocr import PaddleOCR  # type: ignore[import-unresolved]
+    from paddleocr import PaddleOCR
 
     HAS_PADDLEOCR = True
 except ImportError:
-    PaddleOCR = None  # type: ignore[misc, assignment]
+    PaddleOCR = None
     HAS_PADDLEOCR = False
 
 try:
@@ -63,9 +63,9 @@ try:
 
     HAS_TROCR = True
 except ImportError:
-    TrOCRProcessor = None  # type: ignore[misc, assignment]
-    VisionEncoderDecoderModel = None  # type: ignore[misc, assignment]
-    torch = None  # type: ignore[misc, assignment]
+    TrOCRProcessor = None
+    VisionEncoderDecoderModel = None
+    torch = None
     HAS_TROCR = False
 
 try:
@@ -73,7 +73,7 @@ try:
 
     HAS_REQUESTS = True
 except ImportError:
-    requests = None  # type: ignore[misc, assignment]
+    requests = None
     HAS_REQUESTS = False
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,7 @@ class OCRProcessor:
         if HAS_TESSERACT:
             try:
                 # Check if tesseract is actually installed
-                pytesseract.get_tesseract_version()  # type: ignore[union-attr]
+                pytesseract.get_tesseract_version()
                 providers.append({
                     "name": "tesseract",
                     "type": "local",
@@ -236,7 +236,7 @@ class OCRProcessor:
     def _get_tesseract_languages(cls) -> List[str]:
         """Get available Tesseract languages."""
         try:
-            return pytesseract.get_languages()  # type: ignore[union-attr]
+            return pytesseract.get_languages()
         except Exception:
             return ["eng"]
 
@@ -401,7 +401,7 @@ class OCRProcessor:
             )
         
         gpu = self.device == "cuda"
-        self._reader = easyocr.Reader(self.languages, gpu=gpu)  # type: ignore[union-attr]
+        self._reader = easyocr.Reader(self.languages, gpu=gpu)
 
     def _initialize_paddleocr(self) -> None:
         """Initialize PaddleOCR."""
@@ -413,7 +413,7 @@ class OCRProcessor:
         
         use_gpu = self.device == "cuda"
         lang = self.languages[0] if self.languages else "en"
-        self._reader = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)  # type: ignore[misc]
+        self._reader = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
 
     def _initialize_trocr(self) -> None:
         """Initialize TrOCR transformer model."""
@@ -424,13 +424,13 @@ class OCRProcessor:
             )
         
         model_id = self.model_id or DEFAULT_OCR_MODELS["trocr"]
-        self._processor = TrOCRProcessor.from_pretrained(model_id)  # type: ignore[union-attr]
-        self._model = VisionEncoderDecoderModel.from_pretrained(model_id)  # type: ignore[union-attr]
+        self._processor = TrOCRProcessor.from_pretrained(model_id)
+        self._model = VisionEncoderDecoderModel.from_pretrained(model_id)
         
-        if self.device == "cuda" and torch.cuda.is_available():  # type: ignore[union-attr]
-            self._model = self._model.cuda()  # type: ignore[union-attr]
+        if self.device == "cuda" and torch.cuda.is_available():
+            self._model = self._model.cuda()
         
-        self._model.eval()  # type: ignore[union-attr]
+        self._model.eval()
 
     def _initialize_cloud_provider(self) -> None:
         """Initialize cloud OCR provider."""
@@ -486,7 +486,7 @@ class OCRProcessor:
         # Convert to grayscale if color
         if len(img_array.shape) == 3:
             if HAS_OPENCV:
-                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)  # type: ignore[union-attr]
+                gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
             else:
                 # Simple grayscale conversion without OpenCV
                 gray = np.mean(img_array, axis=2).astype(np.uint8)
@@ -499,11 +499,11 @@ class OCRProcessor:
         
         # Denoise
         if denoise:
-            gray = cv2.fastNlMeansDenoising(gray)  # type: ignore[union-attr]
+            gray = cv2.fastNlMeansDenoising(gray)
         
         # Enhance contrast
         if enhance_contrast:
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))  # type: ignore[union-attr]
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             gray = clahe.apply(gray)
         
         # Deskew
@@ -512,8 +512,8 @@ class OCRProcessor:
         
         # Binarize
         if binarize:
-            gray = cv2.adaptiveThreshold(  # type: ignore[union-attr]
-                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2  # type: ignore[union-attr]
+            gray = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
             )
         
         return gray
@@ -525,10 +525,10 @@ class OCRProcessor:
         
         try:
             # Find edges
-            edges = cv2.Canny(image, 50, 150, apertureSize=3)  # type: ignore[union-attr]
+            edges = cv2.Canny(image, 50, 150, apertureSize=3)
             
             # Find lines using Hough transform
-            lines = cv2.HoughLinesP(  # type: ignore[union-attr]
+            lines = cv2.HoughLinesP(
                 edges, 1, np.pi / 180, threshold=100, minLineLength=100, maxLineGap=10
             )
             
@@ -551,9 +551,9 @@ class OCRProcessor:
             # Rotate image
             (h, w) = image.shape[:2]
             center = (w // 2, h // 2)
-            M = cv2.getRotationMatrix2D(center, median_angle, 1.0)  # type: ignore[union-attr]
-            rotated = cv2.warpAffine(  # type: ignore[union-attr]
-                image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE  # type: ignore[union-attr]
+            M = cv2.getRotationMatrix2D(center, median_angle, 1.0)
+            rotated = cv2.warpAffine(
+                image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
             )
             
             return rotated
@@ -636,7 +636,7 @@ class OCRProcessor:
         
         if return_boxes:
             # Get detailed output with boxes
-            data = pytesseract.image_to_data(img, lang=lang, output_type=pytesseract.Output.DICT)  # type: ignore[union-attr]
+            data = pytesseract.image_to_data(img, lang=lang, output_type=pytesseract.Output.DICT)
             
             boxes = []
             full_text = []
@@ -671,13 +671,13 @@ class OCRProcessor:
                 language=lang,
             )
         else:
-            text = pytesseract.image_to_string(img, lang=lang)  # type: ignore[union-attr]
+            text = pytesseract.image_to_string(img, lang=lang)
             return OCRResult(text=text.strip(), confidence=1.0, language=lang)
 
     def _ocr_easyocr(self, img: Image.Image, return_boxes: bool) -> OCRResult:
         """Perform OCR using EasyOCR."""
         img_array = np.array(img)
-        results = self._reader.readtext(img_array)  # type: ignore[union-attr]
+        results = self._reader.readtext(img_array)
         
         boxes = []
         full_text = []
@@ -711,7 +711,7 @@ class OCRProcessor:
     def _ocr_paddleocr(self, img: Image.Image, return_boxes: bool) -> OCRResult:
         """Perform OCR using PaddleOCR."""
         img_array = np.array(img)
-        results = self._reader.ocr(img_array, cls=True)  # type: ignore[union-attr]
+        results = self._reader.ocr(img_array, cls=True)
         
         boxes = []
         full_text = []
@@ -751,16 +751,16 @@ class OCRProcessor:
             img = img.convert("RGB")
         
         # Process image
-        pixel_values = self._processor(images=img, return_tensors="pt").pixel_values  # type: ignore[misc]
+        pixel_values = self._processor(images=img, return_tensors="pt").pixel_values
         
         if self.device == "cuda":
             pixel_values = pixel_values.cuda()
         
         # Generate text
-        with torch.no_grad():  # type: ignore[union-attr]
-            generated_ids = self._model.generate(pixel_values)  # type: ignore[union-attr]
+        with torch.no_grad():
+            generated_ids = self._model.generate(pixel_values)
         
-        text = self._processor.batch_decode(generated_ids, skip_special_tokens=True)[0]  # type: ignore[union-attr]
+        text = self._processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
         
         return OCRResult(
             text=text or "",
@@ -874,7 +874,7 @@ class OCRProcessor:
         
         api_key = self.api_key or os.getenv("GOOGLE_API_KEY")
         
-        response = requests.post(  # type: ignore[union-attr]
+        response = requests.post(
             f"https://vision.googleapis.com/v1/images:annotate?key={api_key}",
             json={
                 "requests": [
@@ -927,7 +927,7 @@ class OCRProcessor:
         
         endpoint = os.getenv("AZURE_COMPUTER_VISION_ENDPOINT", "").rstrip("/")
         
-        response = requests.post(  # type: ignore[union-attr]
+        response = requests.post(
             f"{endpoint}/vision/v3.2/ocr",
             headers={
                 "Ocp-Apim-Subscription-Key": self.api_key,
