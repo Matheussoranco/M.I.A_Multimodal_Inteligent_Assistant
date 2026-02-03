@@ -6,13 +6,14 @@ Supports multiple OCR engines: Tesseract, EasyOCR, PaddleOCR, TrOCR, and cloud A
 from __future__ import annotations
 
 import base64
+import importlib
 import io
 import json
 import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 from PIL import Image
@@ -26,53 +27,50 @@ from ..exceptions import (
 
 # Optional imports with error handling
 try:
-    import cv2
-
+    cv2 = cast(Any, importlib.import_module("cv2"))
     HAS_OPENCV = True
-except ImportError:
+except Exception:
     cv2 = None
     HAS_OPENCV = False
 
 try:
-    import pytesseract
-
+    pytesseract = cast(Any, importlib.import_module("pytesseract"))
     HAS_TESSERACT = True
-except ImportError:
+except Exception:
     pytesseract = None
     HAS_TESSERACT = False
 
 try:
-    import easyocr
-
+    easyocr = cast(Any, importlib.import_module("easyocr"))
     HAS_EASYOCR = True
-except ImportError:
+except Exception:
     easyocr = None
     HAS_EASYOCR = False
 
 try:
-    from paddleocr import PaddleOCR
-
-    HAS_PADDLEOCR = True
-except ImportError:
-    PaddleOCR = None
+    _paddleocr_mod = importlib.import_module("paddleocr")
+    PaddleOCR = cast(Any, getattr(_paddleocr_mod, "PaddleOCR", None))
+    HAS_PADDLEOCR = PaddleOCR is not None
+except Exception:
+    PaddleOCR = None  # type: ignore[assignment]
     HAS_PADDLEOCR = False
 
 try:
-    from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-    import torch
-
-    HAS_TROCR = True
-except ImportError:
-    TrOCRProcessor = None
-    VisionEncoderDecoderModel = None
+    _transformers_mod = importlib.import_module("transformers")
+    TrOCRProcessor = cast(Any, getattr(_transformers_mod, "TrOCRProcessor", None))
+    VisionEncoderDecoderModel = cast(Any, getattr(_transformers_mod, "VisionEncoderDecoderModel", None))
+    torch = cast(Any, importlib.import_module("torch"))
+    HAS_TROCR = TrOCRProcessor is not None and VisionEncoderDecoderModel is not None
+except Exception:
+    TrOCRProcessor = None  # type: ignore[assignment]
+    VisionEncoderDecoderModel = None  # type: ignore[assignment]
     torch = None
     HAS_TROCR = False
 
 try:
-    import requests
-
+    requests = cast(Any, importlib.import_module("requests"))
     HAS_REQUESTS = True
-except ImportError:
+except Exception:
     requests = None
     HAS_REQUESTS = False
 
@@ -164,7 +162,7 @@ class OCRProcessor:
         """Detect available OCR providers."""
         providers = []
         
-        if HAS_TESSERACT:
+        if HAS_TESSERACT and pytesseract is not None:
             try:
                 # Check if tesseract is actually installed
                 pytesseract.get_tesseract_version()
@@ -177,21 +175,21 @@ class OCRProcessor:
             except Exception:
                 pass
         
-        if HAS_EASYOCR:
+        if HAS_EASYOCR and easyocr is not None:
             providers.append({
                 "name": "easyocr",
                 "type": "local",
                 "available": True,
             })
         
-        if HAS_PADDLEOCR:
+        if HAS_PADDLEOCR and PaddleOCR is not None:
             providers.append({
                 "name": "paddleocr",
                 "type": "local",
                 "available": True,
             })
         
-        if HAS_TROCR:
+        if HAS_TROCR and TrOCRProcessor is not None and VisionEncoderDecoderModel is not None and torch is not None:
             providers.append({
                 "name": "trocr",
                 "type": "local",
@@ -235,6 +233,8 @@ class OCRProcessor:
     @classmethod
     def _get_tesseract_languages(cls) -> List[str]:
         """Get available Tesseract languages."""
+        if not HAS_TESSERACT or pytesseract is None:
+            return ["eng"]
         try:
             return pytesseract.get_languages()
         except Exception:
@@ -378,14 +378,14 @@ class OCRProcessor:
 
     def _initialize_tesseract(self) -> None:
         """Initialize Tesseract OCR."""
-        if not HAS_TESSERACT:
+        if not HAS_TESSERACT or pytesseract is None:
             raise InitializationError(
                 "pytesseract not installed. Run: pip install pytesseract",
                 "MISSING_DEPENDENCY",
             )
         
         try:
-            pytesseract.get_tesseract_version()  # type: ignore[union-attr]
+            pytesseract.get_tesseract_version()
         except Exception as e:
             raise InitializationError(
                 f"Tesseract not installed or not in PATH: {e}",
@@ -394,18 +394,19 @@ class OCRProcessor:
 
     def _initialize_easyocr(self) -> None:
         """Initialize EasyOCR."""
-        if not HAS_EASYOCR:
+        if not HAS_EASYOCR or easyocr is None:
             raise InitializationError(
                 "easyocr not installed. Run: pip install easyocr",
                 "MISSING_DEPENDENCY",
             )
         
         gpu = self.device == "cuda"
+        assert easyocr is not None
         self._reader = easyocr.Reader(self.languages, gpu=gpu)
 
     def _initialize_paddleocr(self) -> None:
         """Initialize PaddleOCR."""
-        if not HAS_PADDLEOCR:
+        if not HAS_PADDLEOCR or PaddleOCR is None:
             raise InitializationError(
                 "paddleocr not installed. Run: pip install paddleocr",
                 "MISSING_DEPENDENCY",
@@ -413,24 +414,26 @@ class OCRProcessor:
         
         use_gpu = self.device == "cuda"
         lang = self.languages[0] if self.languages else "en"
+        assert PaddleOCR is not None
         self._reader = PaddleOCR(use_angle_cls=True, lang=lang, use_gpu=use_gpu)
 
     def _initialize_trocr(self) -> None:
         """Initialize TrOCR transformer model."""
-        if not HAS_TROCR:
+        if not HAS_TROCR or TrOCRProcessor is None or VisionEncoderDecoderModel is None or torch is None:
             raise InitializationError(
                 "transformers not installed. Run: pip install transformers torch",
                 "MISSING_DEPENDENCY",
             )
         
         model_id = self.model_id or DEFAULT_OCR_MODELS["trocr"]
-        self._processor = TrOCRProcessor.from_pretrained(model_id)
-        self._model = VisionEncoderDecoderModel.from_pretrained(model_id)
+        assert TrOCRProcessor is not None and VisionEncoderDecoderModel is not None and torch is not None
+        self._processor = cast(Any, TrOCRProcessor).from_pretrained(model_id)
+        self._model = cast(Any, VisionEncoderDecoderModel).from_pretrained(model_id)
         
         if self.device == "cuda" and torch.cuda.is_available():
-            self._model = self._model.cuda()
+            self._model = cast(Any, self._model).cuda()
         
-        self._model.eval()
+        cast(Any, self._model).eval()
 
     def _initialize_cloud_provider(self) -> None:
         """Initialize cloud OCR provider."""
@@ -485,7 +488,7 @@ class OCRProcessor:
         
         # Convert to grayscale if color
         if len(img_array.shape) == 3:
-            if HAS_OPENCV:
+            if HAS_OPENCV and cv2 is not None:
                 gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
             else:
                 # Simple grayscale conversion without OpenCV
@@ -496,6 +499,8 @@ class OCRProcessor:
         if not HAS_OPENCV:
             # Return grayscale if OpenCV not available
             return gray
+
+        assert cv2 is not None
         
         # Denoise
         if denoise:
@@ -522,6 +527,8 @@ class OCRProcessor:
         """Deskew an image."""
         if not HAS_OPENCV:
             return image
+
+        assert cv2 is not None
         
         try:
             # Find edges
@@ -632,6 +639,11 @@ class OCRProcessor:
         self, img: Image.Image, language: Optional[str], return_boxes: bool
     ) -> OCRResult:
         """Perform OCR using Tesseract."""
+        if not HAS_TESSERACT or pytesseract is None:
+            raise InitializationError(
+                "pytesseract not installed. Run: pip install pytesseract",
+                "MISSING_DEPENDENCY",
+            )
         lang = language or "+".join(self.languages)
         
         if return_boxes:
@@ -676,8 +688,13 @@ class OCRProcessor:
 
     def _ocr_easyocr(self, img: Image.Image, return_boxes: bool) -> OCRResult:
         """Perform OCR using EasyOCR."""
+        if not HAS_EASYOCR or easyocr is None or self._reader is None:
+            raise InitializationError(
+                "EasyOCR not initialized or not available",
+                "EASYOCR_NOT_AVAILABLE",
+            )
         img_array = np.array(img)
-        results = self._reader.readtext(img_array)
+        results = cast(Any, self._reader).readtext(img_array)
         
         boxes = []
         full_text = []
@@ -710,8 +727,13 @@ class OCRProcessor:
 
     def _ocr_paddleocr(self, img: Image.Image, return_boxes: bool) -> OCRResult:
         """Perform OCR using PaddleOCR."""
+        if not HAS_PADDLEOCR or PaddleOCR is None or self._reader is None:
+            raise InitializationError(
+                "PaddleOCR not initialized or not available",
+                "PADDLEOCR_NOT_AVAILABLE",
+            )
         img_array = np.array(img)
-        results = self._reader.ocr(img_array, cls=True)
+        results = cast(Any, self._reader).ocr(img_array, cls=True)
         
         boxes = []
         full_text = []
@@ -746,21 +768,26 @@ class OCRProcessor:
 
     def _ocr_trocr(self, img: Image.Image) -> OCRResult:
         """Perform OCR using TrOCR transformer model."""
+        if not HAS_TROCR or torch is None or self._processor is None or self._model is None:
+            raise InitializationError(
+                "TrOCR not initialized or not available",
+                "TROCR_NOT_AVAILABLE",
+            )
         # Convert to RGB if necessary
         if img.mode != "RGB":
             img = img.convert("RGB")
         
         # Process image
-        pixel_values = self._processor(images=img, return_tensors="pt").pixel_values
+        pixel_values = cast(Any, self._processor)(images=img, return_tensors="pt").pixel_values
         
         if self.device == "cuda":
             pixel_values = pixel_values.cuda()
         
         # Generate text
-        with torch.no_grad():
-            generated_ids = self._model.generate(pixel_values)
+        with cast(Any, torch).no_grad():
+            generated_ids = cast(Any, self._model).generate(pixel_values)
         
-        text = self._processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        text = cast(Any, self._processor).batch_decode(generated_ids, skip_special_tokens=True)[0]
         
         return OCRResult(
             text=text or "",
@@ -867,6 +894,11 @@ class OCRProcessor:
 
     def _ocr_google_vision(self, img: Image.Image) -> OCRResult:
         """Perform OCR using Google Cloud Vision."""
+        if not HAS_REQUESTS or requests is None:
+            raise InitializationError(
+                "requests not installed. Run: pip install requests",
+                "MISSING_DEPENDENCY",
+            )
         # Convert image to base64
         buffered = io.BytesIO()
         img.save(buffered, format="PNG")
@@ -920,12 +952,22 @@ class OCRProcessor:
 
     def _ocr_azure_vision(self, img: Image.Image) -> OCRResult:
         """Perform OCR using Azure Computer Vision."""
+        if not HAS_REQUESTS or requests is None:
+            raise InitializationError(
+                "requests not installed. Run: pip install requests",
+                "MISSING_DEPENDENCY",
+            )
         # Convert image to bytes
         buffered = io.BytesIO()
         img.save(buffered, format="PNG")
         img_bytes = buffered.getvalue()
         
         endpoint = os.getenv("AZURE_COMPUTER_VISION_ENDPOINT", "").rstrip("/")
+        if not endpoint:
+            raise ConfigurationError(
+                "AZURE_COMPUTER_VISION_ENDPOINT is required for Azure OCR",
+                "MISSING_AZURE_ENDPOINT",
+            )
         
         response = requests.post(
             f"{endpoint}/vision/v3.2/ocr",

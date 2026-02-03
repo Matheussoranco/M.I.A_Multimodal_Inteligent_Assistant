@@ -10,6 +10,7 @@ Supports:
 
 import base64
 import io
+import importlib
 import logging
 import os
 from dataclasses import dataclass
@@ -52,43 +53,42 @@ class ImageAnalysisResult:
 
 # Optional imports
 try:
-    from transformers import (
-        BlipProcessor,
-        BlipForConditionalGeneration,
-        BlipForQuestionAnswering,
-    )
+    _transformers_mod = importlib.import_module("transformers")
+    BlipProcessor = getattr(_transformers_mod, "BlipProcessor")
+    BlipForConditionalGeneration = getattr(_transformers_mod, "BlipForConditionalGeneration")
+    BlipForQuestionAnswering = getattr(_transformers_mod, "BlipForQuestionAnswering")
     HAS_BLIP = True
-except ImportError:
+except Exception:
     HAS_BLIP = False
     BlipProcessor = None
     BlipForConditionalGeneration = None
     BlipForQuestionAnswering = None
 
 try:
-    import torch
+    torch = importlib.import_module("torch")
     HAS_TORCH = True
-except ImportError:
+except Exception:
     HAS_TORCH = False
     torch = None
 
 try:
-    import cv2
+    cv2 = importlib.import_module("cv2")
     HAS_CV2 = True
-except ImportError:
+except Exception:
     HAS_CV2 = False
     cv2 = None
 
 try:
-    import pytesseract
+    pytesseract = importlib.import_module("pytesseract")
     HAS_TESSERACT = True
-except ImportError:
+except Exception:
     HAS_TESSERACT = False
     pytesseract = None
 
 try:
-    from openai import OpenAI
+    OpenAI = getattr(importlib.import_module("openai"), "OpenAI")
     HAS_OPENAI = True
-except ImportError:
+except Exception:
     HAS_OPENAI = False
     OpenAI = None
 
@@ -359,11 +359,11 @@ class VisionProcessor:
         model_name = self.model_id or "Salesforce/blip-image-captioning-base"
         
         self._processor = BlipProcessor.from_pretrained(model_name)
-        model = BlipForConditionalGeneration.from_pretrained(model_name)
+        model: Any = BlipForConditionalGeneration.from_pretrained(model_name)
         
         if model is not None:
             if self.device == "cuda" and HAS_TORCH and torch is not None and torch.cuda.is_available():
-                model = model.cuda()
+                model = cast(Any, model).cuda()
             model.eval()
             self._model = model
         
@@ -371,10 +371,10 @@ class VisionProcessor:
         try:
             if BlipForQuestionAnswering is not None:
                 vqa_model_name = "Salesforce/blip-vqa-base"
-                vqa_model = BlipForQuestionAnswering.from_pretrained(vqa_model_name)
+                vqa_model: Any = BlipForQuestionAnswering.from_pretrained(vqa_model_name)
                 if vqa_model is not None:
                     if self.device == "cuda" and HAS_TORCH and torch is not None and torch.cuda.is_available():
-                        vqa_model = vqa_model.cuda()
+                        vqa_model = cast(Any, vqa_model).cuda()
                     vqa_model.eval()
                     self._vqa_model = vqa_model
         except Exception as e:

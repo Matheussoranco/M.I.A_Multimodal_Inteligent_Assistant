@@ -6,6 +6,7 @@ Main entry point for the application
 
 import sys
 import os
+import importlib
 from pathlib import Path
 
 # Get the directory containing this script
@@ -19,8 +20,8 @@ if str(src_dir) not in sys.path:
 # Import and run main
 if __name__ == "__main__":
     try:
-        from mia.main import main
-        main()
+        mia_main = importlib.import_module("mia.main")
+        mia_main.main()
     except ImportError as e:
         print(f"Error importing main module: {e}")
         print(f"Current working directory: {os.getcwd()}")

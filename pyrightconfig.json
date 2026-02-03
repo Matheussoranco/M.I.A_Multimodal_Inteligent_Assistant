@@ -1,0 +1,23 @@
+{
+  "include": [
+    "src",
+    "tests",
+    "main.py",
+    "mia_desktop.py",
+    "mia_launcher.py",
+    "run_gateway.py"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "cache",
+    "mia_data",
+    "memory",
+    ".pytest_cache"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["src"]
+    }
+  ]
+}
