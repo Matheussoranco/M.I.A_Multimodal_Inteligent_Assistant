@@ -695,7 +695,9 @@ Action Input: <input to the tool>
             return f"Search results for '{action_input}': [Mock search result]"
         elif action_lower == "calculate":
             try:
-                result = eval(action_input)
+                from mia.utils.safe_arithmetic import safe_eval_arithmetic
+
+                result = safe_eval_arithmetic(action_input)
                 return f"Result: {result}"
             except:
                 return "Calculation error"

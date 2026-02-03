@@ -4,6 +4,7 @@
 transformers>=4.36.0
 torch>=2.0.0
 huggingface_hub>=0.19.3
+llama-cpp-python>=0.2.77
 langchain>=0.1.0
 chromadb>=0.5.0
 networkx>=3.0

@@ -1,5 +1,6 @@
 import os
 import platform
+import subprocess
 import webbrowser
 from typing import Optional
 
@@ -43,9 +44,9 @@ class AutomationUtil:
             if system_platform == "Windows":
                 os.startfile(program_path)
             elif system_platform == "Darwin":  # macOS
-                os.system(f"open {program_path}")
+                subprocess.run(["open", program_path], check=False)
             elif system_platform == "Linux":
-                os.system(f"xdg-open {program_path}")
+                subprocess.run(["xdg-open", program_path], check=False)
             else:
                 return "Unsupported operating system."
 
@@ -67,9 +68,9 @@ class AutomationUtil:
             if system_platform == "Windows":
                 os.startfile(file_path)
             elif system_platform == "Darwin":  # macOS
-                os.system(f"open {file_path}")
+                subprocess.run(["open", file_path], check=False)
             elif system_platform == "Linux":
-                os.system(f"xdg-open {file_path}")
+                subprocess.run(["xdg-open", file_path], check=False)
             else:
                 return "Unsupported operating system."
 

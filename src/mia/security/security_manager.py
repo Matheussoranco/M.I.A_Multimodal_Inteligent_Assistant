@@ -17,15 +17,27 @@ logger = logging.getLogger(__name__)
 
 class SecurityManager:
     def __init__(self, config_manager=None):
+        self.config_manager = config_manager
+        self.enabled = True
+
+        try:
+            cfg = getattr(config_manager, "config", None)
+            security_cfg = getattr(cfg, "security", None) if cfg else None
+            if security_cfg is not None:
+                self.enabled = bool(getattr(security_cfg, "enabled", True))
+        except Exception:
+            self.enabled = True
+
         self.data_policies: Dict[str, bool] = {
             # Default safe actions
-            "read_file": False,  # Requires explicit permission
-            "write_file": False,
-            "execute_command": False,
+            # Allow core capabilities, rely on consent/scope prompts in executors.
+            "read_file": True,
+            "write_file": True,
+            "execute_command": True,
             "web_search": True,  # Generally safe
             "calendar_access": False,
             "send_email": False,
-            "system_control": False,
+            "system_control": True,
         }
         self.action_history: List[Dict] = []
         self.blocked_paths: Set[str] = {
@@ -35,6 +47,31 @@ class SecurityManager:
             "/root",
             "C:\\Users\\Administrator",
         }
+
+        # Merge blocked commands from config when available.
+        try:
+            cfg = getattr(config_manager, "config", None)
+            security_cfg = getattr(cfg, "security", None) if cfg else None
+            blocked = getattr(security_cfg, "blocked_commands", None)
+            if blocked:
+                # Stored as list[str] in config manager.
+                self._blocked_commands = [str(x) for x in blocked]
+            else:
+                self._blocked_commands = []
+        except Exception:
+            self._blocked_commands = []
+
+    def is_path_allowed(self, path: str) -> bool:
+        """Public helper used by executors/tests."""
+        return self._validate_file_path(path)
+
+    def is_command_allowed(self, command: str) -> bool:
+        """Public helper used by executors/tests."""
+        cmd = str(command or "")
+        lowered = cmd.lower()
+        if any(b.lower() in lowered for b in self._blocked_commands):
+            return False
+        return self._validate_command(cmd)
 
     @with_error_handling(global_error_handler, fallback_value=False)
     def check_permission(
@@ -271,6 +308,9 @@ class SecurityManager:
     def has_scope(self, scope: str) -> bool:
         """Check if a specific scope is allowed."""
         try:
+            if not getattr(self, "enabled", True):
+                return True
+
             if not scope or not isinstance(scope, str):
                 return False
 
@@ -279,6 +319,7 @@ class SecurityManager:
                 "files.read": "read_file",
                 "files.write": "write_file",
                 "system": "execute_command",
+                "desktop": "system_control",
                 "web": "web_search",
                 "messaging": "send_email",
                 "iot": "system_control",

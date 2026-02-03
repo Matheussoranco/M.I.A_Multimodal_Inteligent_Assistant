@@ -1,5 +1,6 @@
 from datetime import datetime
 from mia.core.skills import BaseSkill, SkillManifest, tool
+from mia.utils.safe_arithmetic import safe_eval_arithmetic
 
 class BasicToolsSkill(BaseSkill):
     """
@@ -22,9 +23,7 @@ class BasicToolsSkill(BaseSkill):
     @tool(name="calculate", description="Performs basic arithmetic.")
     def calculate(self, expression: str) -> str:
         try:
-            # SAFE EVAL is needed here in production!
-            # Using basic restricted scope for demo
-            return str(eval(expression, {"__builtins__": None}, {}))
+            return str(safe_eval_arithmetic(expression))
         except Exception as e:
             return f"Error calculating: {e}"
 

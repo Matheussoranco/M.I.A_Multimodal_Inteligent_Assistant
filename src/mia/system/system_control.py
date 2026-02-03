@@ -6,6 +6,7 @@ import os
 import platform
 import shutil
 import subprocess
+import shlex
 
 import psutil
 import pyperclip
@@ -39,7 +40,40 @@ class SystemControl:
 
     @staticmethod
     def run_command(cmd):
-        return subprocess.getoutput(cmd)
+        if not cmd:
+            return ""
+
+        unsafe_shell = os.getenv("MIA_UNSAFE_SHELL", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "y",
+        }
+
+        if unsafe_shell:
+            completed = subprocess.run(
+                str(cmd),
+                shell=True,
+                capture_output=True,
+                text=True,
+            )
+            return completed.stdout + completed.stderr
+
+        argv = (
+            [str(part) for part in cmd]
+            if isinstance(cmd, (list, tuple))
+            else shlex.split(str(cmd), posix=(os.name != "nt"))
+        )
+        if not argv:
+            return ""
+
+        completed = subprocess.run(
+            argv,
+            shell=False,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout + completed.stderr
 
     @staticmethod
     def get_clipboard():

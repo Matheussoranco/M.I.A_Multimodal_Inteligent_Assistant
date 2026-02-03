@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import shlex
+import subprocess
 import webbrowser
 from typing import Any, Dict, List, Optional
 
@@ -169,7 +171,18 @@ class LLMInference:
         if target.startswith("http"):
             webbrowser.open(target)
             return f"Website {target} opened."
-        os.system(target)  # pragma: no cover - platform specific
+            unsafe_shell = os.getenv("MIA_UNSAFE_SHELL", "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "y",
+            }
+            if unsafe_shell:
+                subprocess.run(str(target), shell=True)  # pragma: no cover
+            else:
+                argv = shlex.split(str(target), posix=(os.name != "nt"))
+                if argv:
+                    subprocess.run(argv, shell=False)  # pragma: no cover
         return f"Program {target} opened."
 
     def autofill_login(self, url: str, username: str, password: str) -> str:

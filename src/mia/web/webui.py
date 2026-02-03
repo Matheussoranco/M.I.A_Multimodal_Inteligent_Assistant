@@ -457,13 +457,11 @@ class MIAAgent:
             # Fallback implementations
             if tool_name == "calculator":
                 try:
-                    # Safe eval for math
+                    # Safe arithmetic evaluation (no names/calls)
+                    from mia.utils.safe_arithmetic import safe_eval_arithmetic
+
                     expr = arguments.get("expression", "")
-                    allowed = set("0123456789+-*/.() ")
-                    if all(c in allowed for c in expr):
-                        result = eval(expr)
-                        return str(result)
-                    return "Invalid expression"
+                    return str(safe_eval_arithmetic(str(expr)))
                 except Exception as e:
                     return f"Calculation error: {e}"
             
@@ -471,28 +469,13 @@ class MIAAgent:
                 return f"[Search results for: {arguments.get('query', '')}] - Web search executed"
             
             elif tool_name == "read_file":
-                path = arguments.get("path", "")
-                if os.path.exists(path):
-                    with open(path, "r", encoding="utf-8") as f:
-                        return f.read()[:10000]  # Limit content
-                return f"File not found: {path}"
+                return "Tool 'read_file' is unavailable (action executor not initialized)"
             
             elif tool_name == "create_file":
-                path = arguments.get("path", "")
-                content = arguments.get("content", "")
-                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(content)
-                return f"File created: {path}"
+                return "Tool 'create_file' is unavailable (action executor not initialized)"
             
             elif tool_name == "run_command":
-                import subprocess
-                cmd = arguments.get("command", "")
-                try:
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-                    return result.stdout + result.stderr
-                except subprocess.TimeoutExpired:
-                    return f"Command timed out after 30 seconds"
+                return "Tool 'run_command' is unavailable (action executor not initialized)"
             
             elif tool_name == "reasoning":
                 problem = arguments.get("problem", "")

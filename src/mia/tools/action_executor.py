@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import shutil
+import shlex
 import smtplib
 import subprocess
 import sys
@@ -30,6 +31,15 @@ class ToolResult:
     error: Optional[str] = None
 
 DEFAULT_SENSITIVE_ACTIONS = {
+    # File operations
+    "read_file",
+    "create_file",
+    "write_file",
+    "delete_file",
+    "move_file",
+    "create_directory",
+    "search_file",
+    # System and external actions
     "send_email",
     "send_whatsapp",
     "send_message",
@@ -633,6 +643,43 @@ class ActionExecutor:
 
         params = params or {}
         self.logger.info(f"Executing action: {action}")
+
+        # SecurityManager pre-validation for paths/commands (when available).
+        if self.security_manager:
+            try:
+                if action in {
+                    "open_file",
+                    "read_file",
+                    "write_file",
+                    "create_file",
+                    "delete_file",
+                    "open_directory",
+                    "create_directory",
+                }:
+                    path_value = params.get("path") or params.get("filename")
+                    if path_value and hasattr(self.security_manager, "is_path_allowed"):
+                        if not bool(self.security_manager.is_path_allowed(str(path_value))):
+                            return f"Path blocked by security policy: {path_value}"
+
+                if action == "move_file":
+                    src = params.get("src")
+                    dst = params.get("dst")
+                    if hasattr(self.security_manager, "is_path_allowed"):
+                        if src and not bool(self.security_manager.is_path_allowed(str(src))):
+                            return f"Path blocked by security policy: {src}"
+                        if dst and not bool(self.security_manager.is_path_allowed(str(dst))):
+                            return f"Path blocked by security policy: {dst}"
+
+                if action == "run_command" and hasattr(
+                    self.security_manager, "is_command_allowed"
+                ):
+                    cmd = params.get("command")
+                    if cmd is not None and not bool(
+                        self.security_manager.is_command_allowed(str(cmd))
+                    ):
+                        return "Command blocked by security policy."
+            except Exception as exc:  # pragma: no cover - defensive
+                self.logger.debug("Security precheck failed: %s", exc)
 
         consent_prompted = False
 
@@ -2000,12 +2047,81 @@ body {{
             return "WiFi control not available on this system."
 
     def run_command(self, command):
+        """Run a system command.
+
+        Defaults to `shell=False` (safer). Set `MIA_UNSAFE_SHELL=1` to allow
+        passing a shell command string.
+        """
+
         if not command:
             return "No command provided."
-        result = subprocess.run(
-            command, shell=True, capture_output=True, text=True
-        )
-        return result.stdout or result.stderr
+
+        unsafe_shell = os.getenv("MIA_UNSAFE_SHELL", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "y",
+        }
+
+        security_cfg = {}
+        if isinstance(getattr(self, "config", None), dict):
+            security_cfg = self.config.get("security", {}) or {}
+
+        max_len = int(security_cfg.get("max_command_length", 1000) or 1000)
+        blocked = security_cfg.get("blocked_commands", []) or []
+
+        def _blocked(cmd_str: str) -> bool:
+            lowered = cmd_str.lower()
+            return any(str(b).lower() in lowered for b in blocked)
+
+        timeout = float(security_cfg.get("command_timeout", 30) or 30)
+
+        # If unsafe shell mode is enabled, preserve legacy behavior.
+        if unsafe_shell:
+            cmd_str = str(command)
+            if len(cmd_str) > max_len:
+                return f"Command too long (max {max_len} chars)."
+            if _blocked(cmd_str):
+                return "Command blocked by security policy."
+            try:
+                result = subprocess.run(
+                    cmd_str,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+                return result.stdout or result.stderr
+            except subprocess.TimeoutExpired:
+                return f"Command timed out after {int(timeout)} seconds"
+
+        # Safe path: parse into argv and run without shell.
+        if isinstance(command, (list, tuple)):
+            argv = [str(part) for part in command if str(part).strip()]
+        else:
+            cmd_str = str(command)
+            if len(cmd_str) > max_len:
+                return f"Command too long (max {max_len} chars)."
+            if _blocked(cmd_str):
+                return "Command blocked by security policy."
+            argv = shlex.split(cmd_str, posix=(os.name != "nt"))
+
+        if not argv:
+            return "No command provided."
+
+        try:
+            result = subprocess.run(
+                argv,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            return result.stdout or result.stderr
+        except FileNotFoundError:
+            return f"Command not found: {argv[0]}"
+        except subprocess.TimeoutExpired:
+            return f"Command timed out after {int(timeout)} seconds"
 
     def run_sandboxed(self, params: Dict[str, Any]) -> str:
         sandbox = self._get_sandbox()

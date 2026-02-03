@@ -205,14 +205,16 @@ class ActionExecutor:
 
     def _setup_code_tools(self) -> None:
         def python_eval(code: str) -> Any:
-            return eval(code, {"__builtins__": {}})
+            from ..utils.safe_arithmetic import safe_eval_arithmetic
+
+            return safe_eval_arithmetic(code)
 
         self.tools.setdefault("python_eval", python_eval)
         self.tool_definitions.setdefault(
             "python_eval",
             ToolDefinition(
                 name="python_eval",
-                description="Evaluate Python expression",
+                description="Evaluate basic arithmetic expression",
                 category=ToolCategory.CODE,
                 parameters={"code": {"type": "string"}},
             ),
