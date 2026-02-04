@@ -83,6 +83,20 @@ AVAILABLE_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "open_url",
+            "description": "Open a website URL in the default browser.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The full URL to open"}
+                },
+                "required": ["url"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "web_search",
             "description": "Search the web for current information. Use for questions about recent events, facts, or any topic requiring up-to-date information.",
             "parameters": {
@@ -497,25 +511,18 @@ class MIAAgent:
         
         # Add system prompt for agent behavior
         if tools_enabled:
-            system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI agent designed to be helpful, harmless, and honest. You have access to various tools to help users accomplish tasks.
+            system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI agent designed to be helpful, harmless, and honest. You can use built-in tools to perform actions in the environment.
 
-Your capabilities include:
-- Web searching for current information
-- File operations (read, write, create)
-- Code analysis and generation
-- Desktop automation
-- Memory storage and retrieval
-- Mathematical calculations
-- Deep reasoning and planning
-
-When a user asks for something that requires action, use the appropriate tools. Think step by step and explain your reasoning. Always aim for accuracy and helpfulness.
+Behavior rules:
+- If the user asks to open a website or app, you must use a tool to do it (e.g., open_url or open_application) instead of just providing a link.
+- If a task requires file operations, desktop automation, or code generation, use tools; only provide manual instructions when tools are unavailable.
+- Keep reasoning internal; respond concisely and focus on completing the action.
 
 IMPORTANT: When you need to use a tool, respond with a JSON block like this:
 ```tool_call
 {"tool": "tool_name", "arguments": {"arg1": "value1"}}
 ```
-
-Available tools: web_search, create_file, read_file, run_command, analyze_code, web_browse, calculator, memory_store, memory_search, send_email, desktop_automation, reasoning"""
+"""
         else:
             system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI assistant designed to be helpful, harmless, and honest.
 
@@ -791,22 +798,22 @@ def get_ollama_style_html() -> str:
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
-            --bg-primary: #0d1117;
-            --bg-secondary: #161b22;
-            --bg-tertiary: #21262d;
-            --bg-input: #0d1117;
-            --border-color: #30363d;
-            --text-primary: #e6edf3;
-            --text-secondary: #8b949e;
-            --text-muted: #6e7681;
-            --accent-color: #58a6ff;
-            --accent-hover: #79c0ff;
-            --user-bubble: #1f6feb;
-            --assistant-bubble: #21262d;
-            --success-color: #3fb950;
+            --bg-primary: #343541;
+            --bg-secondary: #444654;
+            --bg-tertiary: #3b3c47;
+            --bg-input: #40414f;
+            --border-color: #565869;
+            --text-primary: #ececf1;
+            --text-secondary: #c5c5d2;
+            --text-muted: #9a9aa3;
+            --accent-color: #10a37f;
+            --accent-hover: #1a8b6a;
+            --user-bubble: #40414f;
+            --assistant-bubble: #444654;
+            --success-color: #10a37f;
             --warning-color: #d29922;
             --error-color: #f85149;
-            --tool-color: #a371f7;
+            --tool-color: #10a37f;
         }
 
         * {
@@ -837,36 +844,19 @@ def get_ollama_style_html() -> str:
             z-index: 100;
         }
 
-        .logo {
+        .brand {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
         }
 
-        .logo-icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, var(--accent-color), var(--tool-color));
-            border-radius: 10px;
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-        }
-
-        .logo-text {
-            font-size: 20px;
-            font-weight: 600;
-            background: linear-gradient(135deg, var(--text-primary), var(--accent-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .logo-subtitle {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
 
         .header-controls {
@@ -926,6 +916,12 @@ def get_ollama_style_html() -> str:
             animation: pulse 2s infinite;
         }
 
+        /* Hide tool list UI by default (tools still available internally) */
+        #toolsButton,
+        #toolsSidebar {
+            display: none !important;
+        }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -963,18 +959,6 @@ def get_ollama_style_html() -> str:
             gap: 24px;
         }
 
-        .welcome-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, var(--accent-color), var(--tool-color));
-            border-radius: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            margin-bottom: 16px;
-        }
-
         .welcome-title {
             font-size: 32px;
             font-weight: 700;
@@ -988,57 +972,6 @@ def get_ollama_style_html() -> str:
             line-height: 1.6;
         }
 
-        .capabilities-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            width: 100%;
-            max-width: 700px;
-            margin-top: 24px;
-        }
-
-        .capability-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: left;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-
-        .capability-card:hover {
-            border-color: var(--accent-color);
-            transform: translateY(-2px);
-        }
-
-        .capability-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--bg-tertiary);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 12px;
-            color: var(--accent-color);
-        }
-
-        .capability-card:hover .capability-icon {
-            background: var(--accent-color);
-            color: var(--bg-primary);
-        }
-
-        .capability-title {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .capability-desc {
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
 
         /* Messages */
         .message {
@@ -1053,14 +986,7 @@ def get_ollama_style_html() -> str:
         }
 
         .message-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 16px;
+            display: none;
         }
 
         .message.user .message-avatar {
@@ -1243,7 +1169,7 @@ def get_ollama_style_html() -> str:
             position: absolute;
             right: 12px;
             bottom: 12px;
-            width: 36px;
+            min-width: 64px;
             height: 36px;
             background: var(--accent-color);
             border: none;
@@ -1254,6 +1180,9 @@ def get_ollama_style_html() -> str:
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 0 12px;
         }
 
         .send-button:hover {
@@ -1439,28 +1368,23 @@ def get_ollama_style_html() -> str:
             .welcome-screen {
                 padding: 24px;
             }
-
-            .capabilities-grid {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
 <body>
     <!-- Header -->
     <header class="header">
-        <div class="logo">
-            <div class="logo-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22">
-                    <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/>
-                    <path d="M18 14a6 6 0 0 0-12 0v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4z"/>
-                    <circle cx="9" cy="10" r="1" fill="currentColor"/>
-                    <circle cx="15" cy="10" r="1" fill="currentColor"/>
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                    <path d="M20 24a12 12 0 0 1 24 0v2a10 10 0 0 1-4 8 10 10 0 0 1 4 8v2a12 12 0 0 1-24 0"/>
+                    <path d="M20 24a10 10 0 0 0-8 10v4a10 10 0 0 0 8 10"/>
+                    <circle cx="26" cy="26" r="2" fill="currentColor"/>
+                    <circle cx="38" cy="26" r="2" fill="currentColor"/>
+                    <circle cx="26" cy="42" r="2" fill="currentColor"/>
+                    <circle cx="38" cy="42" r="2" fill="currentColor"/>
+                    <path d="M26 26h12M26 42h12M26 26v16M38 26v16"/>
                 </svg>
-            </div>
-            <div>
-                <div class="logo-text">M.I.A</div>
-                <div class="logo-subtitle">AGI Agent</div>
             </div>
         </div>
         <div class="header-controls">
@@ -1484,63 +1408,9 @@ def get_ollama_style_html() -> str:
         <div class="chat-container" id="chatContainer">
             <!-- Welcome Screen -->
             <div class="welcome-screen" id="welcomeScreen">
-                <div class="welcome-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-                        <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/>
-                        <path d="M18 14a6 6 0 0 0-12 0v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4z"/>
-                        <circle cx="9" cy="10" r="1" fill="currentColor"/>
-                        <circle cx="15" cy="10" r="1" fill="currentColor"/>
-                    </svg>
-                </div>
                 <h1 class="welcome-title">M.I.A</h1>
-                <p class="welcome-subtitle">
-                    Multimodal Intelligent Assistant - An advanced AI agent with reasoning, 
-                    tool use, and the goal of pushing towards AGI.
-                </p>
-                <div class="capabilities-grid">
-                    <div class="capability-card" onclick="insertPrompt('Search the web for the latest AI news')">
-                        <div class="capability-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                            </svg>
-                        </div>
-                        <div class="capability-title">Web Search</div>
-                        <div class="capability-desc">Find current information online</div>
-                    </div>
-                    <div class="capability-card" onclick="insertPrompt('Analyze this code and suggest improvements')">
-                        <div class="capability-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-                                <polyline points="16 18 22 12 16 6"/>
-                                <polyline points="8 6 2 12 8 18"/>
-                            </svg>
-                        </div>
-                        <div class="capability-title">Code Analysis</div>
-                        <div class="capability-desc">Review and improve code</div>
-                    </div>
-                    <div class="capability-card" onclick="insertPrompt('Create a Python script that...')">
-                        <div class="capability-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                <polyline points="14 2 14 8 20 8"/>
-                                <line x1="16" y1="13" x2="8" y2="13"/>
-                                <line x1="16" y1="17" x2="8" y2="17"/>
-                                <polyline points="10 9 9 9 8 9"/>
-                            </svg>
-                        </div>
-                        <div class="capability-title">File Operations</div>
-                        <div class="capability-desc">Read, write, and manage files</div>
-                    </div>
-                    <div class="capability-card" onclick="insertPrompt('Help me reason through this problem step by step')">
-                        <div class="capability-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-                                <circle cx="12" cy="12" r="3"/>
-                                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                            </svg>
-                        </div>
-                        <div class="capability-title">Deep Reasoning</div>
-                        <div class="capability-desc">Complex problem solving</div>
-                    </div>
+                <div class="welcome-subtitle">
+                    Multimodal intelligent assistant. Ask for research, automation, or code.
                 </div>
             </div>
         </div>
@@ -1555,11 +1425,7 @@ def get_ollama_style_html() -> str:
                         placeholder="Ask me anything... I can search, code, reason, and execute tasks."
                         rows="1"
                     ></textarea>
-                    <button class="send-button" id="sendButton">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                        </svg>
-                    </button>
+                    <button class="send-button" id="sendButton">Send</button>
                 </div>
             </div>
             <div class="tools-toggle">
@@ -1798,13 +1664,9 @@ def get_ollama_style_html() -> str:
             messageDiv.className = `message ${role}`;
             messageDiv.id = id;
             
-            const avatar = role === 'user' 
-                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
-                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M18 14a6 6 0 0 0-12 0v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>';
             const roleName = role === 'user' ? 'You' : 'M.I.A';
             
             messageDiv.innerHTML = `
-                <div class="message-avatar">${avatar}</div>
                 <div class="message-content">
                     <div class="message-header">
                         <span class="message-role">${roleName}</span>

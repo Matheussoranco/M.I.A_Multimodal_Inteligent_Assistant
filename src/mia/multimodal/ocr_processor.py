@@ -244,14 +244,14 @@ class OCRProcessor:
     def interactive_provider_selection(cls) -> Dict[str, Any]:
         """Interactive OCR provider selection."""
         print("\n" + "═" * 60)
-        print("📝 M.I.A - OCR Provider Selection")
+        print("M.I.A - OCR Provider Selection")
         print("═" * 60)
         
         providers = cls.detect_available_providers()
         
         if not providers:
-            print("\n⚠️ No OCR providers available!")
-            print("💡 Install options:")
+            print("\nNo OCR providers available.")
+            print("Install options:")
             print("   - pip install pytesseract (+ install Tesseract)")
             print("   - pip install easyocr")
             print("   - pip install paddleocr")
@@ -260,10 +260,10 @@ class OCRProcessor:
                 "NO_OCR_PROVIDERS",
             )
         
-        print("\n📋 Available OCR Providers:")
+        print("\nAvailable OCR Providers:")
         for i, provider in enumerate(providers, 1):
-            type_icon = "🖥️" if provider["type"] == "local" else "🌐"
-            print(f"  {i}. {type_icon} {provider['name'].upper()}")
+            type_label = "LOCAL" if provider["type"] == "local" else "API"
+            print(f"  {i}. [{type_label}] {provider['name'].upper()}")
         
         while True:
             try:
@@ -272,13 +272,13 @@ class OCRProcessor:
                 if 0 <= idx < len(providers):
                     selected = providers[idx]
                     break
-                print("❌ Invalid choice.")
+                print("Invalid choice.")
             except (ValueError, KeyboardInterrupt, EOFError):
                 idx = 0
                 selected = providers[0]
                 break
         
-        print(f"\n✅ Selected: {selected['name'].upper()}")
+        print(f"\nSelected: {selected['name'].upper()}")
         
         return selected
 

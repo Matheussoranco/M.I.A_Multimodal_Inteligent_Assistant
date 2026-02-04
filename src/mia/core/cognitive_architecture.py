@@ -551,6 +551,23 @@ class MIACognitiveCore:
         max_steps = 10
         history = []
 
+        if self._is_research_intent(task):
+            try:
+                research_result = self.action_executor.execute(
+                    "research_topic", {"topic": task}
+                )
+                if hasattr(self.llm, "query") and callable(self.llm.query):
+                    summary_prompt = (
+                        "Use the research results below to answer the user request "
+                        "clearly and concisely.\n\n"
+                        f"Request: {task}\n\n"
+                        f"Research Results: {research_result}"
+                    )
+                    return str(self.llm.query(summary_prompt) or "")
+                return str(research_result)
+            except Exception as exc:
+                logger.warning("Research fast-path failed: %s", exc)
+
         # Get tool descriptions from ActionExecutor
         tool_descriptions = self.action_executor.get_tool_descriptions()
 
@@ -582,13 +599,13 @@ Task: "Find the latest Python version and save it to python.txt"
 
 Thought: I need to find the latest Python version first. I will use specialized research tools.
 Action: web_search
-Action Input: {"query": "latest python version release"}
+Action Input: {{"query": "latest python version release"}}
 
 Observation: The latest version is Python 3.12.2.
 
 Thought: Now I need to save this information to a file named python.txt.
 Action: create_file
-Action Input: {"path": "python.txt", "content": "The latest Python version is 3.12.2"}
+Action Input: {{"path": "python.txt", "content": "The latest Python version is 3.12.2"}}
 
 Observation: File created successfully.
 
@@ -632,6 +649,26 @@ Begin!
                 return response
 
         return "Max steps reached without final answer."
+
+    def _is_research_intent(self, task: str) -> bool:
+        if not task:
+            return False
+        lowered = task.lower()
+        keywords = (
+            "research",
+            "search",
+            "lookup",
+            "find information",
+            "find info",
+            "learn about",
+            "investigate",
+            "pesquisar",
+            "pesquise",
+            "pesquisa",
+            "buscar",
+            "procure",
+        )
+        return any(word in lowered for word in keywords)
 
     def _query_llm(self, prompt: str) -> str:
         """Helper to query the LLM."""

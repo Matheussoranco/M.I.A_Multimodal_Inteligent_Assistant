@@ -180,23 +180,23 @@ class LLMManager:
         User chooses between local models or API providers.
         """
         print("\n" + "═" * 60)
-        print("🤖 M.I.A - LLM Model Selection")
+        print("M.I.A - LLM Model Selection")
         print("═" * 60)
         
         # First, ask user preference
         print("\nHow would you like to use M.I.A?")
-        print("  1. 🖥️  LOCAL Model (Ollama / HuggingFace)")
-        print("  2. 🌐 External API (OpenAI, Anthropic, etc.)")
-        print("  3. 🔄 Auto-detect (use first available)")
+        print("  1. LOCAL Model (Ollama / HuggingFace)")
+        print("  2. External API (OpenAI, Anthropic, etc.)")
+        print("  3. Auto-detect (use first available)")
         
         while True:
             try:
                 choice = input("\nChoice [1-3] (default: 1): ").strip() or "1"
                 if choice in ["1", "2", "3"]:
                     break
-                print("❌ Invalid choice. Enter 1, 2, or 3.")
+                print("Invalid choice. Enter 1, 2, or 3.")
             except (KeyboardInterrupt, EOFError):
-                print("\n⚠️ Using auto-detection...")
+                print("\nUsing auto-detection...")
                 choice = "3"
                 break
         
@@ -210,7 +210,7 @@ class LLMManager:
     @classmethod
     def _select_local_model(cls) -> Dict[str, Any]:
         """Select a local model (Ollama or HuggingFace)."""
-        print("\n📦 Detecting local models...")
+        print("\nDetecting local models...")
         
         ollama_models = cls.detect_ollama_models()
         local_models = cls.detect_local_models()
@@ -218,7 +218,7 @@ class LLMManager:
         all_models = []
         
         if ollama_models:
-            print(f"\n✅ Ollama: {len(ollama_models)} model(s) found")
+            print(f"\nOllama: {len(ollama_models)} model(s) found")
             for model in ollama_models:
                 all_models.append({
                     "type": "ollama",
@@ -226,21 +226,21 @@ class LLMManager:
                     "display": f"🦙 Ollama: {model['name']}",
                 })
         else:
-            print("\n⚠️ Ollama: No models found or service offline")
+            print("\nOllama: No models found or service offline")
         
         if local_models:
-            print(f"✅ Local/HuggingFace: {len(local_models)} model(s) found")
+            print(f"Local/HuggingFace: {len(local_models)} model(s) found")
             for model in local_models:
                 all_models.append({
                     "type": "local",
                     "name": model["name"],
                     "path": model["path"],
-                    "display": f"🏠 Local: {model['name']}",
+                    "display": f"Local: {model['name']}",
                 })
         
         if not all_models:
-            print("\n❌ No local models found!")
-            print("💡 Install a model with: ollama pull qwen2.5:3b-instruct-q4_K_M")
+            print("\nNo local models found.")
+            print("Install a model with: ollama pull qwen2.5:3b-instruct-q4_K_M")
             print("\nWould you like to use an external API? [y/N]: ", end="")
             try:
                 if input().strip().lower() in ["s", "y", "sim", "yes"]:
@@ -252,7 +252,7 @@ class LLMManager:
                 "NO_MODELS_AVAILABLE",
             )
         
-        print("\n📋 Available models:")
+        print("\nAvailable models:")
         for i, model in enumerate(all_models, 1):
             print(f"  {i}. {model['display']}")
         
@@ -263,13 +263,13 @@ class LLMManager:
                 if 0 <= idx < len(all_models):
                     selected = all_models[idx]
                     break
-                print("❌ Invalid choice.")
+                print("Invalid choice.")
             except (ValueError, KeyboardInterrupt, EOFError):
                 idx = 0
                 selected = all_models[0]
                 break
         
-        print(f"\n✅ Selected: {selected['display']}")
+        print(f"\nSelected: {selected['display']}")
         
         if selected["type"] == "ollama":
             return {
@@ -290,13 +290,13 @@ class LLMManager:
     @classmethod
     def _select_api_provider(cls) -> Dict[str, Any]:
         """Select an API provider."""
-        print("\n🌐 Checking available APIs...")
+        print("\nChecking available APIs...")
         
         api_providers = cls.detect_api_providers()
         
         if not api_providers:
-            print("\n❌ No API configured!")
-            print("💡 Configure environment variables:")
+            print("\nNo API configured.")
+            print("Configure environment variables:")
             print("   - OPENAI_API_KEY")
             print("   - ANTHROPIC_API_KEY")
             print("   - GOOGLE_API_KEY")
@@ -312,9 +312,9 @@ class LLMManager:
                 "NO_API_AVAILABLE",
             )
         
-        print(f"\n✅ {len(api_providers)} API(s) available:")
+        print(f"\n{len(api_providers)} API(s) available:")
         for i, provider in enumerate(api_providers, 1):
-            print(f"  {i}. 🌐 {provider['name'].upper()} ({provider['model']})")
+            print(f"  {i}. {provider['name'].upper()} ({provider['model']})")
         
         while True:
             try:
@@ -323,13 +323,13 @@ class LLMManager:
                 if 0 <= idx < len(api_providers):
                     selected = api_providers[idx]
                     break
-                print("❌ Invalid choice.")
+                print("Invalid choice.")
             except (ValueError, KeyboardInterrupt, EOFError):
                 idx = 0
                 selected = api_providers[0]
                 break
         
-        print(f"\n✅ Selected: {selected['name'].upper()}")
+        print(f"\nSelected: {selected['name'].upper()}")
         
         return {
             "provider": selected["name"],
@@ -341,13 +341,13 @@ class LLMManager:
     @classmethod
     def _auto_detect_best(cls) -> Dict[str, Any]:
         """Auto-detect the best available provider."""
-        print("\n🔄 Auto-detecting best option...")
+        print("\nAuto-detecting best option...")
         
         # Try Ollama first (local, no cost)
         ollama_models = cls.detect_ollama_models()
         if ollama_models:
             model = ollama_models[0]
-            print(f"✅ Using Ollama: {model['name']}")
+            print(f"Using Ollama: {model['name']}")
             return {
                 "provider": "ollama",
                 "model_id": model["name"],
@@ -359,7 +359,7 @@ class LLMManager:
         local_models = cls.detect_local_models()
         if local_models:
             model = local_models[0]
-            print(f"✅ Using local model: {model['name']}")
+            print(f"Using local model: {model['name']}")
             return {
                 "provider": "local",
                 "model_id": model["name"],
@@ -372,7 +372,7 @@ class LLMManager:
         api_providers = cls.detect_api_providers()
         if api_providers:
             provider = api_providers[0]
-            print(f"✅ Using API: {provider['name'].upper()}")
+            print(f"Using API: {provider['name'].upper()}")
             return {
                 "provider": provider["name"],
                 "model_id": provider["model"],

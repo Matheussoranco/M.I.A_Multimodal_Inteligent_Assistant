@@ -135,7 +135,10 @@ class SpeechProcessor:
         if SPEECH_RECOGNITION_AVAILABLE and sr:
             try:
                 self.recognizer = sr.Recognizer()
-                self.microphone = sr.Microphone()
+                if self.device_id is not None:
+                    self.microphone = sr.Microphone(device_index=self.device_id)
+                else:
+                    self.microphone = sr.Microphone()
                 logger.info("Speech recognition initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize speech recognition: {e}")

@@ -60,6 +60,7 @@ DEFAULT_SENSITIVE_ACTIONS = {
 
 class ActionExecutor:
     ACTION_SCOPES: Dict[str, set[str]] = {
+        "open_url": {"web"},
         "open_file": {"files.read"},
         "read_file": {"files.read"},
         "search_file": {"files.read"},
@@ -795,6 +796,7 @@ class ActionExecutor:
                     params.get("filename") or ""
                 ),
                 # Research and web operations
+                "open_url": lambda: self.open_url(params.get("url") or ""),
                 "web_search": lambda: self.web_search(
                     params.get("query") or ""
                 ),
@@ -916,6 +918,17 @@ class ActionExecutor:
             return f"Opened web search for: {query}"
         except Exception as e:
             return f"Error performing web search: {e}"
+
+    def open_url(self, url: str) -> str:
+        """Open a URL in the default browser."""
+        try:
+            import webbrowser
+            if not url:
+                return "No URL provided."
+            webbrowser.open(url)
+            return f"Opened URL: {url}"
+        except Exception as e:
+            return f"Error opening URL: {e}"
     
     def web_scrape(self, url: str) -> str:
         """Scrape content from a URL."""
@@ -969,7 +982,13 @@ class ActionExecutor:
             return self.send_whatsapp({"phone": phone, "message": message})
 
         if "wikipedia" in request_lower or "wikipédia" in request_lower:
-            query = params.get("query") or self._extract_query_after_keyword(request, ["wikipedia", "wikipédia", "sobre", "assunto"]) or request
+            query = params.get("query") or self._extract_query_after_keyword(
+                request, ["wikipedia", "wikipédia", "sobre", "assunto"]
+            ) or request
+            if any(word in request_lower for word in ["open", "open", "abrir", "abra", "abrir o", "abrir a"]):
+                import urllib.parse
+                url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote_plus(query.replace(' ', '_'))}"
+                return self.open_url(url)
             return self.wikipedia_search(query)
 
         if "youtube" in request_lower or "vídeo" in request_lower or "video" in request_lower:
@@ -2512,6 +2531,11 @@ body {{
     def get_tool_descriptions(self) -> str:
         """Return a description of available tools for the LLM."""
         tools = [
+            {
+                "name": "open_url",
+                "description": "Open a website URL in the default browser.",
+                "parameters": {"url": "The full URL to open"}
+            },
             {
                 "name": "web_search",
                 "description": "Search the web for information.",

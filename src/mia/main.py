@@ -6,7 +6,7 @@ import re
 import sys
 import time
 import warnings
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, cast, TYPE_CHECKING
 
 import numpy as np
 
@@ -22,6 +22,9 @@ from .__version__ import __version__, get_full_version
 from .audio.hotword_detector import HotwordDetector
 from .localization import _, init_localization
 from .providers import ProviderLookupError, provider_registry
+
+if TYPE_CHECKING:
+    from .tools.action_executor import ActionExecutor
 
 try:
     from .cache_manager import CacheManager
@@ -130,7 +133,7 @@ def prompt_user_consent(
                 target = str(value)
                 break
 
-    message = f"⚠️ Confirmar ação '{action_label}'"
+    message = f"Confirmar ação '{action_label}'"
     if target:
         message += f" para '{target}'"
     message += "? [y/N]: "
@@ -252,8 +255,20 @@ def detect_and_execute_agent_commands(
         except Exception as e:
             return True, f"Error executing desktop automation: {e}"
 
-    # Web Automation: "Search for [query] on the web" or "Go to [url]"
-    if "search" in user_input_lower and ("web" in user_input_lower or "internet" in user_input_lower or "google" in user_input_lower):
+    # Web Automation: "Search for [query] on the web" / "Research [topic]" or "Go to [url]"
+    if "wikipedia" in user_input_lower or "wikipédia" in user_input_lower:
+        try:
+            import re
+            import urllib.parse
+            match = re.search(r"(?:wikipedia|wikipédia)\s+(?:sobre|about|page|página|pagina)?\s*(.+)", user_input, re.IGNORECASE)
+            query = match.group(1).strip() if match and match.group(1) else user_input
+            url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote_plus(query.replace(' ', '_'))}"
+            action_executor.execute("open_url", {"url": url})
+            return True, f"Opening: {url}"
+        except Exception as e:
+            return True, f"Error opening Wikipedia: {e}"
+
+    if any(word in user_input_lower for word in ["search", "research", "pesquisar", "pesquise", "buscar", "procure", "find", "look up"]):
         try:
             import re
             # Extract query
@@ -261,8 +276,11 @@ def detect_and_execute_agent_commands(
             match = re.search(r"search\s+(?:for\s+)?(.+?)\s+(?:on|in)\s+(?:the\s+)?(?:web|internet|google)", user_input_lower, re.IGNORECASE)
             if match:
                 query = match.group(1)
-                action_executor.execute("web_automation", {"action": "search", "query": query})
+                action_executor.execute("web_search", {"query": query})
                 return True, f"Searching the web for: {query}"
+            # Fallback: use entire request as query
+            action_executor.execute("web_search", {"query": user_input})
+            return True, f"Searching the web for: {user_input}"
         except Exception as e:
             return True, f"Error executing web search: {e}"
 
@@ -275,7 +293,7 @@ def detect_and_execute_agent_commands(
                 url = match.group(1)
                 if not url.startswith("http"):
                     url = "https://" + url
-                action_executor.execute("web_automation", {"action": "browse", "url": url})
+                action_executor.execute("open_url", {"url": url})
                 return True, f"Visiting: {url}"
         except Exception as e:
             return True, f"Error executing web visit: {e}"
@@ -929,6 +947,11 @@ def initialize_components(args):
         logger.warning(f"Action executor failed to initialize: {e}")
         components["action_executor"] = None
 
+    if cognitive_core and components.get("action_executor") is not None:
+        cognitive_core.action_executor = cast(
+            "ActionExecutor", components["action_executor"]
+        )
+
     # Initialize other components
     try:
         if PerformanceMonitor:
@@ -995,7 +1018,7 @@ def display_status(components, args):
     logger.info(_("welcome_message"))
 
     # Display detailed status
-    print(bold("\n📊 M.I.A Status"))
+    print(bold("\nM.I.A Status"))
     print(bold("─" * 40))
     mode_label = {
         "text": green("Text-only"),
@@ -1076,7 +1099,7 @@ def process_audio_input(args, components):
                 bold(
                     _msg(
                         "audio_waiting_hotword",
-                        "🪄 Diga '{hotword}' para ativar",
+                        "Diga '{hotword}' para ativar",
                         hotword=audio_config.hotword,
                     )
                 )
@@ -1088,7 +1111,7 @@ def process_audio_input(args, components):
                     yellow(
                         _msg(
                             "audio_hotword_timeout",
-                            "⏱️ Tempo limite aguardando hotword.",
+                            "Tempo limite aguardando hotword.",
                         )
                     )
                 )
@@ -1103,7 +1126,7 @@ def process_audio_input(args, components):
                     yellow(
                         _msg(
                             "audio_push_to_talk_cancel",
-                            "🔕 Captura cancelada.",
+                            "Captura cancelada.",
                         )
                     )
                 )
@@ -1111,7 +1134,7 @@ def process_audio_input(args, components):
 
         print(
             bold(
-                _msg("audio_listening", "🎤 Escutando... (Ctrl+C para texto)")
+                _msg("audio_listening", "Escutando... (Ctrl+C para texto)")
             )
         )
         audio_buffer = audio_utils.capture_with_vad(
@@ -1120,7 +1143,14 @@ def process_audio_input(args, components):
         )
 
         if audio_buffer is None or audio_buffer.size == 0:
-            print(red(_msg("audio_no_speech", "🔇 Nenhuma fala detectada.")))
+            # Fallback to SpeechRecognition microphone capture
+            if hasattr(speech_processor, "listen_microphone"):
+                transcription = speech_processor.listen_microphone()
+                if transcription:
+                    user_input = transcription.strip()
+                    print(green(f"You said: {user_input}"))
+                    return user_input, {"audio": user_input}
+            print(red(_msg("audio_no_speech", "Nenhuma fala detectada.")))
             return None, {}
 
         transcription = speech_processor.transcribe_audio_data(
@@ -1136,22 +1166,22 @@ def process_audio_input(args, components):
                 red(
                     _msg(
                         "audio_transcription_failed",
-                        "❌ Não foi possível transcrever o áudio.",
+                        "Não foi possível transcrever o áudio.",
                     )
                 )
             )
             return None, {}
 
-        print(green(f"🎙️  You said: {user_input}"))
+        print(green(f"You said: {user_input}"))
         return user_input, {"audio": user_input}
 
     except KeyboardInterrupt:
-        print(bold("\n🔥 Switching to text mode..."))
+        print(bold("\nSwitching to text mode..."))
         args.mode = "text"
         return None, {}
     except Exception as e:
         logger.error(f"Error processing audio: {e}")
-        print(red("❌ Audio processing failed. Switching to text mode."))
+        print(red("Audio processing failed. Switching to text mode."))
         args.mode = "text"
         return None, {}
 
@@ -1187,7 +1217,7 @@ def _await_hotword(
                 green(
                     _msg(
                         "audio_hotword_detected",
-                        "🔊 Hotword detectada ({confidence}%)",
+                        "Hotword detectada ({confidence}%)",
                         confidence=confidence_pct,
                     )
                 )
@@ -1199,9 +1229,7 @@ def _await_hotword(
 
 def get_text_input(args):
     """Get text input from user."""
-    prompt = (
-        bold("💬 You: ") if args.mode != "audio" else bold("🎤 You (audio): ")
-    )
+    prompt = bold("You: ") if args.mode != "audio" else bold("You (audio): ")
     try:
         user_input = input(prompt).strip()
         return user_input
@@ -1233,11 +1261,11 @@ def process_command(cmd, args, components):
     elif cmd == "audio" and components.get("speech_processor"):
         args.mode = "audio"
         return True, yellow(
-            "🎤 Switched to audio input mode. Say something..."
+            "Switched to audio input mode. Say something..."
         )
     elif cmd == "text" and args.mode == "audio":
         args.mode = "text"
-        return True, cyan("🔤 Switched to text input mode.")
+        return True, cyan("Switched to text input mode.")
     else:
         return True, None
 
@@ -1277,7 +1305,7 @@ def display_help(args, components):
 
 def display_models(args):
     """Display available models."""
-    print(bold("\n🤖 Available Models"))
+    print(bold("\nAvailable Models"))
     print(bold("─" * 40))
     print(
         green(
@@ -1316,7 +1344,7 @@ def display_profiles(components):
         print(yellow("Nenhum perfil foi encontrado em config.yaml."))
         return
 
-    print(bold("\n🎯 Perfis de LLM configurados"))
+    print(bold("\nPerfis de LLM configurados"))
     print(bold("─" * 40))
     for name in profiles:
         profile = config_manager.get_llm_profile(name)
@@ -1380,7 +1408,7 @@ def switch_llm_profile(cmd, components):
             or config_manager.config.llm.model_id
         )
 
-        result = green(f"🔄 Perfil alterado para: {label}")
+        result = green(f"Perfil alterado para: {label}")
         result += f"\n   Provider: {provider} — Model: {model_id}"
         if description:
             result += f"\n   {description}"
@@ -1405,7 +1433,7 @@ def clear_context(components):
     ):
         performance_monitor.optimize_performance()
 
-    return yellow("🧹 Conversation context cleared.")
+    return yellow("Conversation context cleared.")
 
 
 def process_with_llm(user_input, inputs, components):
@@ -1476,7 +1504,7 @@ def process_with_llm(user_input, inputs, components):
             can_stream = False
 
         if can_stream:
-            print(cyan("🤖 M.I.A: "), end="", flush=True)
+            print(cyan("M.I.A: "), end="", flush=True)
             tokens: List[str] = []
             for chunk in llm.stream(user_input, **stream_kwargs):
                 if chunk is None:
@@ -1641,10 +1669,10 @@ def process_user_request(user_input, inputs, components):
 
             if response_text and not streamed:
                 text_str = str(response_text)
-                if text_str.startswith("🤖"):
+                if text_str.startswith("M.I.A"):
                     print(cyan(text_str))
                 else:
-                    print(cyan("🤖 M.I.A: ") + text_str)
+                    print(cyan("M.I.A: ") + text_str)
 
             if citations:
                 print(cyan(str(citations)))
@@ -1734,14 +1762,14 @@ def main():
         # Handle info command
         if args.info:
             info = get_full_version()
-            print(bold(f"🤖 {info['title']} v{info['version']}"))
-            print(f"📝 {info['description']}")
-            print(f"👤 Author: {info['author']}")
-            print(f"📄 License: {info['license']}")
-            print(f"🏗️  Build: {info['build']}")
-            print(f"📊 Status: {info['status']}")
-            print(f"🐍 Python: {sys.version}")
-            print(f"💻 Platform: {sys.platform}")
+            print(bold(f"{info['title']} v{info['version']}"))
+            print(f"Description: {info['description']}")
+            print(f"Author: {info['author']}")
+            print(f"License: {info['license']}")
+            print(f"Build: {info['build']}")
+            print(f"Status: {info['status']}")
+            print(f"Python: {sys.version}")
+            print(f"Platform: {sys.platform}")
             return
 
         # Check for web UI mode

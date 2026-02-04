@@ -69,7 +69,7 @@ audio:
   push_to_talk: false
   
   # Hotword
-  hotword_enabled: true
+  hotword_enabled: false
   hotword: mia
   hotword_sensitivity: 0.5
   hotword_timeout: 20.0

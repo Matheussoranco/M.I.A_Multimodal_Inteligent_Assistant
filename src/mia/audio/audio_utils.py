@@ -73,6 +73,13 @@ class AudioUtils:
             self.chunk_size = int(chunk_size)
         if device_id is not None:
             self.device_id = int(device_id)
+        elif HAS_SOUNDDEVICE and sd is not None:
+            try:
+                default_input = sd.default.device[0]  # type: ignore[index]
+                if isinstance(default_input, int) and default_input >= 0:
+                    self.device_id = default_input
+            except Exception:
+                pass
         if input_threshold is not None:
             self.input_threshold = float(input_threshold)
 

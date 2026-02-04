@@ -212,23 +212,23 @@ class EmbeddingManager:
     def interactive_model_selection(cls) -> Dict[str, Any]:
         """Interactive embedding model selection at startup."""
         print("\n" + "═" * 60)
-        print("🔢 M.I.A - Embedding Model Selection")
+        print("M.I.A - Embedding Model Selection")
         print("═" * 60)
         
         providers = cls.detect_available_providers()
         
         if not providers:
-            print("\n⚠️ No embedding providers available!")
-            print("💡 Install sentence-transformers: pip install sentence-transformers")
+            print("\nNo embedding providers available.")
+            print("Install sentence-transformers: pip install sentence-transformers")
             raise ConfigurationError(
                 "No embedding providers available",
                 "NO_EMBEDDING_PROVIDERS",
             )
         
-        print("\n📋 Available Embedding Providers:")
+        print("\nAvailable Embedding Providers:")
         for i, provider in enumerate(providers, 1):
-            type_icon = "🖥️" if provider["type"] == "local" else "🌐"
-            print(f"  {i}. {type_icon} {provider['name'].upper()} ({provider['model']})")
+            type_label = "LOCAL" if provider["type"] == "local" else "API"
+            print(f"  {i}. [{type_label}] {provider['name'].upper()} ({provider['model']})")
         
         while True:
             try:
@@ -237,14 +237,14 @@ class EmbeddingManager:
                 if 0 <= idx < len(providers):
                     selected = providers[idx]
                     break
-                print("❌ Invalid choice.")
+                print("Invalid choice.")
             except (ValueError, KeyboardInterrupt, EOFError):
                 idx = 0
                 selected = providers[0]
                 break
-        
-        print(f"\n✅ Selected: {selected['name'].upper()} ({selected['model']})")
-        
+
+        print(f"\nSelected: {selected['name'].upper()} ({selected['model']})")
+
         return {
             "provider": selected["name"],
             "model_id": selected["model"],
