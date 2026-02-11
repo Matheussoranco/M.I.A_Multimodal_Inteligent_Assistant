@@ -62,12 +62,6 @@ def register_default_providers() -> None:
     )
 
     provider_registry.register_lazy(
-        "langchain",
-        "verifier",
-        "mia.langchain.langchain_verifier",
-        "LangChainVerifier",
-    )
-    provider_registry.register_lazy(
         "system", "control", "mia.system.system_control", "SystemControl"
     )
     provider_registry.register_lazy(
@@ -78,9 +72,6 @@ def register_default_providers() -> None:
         "default",
         "mia.security.security_manager",
         "SecurityManager",
-    )
-    provider_registry.register_lazy(
-        "plugins", "default", "mia.plugins.plugin_manager", "PluginManager"
     )
 
     provider_registry.register_lazy(
