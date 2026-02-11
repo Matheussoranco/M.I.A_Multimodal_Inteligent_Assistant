@@ -385,9 +385,10 @@ class TestInternalHelpers:
         agent = self._make_agent()
         assert agent._extract_final_answer("Final Answer: hello") == "hello"
         assert agent._extract_final_answer("No answer here") is None
-        assert agent._extract_final_answer(
+        result = agent._extract_final_answer(
             "Thought: ok\nFinal Answer: multi\nline answer\n"
-        ).startswith("multi")
+        )
+        assert result is not None and result.startswith("multi")
 
     def test_robust_json_parse(self):
         agent = self._make_agent()

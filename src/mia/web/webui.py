@@ -393,7 +393,7 @@ class MIAAgent:
             if self.llm:
                 self._tool_agent = ToolCallingAgent(
                     llm=self.llm,
-                    executor=self.action_executor,
+                    action_executor=self.action_executor,
                     tools=CORE_TOOLS,
                     max_steps=12,
                     max_retries=2,

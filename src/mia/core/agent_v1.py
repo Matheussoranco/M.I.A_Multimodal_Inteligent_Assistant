@@ -220,13 +220,13 @@ class ToolCallingAgent:
                                 ),
                             },
                         }
-                        for tc in response.tool_calls
+                        for tc in (response.tool_calls or [])
                     ],
                 }
                 messages.append(assistant_msg)
 
                 # Execute every requested tool
-                for tc in response.tool_calls:
+                for tc in (response.tool_calls or []):
                     result_text = self._execute_tool(tc)
                     messages.append(
                         {
@@ -342,9 +342,9 @@ class ToolCallingAgent:
 
     def _query_llm_text(self, prompt: str) -> str:
         if hasattr(self.llm, "query") and callable(self.llm.query):
-            return self.llm.query(prompt) or ""
+            return str(self.llm.query(prompt) or "")
         if hasattr(self.llm, "query_model") and callable(self.llm.query_model):
-            return self.llm.query_model(prompt) or ""
+            return str(self.llm.query_model(prompt) or "")
         raise RuntimeError("LLM has no usable query method")
 
     # ── ReAct parsing (with multiple fallback strategies) ───────────

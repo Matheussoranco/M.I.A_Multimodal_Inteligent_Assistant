@@ -34,11 +34,11 @@ try:
         process_with_llm,
     )
 except ImportError:
-    get_text_input = None
-    process_audio_input = None
-    process_command = None
-    process_image_input = None
-    process_with_llm = None
+    get_text_input = None  # type: ignore[assignment]
+    process_audio_input = None  # type: ignore[assignment]
+    process_command = None  # type: ignore[assignment]
+    process_image_input = None  # type: ignore[assignment]
+    process_with_llm = None  # type: ignore[assignment]
 
 
 class TestMultimodalInteractionFlows(unittest.TestCase):

@@ -41,15 +41,15 @@ try:
     )
 except ImportError:
     # Legacy functions were removed in the main.py refactor
-    get_text_input = None
-    process_audio_input = None
-    process_command = None
-    process_image_input = None
-    process_with_llm = None
-    setup_logging = None
-    parse_arguments = None
-    cleanup_resources = None
-    initialize_components = None
+    get_text_input = None  # type: ignore[assignment]
+    process_audio_input = None  # type: ignore[assignment]
+    process_command = None  # type: ignore[assignment]
+    process_image_input = None  # type: ignore[assignment]
+    process_with_llm = None  # type: ignore[assignment]
+    setup_logging = None  # type: ignore[assignment]
+    parse_arguments = None  # type: ignore[assignment]
+    cleanup_resources = None  # type: ignore[assignment]
+    initialize_components = None  # type: ignore[assignment]
 
 
 def configure_config_manager(mock_config_class):

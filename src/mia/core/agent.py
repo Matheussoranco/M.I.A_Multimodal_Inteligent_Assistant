@@ -38,6 +38,32 @@ from .tool_registry import (
     validate_tool_args,
 )
 
+# ── SOTA modules (lazy-safe: all are optional) ─────────────────────
+try:
+    from .planner import TaskPlanner  # noqa: F401
+except ImportError:  # pragma: no cover
+    TaskPlanner = None  # type: ignore[misc,assignment]
+
+try:
+    from .persistent_memory import PersistentMemory  # noqa: F401
+except ImportError:  # pragma: no cover
+    PersistentMemory = None  # type: ignore[misc,assignment]
+
+try:
+    from .orchestrator import AgentOrchestrator  # noqa: F401
+except ImportError:  # pragma: no cover
+    AgentOrchestrator = None  # type: ignore[misc,assignment]
+
+try:
+    from .guardrails import GuardrailsManager  # noqa: F401
+except ImportError:  # pragma: no cover
+    GuardrailsManager = None  # type: ignore[misc,assignment]
+
+try:
+    from .benchmarks import BenchmarkSuite  # noqa: F401
+except ImportError:  # pragma: no cover
+    BenchmarkSuite = None  # type: ignore[misc,assignment]
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -197,7 +223,16 @@ RULES:
 
 
 class ToolCallingAgent:
-    """LLM agent with tool-use, conversation memory, and auto-fallback."""
+    """LLM agent with tool-use, conversation memory, and auto-fallback.
+
+    SOTA capabilities (all optional — degrade gracefully if absent):
+    - **Planning** — DAG-based task decomposition for complex goals.
+    - **Persistent memory** — cross-session skill library & RAG context.
+    - **Multi-agent orchestration** — specialist sub-agents for delegation.
+    - **Guardrails** — output validation, PII redaction, tool-call safety.
+    - **Benchmarks** — automated agent evaluation framework.
+    - **Streaming** — real token-level streaming from the LLM.
+    """
 
     def __init__(
         self,
@@ -210,7 +245,12 @@ class ToolCallingAgent:
         system_prompt: Optional[str] = None,
         max_context_tokens: int = 120_000,
         on_tool_start: Optional[Callable[[str, Dict], None]] = None,
-        on_tool_end: Optional[Callable[[str, str], None]] = None,
+        on_tool_end: Optional[Callable[[str, Optional[str], Optional[Exception]], None]] = None,
+        # ── SOTA modules (all optional) ──
+        planner: Optional[Any] = None,
+        persistent_memory: Optional[Any] = None,
+        orchestrator: Optional[Any] = None,
+        guardrails: Optional[Any] = None,
     ) -> None:
         self.llm = llm
         self.executor = action_executor
@@ -229,6 +269,12 @@ class ToolCallingAgent:
         # Callbacks for UI integration
         self.on_tool_start = on_tool_start
         self.on_tool_end = on_tool_end
+
+        # ── SOTA modules ────────────────────────────────────────────
+        self.planner = planner          # TaskPlanner instance
+        self.persistent_memory = persistent_memory  # PersistentMemory instance
+        self.orchestrator = orchestrator  # AgentOrchestrator instance
+        self.guardrails = guardrails    # GuardrailsManager instance
 
         # Stats
         self.total_tool_calls = 0
@@ -263,21 +309,67 @@ class ToolCallingAgent:
     ) -> str:
         """Execute a user request, invoking tools as needed.
 
-        The conversation is persisted across calls so the agent remembers
-        prior turns within this session.
+        Execution pipeline (each stage is skipped if its module is ``None``):
+        1. Inject persistent-memory RAG context into the prompt.
+        2. Check if the request needs a multi-step *plan* → execute the DAG.
+        3. Check if the request should be *delegated* to a specialist agent.
+        4. Otherwise run the normal native / ReAct loop.
+        5. Validate the output through *guardrails*.
+        6. Log the interaction to *persistent memory*.
         """
         effective = self._build_effective_message(user_message, context)
+
+        # 1 ── Persistent-memory RAG injection ───────────────────────
+        if self.persistent_memory:
+            try:
+                mem_ctx = self.persistent_memory.get_context_prompt(effective)
+                if mem_ctx:
+                    effective = f"{mem_ctx}\n\n{effective}"
+            except Exception as exc:
+                logger.debug("Persistent memory context failed: %s", exc)
 
         # Record user message in conversation memory
         self.memory.add({"role": "user", "content": effective})
 
+        # 2 ── Planning (DAG decomposition for complex goals) ────────
+        if self.planner:
+            try:
+                if self.planner.should_plan(effective):
+                    answer = self._execute_plan(effective)
+                    answer = self._apply_guardrails(answer)
+                    self.memory.add({"role": "assistant", "content": answer})
+                    self._log_interaction(user_message, answer)
+                    return answer
+            except Exception as exc:
+                logger.warning("Planner failed, falling back to direct: %s", exc)
+
+        # 3 ── Multi-agent orchestration ─────────────────────────────
+        if self.orchestrator:
+            try:
+                if self.orchestrator.should_delegate(effective):
+                    answer = self._execute_delegation(effective)
+                    answer = self._apply_guardrails(answer)
+                    self.memory.add({"role": "assistant", "content": answer})
+                    self._log_interaction(user_message, answer)
+                    return answer
+            except Exception as exc:
+                logger.warning("Orchestrator failed, falling back: %s", exc)
+
+        # 4 ── Standard agent loop (native / ReAct) ──────────────────
         if self.supports_native_tools:
             answer = self._run_native(effective)
         else:
             answer = self._run_react(effective)
 
+        # 5 ── Guardrails ────────────────────────────────────────────
+        answer = self._apply_guardrails(answer)
+
         # Record assistant answer in conversation memory
         self.memory.add({"role": "assistant", "content": answer})
+
+        # 6 ── Persistent memory log ─────────────────────────────────
+        self._log_interaction(user_message, answer)
+
         return answer
 
     def run_stream(
@@ -285,21 +377,58 @@ class ToolCallingAgent:
         user_message: str,
         context: Optional[Dict[str, Any]] = None,
     ) -> Generator[str, None, None]:
-        """Streaming variant -- yields text chunks.
+        """Streaming variant — yields text chunks as they arrive.
 
-        Falls back to non-streaming ``run()`` if the LLM does not support
-        streaming, yielding the full response as a single chunk.
+        If the LLM supports ``stream_chat()`` (returning an iterator), each
+        token/chunk is yielded individually.  Otherwise falls back to the
+        non-streaming ``run()`` and yields the complete response as one chunk.
         """
         effective = self._build_effective_message(user_message, context)
+
+        # Persistent-memory RAG injection
+        if self.persistent_memory:
+            try:
+                mem_ctx = self.persistent_memory.get_context_prompt(effective)
+                if mem_ctx:
+                    effective = f"{mem_ctx}\n\n{effective}"
+            except Exception:
+                pass
+
         self.memory.add({"role": "user", "content": effective})
 
+        # ── Try real streaming first ────────────────────────────────
+        if hasattr(self.llm, "stream_chat") and callable(self.llm.stream_chat):
+            try:
+                messages = self.memory.get_messages_for_llm()
+                chunks: List[str] = []
+                for chunk in self.llm.stream_chat(messages, tools=self.tools or None):
+                    # chunk can be a string or a ChatResponse fragment
+                    text = ""
+                    if isinstance(chunk, str):
+                        text = chunk
+                    elif hasattr(chunk, "content") and chunk.content:
+                        text = chunk.content
+                    if text:
+                        chunks.append(text)
+                        yield text
+                full_answer = "".join(chunks)
+                full_answer = self._apply_guardrails(full_answer)
+                self.memory.add({"role": "assistant", "content": full_answer})
+                self._log_interaction(user_message, full_answer)
+                return
+            except Exception as exc:
+                logger.debug("stream_chat failed, falling back: %s", exc)
+
+        # ── Fallback: non-streaming run() ───────────────────────────
         if self.supports_native_tools:
             answer = self._run_native(effective)
         else:
             answer = self._run_react(effective)
 
+        answer = self._apply_guardrails(answer)
         yield answer
         self.memory.add({"role": "assistant", "content": answer})
+        self._log_interaction(user_message, answer)
 
     def reset_conversation(self) -> None:
         """Clear conversation history (start a fresh session)."""
@@ -563,9 +692,9 @@ class ToolCallingAgent:
 
     def _query_llm_text(self, prompt: str) -> str:
         if hasattr(self.llm, "query") and callable(self.llm.query):
-            return self.llm.query(prompt) or ""
+            return str(self.llm.query(prompt) or "")
         if hasattr(self.llm, "query_model") and callable(self.llm.query_model):
-            return self.llm.query_model(prompt) or ""
+            return str(self.llm.query_model(prompt) or "")
         raise RuntimeError("LLM has no usable query method")
 
     # ── ReAct parsing (with multiple fallback strategies) ───────────

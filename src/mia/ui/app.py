@@ -9,9 +9,10 @@ current_dir = Path(__file__).parent.parent.parent
 if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
-from mia.main import process_with_llm, detect_and_execute_agent_commands
 from mia.providers import provider_registry
 from mia.config_manager import ConfigManager
+from mia.core.agent import ToolCallingAgent
+from mia.core.tool_registry import CORE_TOOLS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -144,22 +145,26 @@ def main():
             try:
                 components = st.session_state.components
                 
-                # Use the existing process_with_llm logic from main.py
-                # We need to mock 'inputs' as it's not used heavily in text mode
-                inputs = {} 
-                
-                # We can reuse the logic from main.py or call components directly
-                # Calling process_with_llm is better to keep consistency
-                
-                result = process_with_llm(prompt, inputs, components)
-                
-                response_text = ""
-                if result.get("error"):
-                    response_text = f"⚠️ Error: {result['error']}"
-                elif result.get("response"):
-                    response_text = result["response"]
+                # Use ToolCallingAgent for processing
+                if "agent" not in st.session_state:
+                    llm = components.get("llm")
+                    executor = components.get("action_executor")
+                    if llm and executor:
+                        st.session_state.agent = ToolCallingAgent(
+                            llm=llm,
+                            action_executor=executor,
+                            tools=CORE_TOOLS,
+                            max_steps=12,
+                            max_retries=2,
+                        )
+                    else:
+                        st.session_state.agent = None
+
+                agent = st.session_state.get("agent")
+                if agent:
+                    response_text = agent.run(prompt)
                 else:
-                    response_text = "I couldn't generate a response."
+                    response_text = "⚠️ Agent not initialized — LLM or ActionExecutor unavailable."
 
                 message_placeholder.markdown(response_text)
                 
