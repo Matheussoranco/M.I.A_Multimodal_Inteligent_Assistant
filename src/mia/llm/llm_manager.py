@@ -636,6 +636,327 @@ class LLMManager:
         }
         return mapping.get(provider or "", None)
 
+    # ══════════════════════════════════════════════════════════════════
+    # Native tool/function-calling API (chat)
+    # ══════════════════════════════════════════════════════════════════
+
+    def chat(
+        self,
+        messages: List[Dict[str, Any]],
+        *,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[str] = "auto",
+        **kwargs: Any,
+    ) -> Any:
+        """Send a multi-turn conversation with optional tool definitions.
+
+        Parameters
+        ----------
+        messages:
+            List of ``{"role": …, "content": …}`` dicts, potentially
+            including ``tool_calls`` and ``tool`` role messages.
+        tools:
+            OpenAI-format tool/function definitions.
+        tool_choice:
+            ``"auto"`` (default), ``"none"``, or a specific tool name.
+
+        Returns
+        -------
+        ChatResponse
+            Structured response (imported from ``core.agent``).
+        """
+        from ..core.agent import ChatResponse, ToolCall
+
+        # ── OpenAI / Groq / Grok / OpenAI-compatible ────────────
+        if self.provider in ("openai", "groq", "grok"):
+            return self._chat_openai_compat(messages, tools, tool_choice, **kwargs)
+
+        # ── Ollama (chat API with tools support) ─────────────────
+        if self.provider == "ollama":
+            return self._chat_ollama(messages, tools, tool_choice, **kwargs)
+
+        # ── Anthropic ────────────────────────────────────────────
+        if self.provider == "anthropic":
+            return self._chat_anthropic(messages, tools, tool_choice, **kwargs)
+
+        # ── Fallback: provider doesn't support chat() ────────────
+        # Convert messages to a single prompt and route through query()
+        prompt = self._messages_to_prompt(messages)
+        content = self._query_sync_fallback(prompt, **kwargs)
+        return ChatResponse(content=content or "", finish_reason="stop")
+
+    def _chat_openai_compat(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]],
+        tool_choice: Optional[str],
+        **kwargs: Any,
+    ) -> Any:
+        """Chat via the OpenAI-compatible completions API (OpenAI/Groq/Grok)."""
+        from ..core.agent import ChatResponse, ToolCall
+
+        api_key = self.api_key
+        url = self.url
+        model = self.model_id
+
+        if self.provider == "groq":
+            api_key = api_key or os.getenv("GROQ_API_KEY")
+            url = url or "https://api.groq.com/openai/v1"
+            model = model or "llama-3.1-70b-versatile"
+        elif self.provider == "grok":
+            api_key = api_key or os.getenv("XAI_API_KEY")
+            url = url or "https://api.x.ai/v1"
+            model = model or "grok-beta"
+        else:
+            api_key = api_key or os.getenv("OPENAI_API_KEY")
+            url = url or "https://api.openai.com/v1"
+            model = model or "gpt-4o-mini"
+
+        # Use the openai SDK client if available
+        if HAS_OPENAI and self.client is not None:
+            try:
+                request_kwargs: Dict[str, Any] = {
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+                    "temperature": kwargs.get("temperature", self.temperature),
+                }
+                if tools:
+                    request_kwargs["tools"] = tools
+                    if tool_choice:
+                        request_kwargs["tool_choice"] = tool_choice
+
+                response = self.client.chat.completions.create(**request_kwargs)
+                choice = response.choices[0]
+                msg = choice.message
+
+                # Parse tool calls from response
+                parsed_calls: Optional[List[ToolCall]] = None
+                if msg.tool_calls:
+                    parsed_calls = []
+                    for tc in msg.tool_calls:
+                        try:
+                            args = json.loads(tc.function.arguments)
+                        except (json.JSONDecodeError, TypeError):
+                            args = {"raw": tc.function.arguments}
+                        parsed_calls.append(ToolCall(
+                            id=tc.id,
+                            name=tc.function.name,
+                            arguments=args,
+                        ))
+
+                return ChatResponse(
+                    content=msg.content or "",
+                    tool_calls=parsed_calls,
+                    finish_reason=choice.finish_reason or "stop",
+                )
+            except Exception as exc:
+                logger.error("OpenAI-compat chat failed: %s", exc)
+                raise
+
+        # Fallback: raw HTTP
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        body: Dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "temperature": kwargs.get("temperature", self.temperature),
+        }
+        if tools:
+            body["tools"] = tools
+            if tool_choice:
+                body["tool_choice"] = tool_choice
+
+        chat_url = url.rstrip("/") + "/chat/completions"
+        resp = requests.post(chat_url, headers=headers, json=body, timeout=self.timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        choice = data["choices"][0]
+        msg = choice["message"]
+
+        parsed_calls = None
+        if msg.get("tool_calls"):
+            parsed_calls = []
+            for tc in msg["tool_calls"]:
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                except (json.JSONDecodeError, TypeError):
+                    args = {"raw": tc["function"]["arguments"]}
+                parsed_calls.append(ToolCall(
+                    id=tc["id"],
+                    name=tc["function"]["name"],
+                    arguments=args,
+                ))
+
+        return ChatResponse(
+            content=msg.get("content", ""),
+            tool_calls=parsed_calls,
+            finish_reason=choice.get("finish_reason", "stop"),
+        )
+
+    def _chat_ollama(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]],
+        tool_choice: Optional[str],
+        **kwargs: Any,
+    ) -> Any:
+        """Chat via Ollama's /api/chat endpoint (supports tools since 0.4+)."""
+        from ..core.agent import ChatResponse, ToolCall
+
+        base_url = self.url or "http://localhost:11434"
+        # Normalize to base URL
+        for suffix in ("/api/generate", "/api/chat"):
+            if base_url.endswith(suffix):
+                base_url = base_url[: -len(suffix)]
+        chat_url = base_url.rstrip("/") + "/api/chat"
+
+        body: Dict[str, Any] = {
+            "model": self.model_id or "llama3",
+            "messages": messages,
+            "stream": False,
+        }
+        if tools:
+            body["tools"] = tools
+
+        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        if self.api_key and self.api_key != "ollama":
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        resp = requests.post(chat_url, headers=headers, json=body, timeout=self.timeout)
+        resp.raise_for_status()
+        data = resp.json()
+
+        msg = data.get("message", {})
+        content = msg.get("content", "")
+
+        parsed_calls = None
+        if msg.get("tool_calls"):
+            parsed_calls = []
+            for tc in msg["tool_calls"]:
+                func = tc.get("function", {})
+                parsed_calls.append(ToolCall(
+                    id=f"call_{hash(func.get('name', '')) & 0xFFFFFFFF:08x}",
+                    name=func.get("name", ""),
+                    arguments=func.get("arguments", {}),
+                ))
+
+        return ChatResponse(
+            content=content,
+            tool_calls=parsed_calls,
+            finish_reason="tool_calls" if parsed_calls else "stop",
+        )
+
+    def _chat_anthropic(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]],
+        tool_choice: Optional[str],
+        **kwargs: Any,
+    ) -> Any:
+        """Chat via Anthropic's Messages API with tool use."""
+        from ..core.agent import ChatResponse, ToolCall
+
+        api_key = self.api_key or os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ConfigurationError("Anthropic API key not set", "MISSING_API_KEY")
+
+        # Convert OpenAI tool format to Anthropic format
+        anthropic_tools = None
+        if tools:
+            anthropic_tools = []
+            for t in tools:
+                func = t.get("function", {})
+                anthropic_tools.append({
+                    "name": func.get("name", ""),
+                    "description": func.get("description", ""),
+                    "input_schema": func.get("parameters", {}),
+                })
+
+        # Separate system message from conversation
+        system_text = ""
+        conv_messages = []
+        for m in messages:
+            if m["role"] == "system":
+                system_text += m.get("content", "") + "\n"
+            elif m["role"] == "tool":
+                # Anthropic uses "user" role with tool_result content blocks
+                conv_messages.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": m.get("tool_call_id", ""),
+                        "content": m.get("content", ""),
+                    }],
+                })
+            else:
+                conv_messages.append(m)
+
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        body: Dict[str, Any] = {
+            "model": self.model_id or "claude-3-haiku-20240307",
+            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "messages": conv_messages,
+        }
+        if system_text.strip():
+            body["system"] = system_text.strip()
+        if anthropic_tools:
+            body["tools"] = anthropic_tools
+
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers, json=body, timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Parse Anthropic response content blocks
+        content_text = ""
+        parsed_calls = None
+        for block in data.get("content", []):
+            if block.get("type") == "text":
+                content_text += block.get("text", "")
+            elif block.get("type") == "tool_use":
+                if parsed_calls is None:
+                    parsed_calls = []
+                parsed_calls.append(ToolCall(
+                    id=block.get("id", ""),
+                    name=block.get("name", ""),
+                    arguments=block.get("input", {}),
+                ))
+
+        stop_reason = data.get("stop_reason", "end_turn")
+        finish = "tool_calls" if stop_reason == "tool_use" else "stop"
+
+        return ChatResponse(
+            content=content_text,
+            tool_calls=parsed_calls,
+            finish_reason=finish,
+        )
+
+    def _messages_to_prompt(self, messages: List[Dict[str, Any]]) -> str:
+        """Flatten a multi-turn message list into a single text prompt."""
+        parts: List[str] = []
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if role == "system":
+                parts.append(f"[System] {content}")
+            elif role == "user":
+                parts.append(f"User: {content}")
+            elif role == "assistant":
+                parts.append(f"Assistant: {content}")
+            elif role == "tool":
+                parts.append(f"[Tool Result] {content}")
+        return "\n\n".join(parts)
+
     def supports_streaming(self) -> bool:
         return self.provider in {"openai", "ollama"}
 

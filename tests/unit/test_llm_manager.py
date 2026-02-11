@@ -142,9 +142,10 @@ class TestLLMManager(unittest.TestCase):
         self.mock_config.config.llm.model_id = None
 
         with patch("mia.llm.llm_manager.HAS_TRANSFORMERS", True):
-            with self.assertRaises(ConfigurationError) as context:
-                LLMManager(provider="huggingface")
-            self.assertIn("Model ID required", str(context.exception))
+            with patch("mia.llm.llm_manager.pipeline", MagicMock()):
+                with self.assertRaises(ConfigurationError) as context:
+                    LLMManager(provider="huggingface")
+                self.assertIn("Model ID required", str(context.exception))
 
     @patch("mia.llm.llm_manager.ConfigManager")
     def test_initialize_api_provider_ollama(self, mock_config_class):

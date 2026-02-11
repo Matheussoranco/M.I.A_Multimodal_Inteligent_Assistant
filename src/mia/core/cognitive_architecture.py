@@ -1,4 +1,4 @@
-﻿import re
+import re
 import json
 import logging
 import warnings
@@ -252,7 +252,22 @@ class MIACognitiveCore:
                     if "audio_transcription" in processed:
                         context["audio_transcription"] = processed["audio_transcription"]
                     
-                    response = self.execute_task(task, context)
+                    # Build prompt with context and delegate to LLM
+                    prompt_parts = [task]
+                    for k, v in context.items():
+                        prompt_parts.append(f"{k}: {v}")
+                    prompt = "\n".join(prompt_parts)
+
+                    response = None
+                    if hasattr(self.llm, "query") and callable(getattr(self.llm, "query", None)):
+                        response = self.llm.query(prompt)
+                    elif hasattr(self.llm, "query_model") and callable(getattr(self.llm, "query_model", None)):
+                        response = self.llm.query_model(prompt)
+                    elif hasattr(self.llm, "chat") and callable(getattr(self.llm, "chat", None)):
+                        resp = self.llm.chat(prompt)
+                        response = resp.text if hasattr(resp, "text") else str(resp)
+                    else:
+                        response = "LLM not available for response generation"
                     processed["text"] = response
                     processed["response"] = response
                 else:
@@ -380,19 +395,26 @@ class MIACognitiveCore:
             
         Returns:
             List of floats or numpy array representing the embedding
+            
+        Raises:
+            RuntimeError: If no real embedding provider is available
         """
         if not text or not text.strip():
             return []
         
         try:
-            # Use real embedding manager if available
+            # Use real embedding manager — never silently fall back to hashes
             if self.embedding_manager is not None and self.embedding_manager.is_available:
                 embeddings = self.embedding_manager.embed(text)
                 if len(embeddings) > 0:
                     return embeddings[0].tolist() if hasattr(embeddings[0], 'tolist') else list(embeddings[0])
             
-            # Fallback to hash-based pseudo-embeddings only if embedding manager unavailable
-            logger.warning("Using fallback hash-based embeddings - semantic search will be degraded")
+            # No real embeddings available — fall back to hash-based embeddings
+            logger.warning(
+                "No embedding provider loaded.  Install sentence-transformers "
+                "(pip install sentence-transformers) for semantic search.  "
+                "Falling back to hash-based embeddings; memory retrieval quality will be poor."
+            )
             return self._generate_fallback_embedding(text)
 
         except Exception as e:
@@ -541,158 +563,7 @@ class MIACognitiveCore:
         self.long_term_memory.clear()
         self.knowledge_graph.clear()
 
-    def execute_task(self, task: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Execute a task using the ReAct (Reasoning + Acting) loop.
-        This implements a State-of-the-Art cognitive architecture where the agent
-        reasons, acts, observes, and repeats until the task is completed.
-        """
-        context = context or {}
-        max_steps = 10
-        history = []
-
-        if self._is_research_intent(task):
-            try:
-                research_result = self.action_executor.execute(
-                    "research_topic", {"topic": task}
-                )
-                if hasattr(self.llm, "query") and callable(self.llm.query):
-                    summary_prompt = (
-                        "Use the research results below to answer the user request "
-                        "clearly and concisely.\n\n"
-                        f"Request: {task}\n\n"
-                        f"Research Results: {research_result}"
-                    )
-                    return str(self.llm.query(summary_prompt) or "")
-                return str(research_result)
-            except Exception as exc:
-                logger.warning("Research fast-path failed: %s", exc)
-
-        # Get tool descriptions from ActionExecutor
-        tool_descriptions = self.action_executor.get_tool_descriptions()
-
-        system_prompt = f"""You are M.I.A, a State-of-the-Art intelligent assistant.
-You have access to the following tools:
-{tool_descriptions}
-
-You MUST use the following format for every step:
-
-Thought: <your intense reasoning about the current state and what to do next>
-Action: <the name of the tool to use>
-Action Input: <the JSON parameters for the tool>
-
-When you have completed the task or if you cannot complete it, use:
-
-Thought: <reasoning for the final answer>
-Final Answer: <your final response to the user>
-
-IMPORTANT:
-1. Always "Thought:" before "Action:".
-2. "Action Input:" must be valid JSON.
-3. If no tool is needed, just provide "Final Answer:".
-4. Do not make up tools. Only use the ones listed.
-5. If you run a command or create a file, verify it if possible.
-
-Examples:
-
-Task: "Find the latest Python version and save it to python.txt"
-
-Thought: I need to find the latest Python version first. I will use specialized research tools.
-Action: web_search
-Action Input: {{"query": "latest python version release"}}
-
-Observation: The latest version is Python 3.12.2.
-
-Thought: Now I need to save this information to a file named python.txt.
-Action: create_file
-Action Input: {{"path": "python.txt", "content": "The latest Python version is 3.12.2"}}
-
-Observation: File created successfully.
-
-Thought: I have completed the task.
-Final Answer: I have found that the latest Python version is 3.12.2 and saved it to python.txt.
-
-Begin!
-"""
-
-        current_input = f"Task: {task}\nContext: {context}"
-
-        for step in range(max_steps):
-            # Construct prompt
-            prompt = system_prompt + "\n".join(history) + f"\n{current_input}\n"
-
-            # Query LLM
-            response = self._query_llm(prompt)
-            history.append(f"Step {step+1}: {response}")
-
-            # Parse response
-            action_match = self._parse_action(response)
-
-            if action_match:
-                tool_name, tool_params = action_match
-                logger.info(f"Agent decided to execute: {tool_name} with {tool_params}")
-
-                try:
-                    # Execute the tool
-                    result = self.action_executor.execute(tool_name, tool_params)
-                    observation = f"Observation: {result}"
-                    history.append(observation)
-                    current_input = observation  # Feed observation as next input
-                except Exception as e:
-                    observation = f"Observation: Error executing tool: {e}"
-                    history.append(observation)
-                    current_input = observation
-            elif "Final Answer:" in response:
-                return response.split("Final Answer:")[1].strip()
-            else:
-                # If no action and no final answer, treat as final answer or ask for clarification
-                return response
-
-        return "Max steps reached without final answer."
-
-    def _is_research_intent(self, task: str) -> bool:
-        if not task:
-            return False
-        lowered = task.lower()
-        keywords = (
-            "research",
-            "search",
-            "lookup",
-            "find information",
-            "find info",
-            "learn about",
-            "investigate",
-            "pesquisar",
-            "pesquise",
-            "pesquisa",
-            "buscar",
-            "procure",
-        )
-        return any(word in lowered for word in keywords)
-
-    def _query_llm(self, prompt: str) -> str:
-        """Helper to query the LLM."""
-        if hasattr(self.llm, "query") and self.llm.query:
-            return self.llm.query(prompt)
-        elif hasattr(self.llm, "query_model") and self.llm.query_model:
-            return self.llm.query_model(prompt)
-        else:
-            return "LLM not available."
-
-    def _parse_action(self, response: str) -> Optional[tuple]:
-        """Parse the Action and Action Input from the LLM response."""
-        action_regex = r"Action: ([\w_]+)"
-        input_regex = r"Action Input: (\{.*\})"
-
-        action_match = re.search(action_regex, response)
-        input_match = re.search(input_regex, response, re.DOTALL)
-
-        if action_match and input_match:
-            tool_name = action_match.group(1)
-            try:
-                tool_params = json.loads(input_match.group(1))
-                return tool_name, tool_params
-            except json.JSONDecodeError:
-                logger.warning("Failed to parse Action Input JSON")
-                return None
-        return None
+    # NOTE: The ReAct task-execution loop has been moved to
+    # ``core.agent.ToolCallingAgent``. The methods ``execute_task``,
+    # ``_is_research_intent``, ``_query_llm``, and ``_parse_action``
+    # previously here are now superseded.

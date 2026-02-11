@@ -73,15 +73,10 @@ class TestMemoryIntegration(unittest.TestCase):
     """Integration tests for memory systems."""
     
     @patch("mia.memory.long_term_memory.LongTermMemory")
-    @patch("mia.memory.knowledge_graph.KnowledgeGraph")
-    @patch("mia.memory.embedding_manager.EmbeddingManager")
-    def test_memory_storage_and_retrieval(self, mock_embed, mock_kg, mock_ltm):
+    @patch("mia.memory.knowledge_graph.AgentMemory")
+    def test_memory_storage_and_retrieval(self, mock_kg, mock_ltm):
         """Test storing and retrieving memories."""
         # Setup mocks
-        mock_embed_instance = MagicMock()
-        mock_embed_instance.embed.return_value = [[0.1] * 384]
-        mock_embed.return_value = mock_embed_instance
-        
         mock_ltm_instance = MagicMock()
         mock_ltm_instance.store.return_value = "memory_id_123"
         mock_ltm_instance.retrieve.return_value = [
@@ -98,7 +93,7 @@ class TestMemoryIntegration(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertGreater(results[0]["similarity"], 0.9)
     
-    @patch("mia.memory.knowledge_graph.KnowledgeGraph")
+    @patch("mia.memory.knowledge_graph.AgentMemory")
     def test_knowledge_graph_relationships(self, mock_kg):
         """Test knowledge graph relationship management."""
         mock_kg_instance = MagicMock()
@@ -124,7 +119,7 @@ class TestMemoryIntegration(unittest.TestCase):
 class TestLLMProviderIntegration(unittest.TestCase):
     """Integration tests for LLM provider switching."""
     
-    @patch("mia.llm.hybrid_llm_orchestration.HybridLLMOrchestrator")
+    @patch("mia.llm.llm_manager.LLMManager")
     def test_provider_fallback(self, mock_orchestrator):
         """Test fallback when primary provider fails."""
         mock_instance = MagicMock()
@@ -143,7 +138,7 @@ class TestLLMProviderIntegration(unittest.TestCase):
         
         self.assertEqual(result, "Response from Ollama")
     
-    @patch("mia.llm.hybrid_llm_orchestration.HybridLLMOrchestrator")
+    @patch("mia.llm.llm_manager.LLMManager")
     def test_task_based_routing(self, mock_orchestrator):
         """Test routing to different models based on task type."""
         mock_instance = MagicMock()
@@ -198,14 +193,9 @@ class TestVisionPipelineIntegration(unittest.TestCase):
 class TestSecurityIntegration(unittest.TestCase):
     """Integration tests for security layer."""
     
-    @patch("mia.core.security_manager.SecurityManager")
     @patch("mia.core.action_executor.ActionExecutor")
-    def test_permission_enforcement(self, mock_executor, mock_security):
+    def test_permission_enforcement(self, mock_executor):
         """Test that permissions are enforced on actions."""
-        mock_security_instance = MagicMock()
-        mock_security_instance.check_permission.side_effect = lambda perm, _: perm != "admin"
-        mock_security.return_value = mock_security_instance
-        
         mock_executor_instance = MagicMock()
         mock_executor_instance.execute.side_effect = lambda tool, params: (
             MagicMock(success=False, error="Permission denied")
@@ -221,7 +211,7 @@ class TestSecurityIntegration(unittest.TestCase):
         result = mock_executor_instance.execute("admin_tool", {})
         self.assertFalse(result.success)
     
-    @patch("mia.core.security_manager.SecurityManager")
+    @patch("mia.core.action_executor.ActionExecutor")
     def test_path_validation(self, mock_security):
         """Test path validation for filesystem operations."""
         mock_security_instance = MagicMock()
@@ -306,7 +296,7 @@ class TestErrorRecoveryIntegration(unittest.TestCase):
 class TestWebUIIntegration(unittest.TestCase):
     """Integration tests for Web UI."""
     
-    @patch("mia.ui.webui.WebUI")
+    @patch("mia.web.webui.MIAAgent")
     def test_websocket_message_handling(self, mock_webui):
         """Test WebSocket message handling."""
         mock_instance = MagicMock()

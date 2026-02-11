@@ -308,8 +308,13 @@ AVAILABLE_TOOLS = [
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class MIAAgent:
-    """Core agent class with tool execution capabilities."""
-    
+    """Core agent class with tool execution capabilities.
+
+    Wraps the ``ToolCallingAgent`` from ``core.agent`` so the web UI
+    benefits from the same conversation memory, tool-calling loop,
+    self-reflection, and retry logic as the CLI.
+    """
+
     def __init__(self):
         self.llm = None
         self.action_executor = None
@@ -317,21 +322,22 @@ class MIAAgent:
         self.memory = []
         self.conversations: Dict[str, List[ChatMessage]] = {}
         self.current_model = None
+        self._tool_agent = None  # ToolCallingAgent instance
         self._initialize()
-    
+
     def _initialize(self):
         """Initialize the agent components."""
         import os
         # Set environment to skip interactive prompts
         os.environ['TESTING'] = 'true'
-        
+
         try:
             self.config_manager = ConfigManager()
             self.config_manager.load_config()
         except Exception as e:
             logger.warning(f"Config manager init error: {e}")
             self.config_manager = None
-        
+
         # Try to initialize LLM with auto-detection
         try:
             # First try to get Ollama models
@@ -368,12 +374,34 @@ class MIAAgent:
         except Exception as e:
             logger.warning(f"LLM init error: {e}")
             self.llm = None
-        
+
         try:
             self.action_executor = provider_registry.create("actions", config_manager=self.config_manager)
         except Exception as e:
             logger.warning(f"Action executor init error: {e}")
             self.action_executor = None
+
+        # Create the ToolCallingAgent if LLM is available
+        self._init_tool_agent()
+
+    def _init_tool_agent(self) -> None:
+        """Create or re-create the ToolCallingAgent with current LLM."""
+        try:
+            from mia.core.agent import ToolCallingAgent
+            from mia.core.tool_registry import CORE_TOOLS
+
+            if self.llm:
+                self._tool_agent = ToolCallingAgent(
+                    llm=self.llm,
+                    executor=self.action_executor,
+                    tools=CORE_TOOLS,
+                    max_steps=12,
+                    max_retries=2,
+                )
+                logger.info("ToolCallingAgent initialized for WebUI")
+        except Exception as e:
+            logger.warning(f"ToolCallingAgent init error: {e}")
+            self._tool_agent = None
     
     def set_model(self, model_name: str) -> bool:
         """Switch to a different model."""
@@ -399,6 +427,7 @@ class MIAAgent:
                 config_manager=self.config_manager
             )
             self.current_model = model_name
+            self._init_tool_agent()  # Re-create agent with new LLM
             return True
         except Exception as e:
             logger.error(f"Failed to switch model: {e}")
@@ -503,109 +532,29 @@ class MIAAgent:
             return f"Error executing {tool_name}: {str(e)}"
     
     async def chat_stream(self, request: ChatRequest) -> AsyncGenerator[str, None]:
-        """Stream chat responses with tool calling support."""
+        """Stream chat responses with tool calling support.
+
+        When the ToolCallingAgent is available, delegates to it so the
+        response includes tool-calling, memory, and self-reflection.
+        Streaming is simulated word-by-word for UX since the agent
+        returns a complete response.
+        """
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
-        
-        # Check if tools are enabled
-        tools_enabled = request.tools is not None and request.tools
-        
-        # Add system prompt for agent behavior
-        if tools_enabled:
-            system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI agent designed to be helpful, harmless, and honest. You can use built-in tools to perform actions in the environment.
-
-Behavior rules:
-- If the user asks to open a website or app, you must use a tool to do it (e.g., open_url or open_application) instead of just providing a link.
-- If a task requires file operations, desktop automation, or code generation, use tools; only provide manual instructions when tools are unavailable.
-- Keep reasoning internal; respond concisely and focus on completing the action.
-
-IMPORTANT: When you need to use a tool, respond with a JSON block like this:
-```tool_call
-{"tool": "tool_name", "arguments": {"arg1": "value1"}}
-```
-"""
-        else:
-            system_prompt = """You are M.I.A (Multimodal Intelligent Assistant), an advanced AI assistant designed to be helpful, harmless, and honest.
-
-You are knowledgeable, thoughtful, and aim to provide accurate, well-reasoned responses. Be concise when appropriate, but thorough when the question demands it."""
-
-        if not messages or messages[0].get("role") != "system":
-            messages.insert(0, {"role": "system", "content": system_prompt})
-        
         user_prompt = messages[-1]["content"] if messages else ""
-        
+
         # Check if LLM is available
         if not self.llm:
             yield f"data: {json.dumps({'error': 'No LLM available. Please make sure Ollama is running or an API key is configured.'})}\n\n"
             yield "data: [DONE]\n\n"
             return
-        
+
         try:
-            # Check if streaming is supported
-            supports_stream = hasattr(self.llm, "stream") and callable(getattr(self.llm, "stream"))
-            stream_enabled = getattr(self.llm, "stream_enabled", True)
-            can_stream = supports_stream and stream_enabled
-            
-            if can_stream and self.llm is not None:
-                # Use synchronous generator in thread
-                llm = self.llm  # Capture reference
-                def sync_stream():
-                    try:
-                        return list(llm.stream(user_prompt, messages=messages))
-                    except Exception as e:
-                        logger.error(f"Stream error: {e}")
-                        return None
-                
-                try:
-                    tokens = await asyncio.wait_for(
-                        asyncio.to_thread(sync_stream),
-                        timeout=120.0  # 2 minute timeout for streaming
-                    )
-                    
-                    if tokens is None:
-                        # Fallback to non-streaming
-                        response = await asyncio.wait_for(
-                            asyncio.to_thread(self.llm.query, user_prompt, messages=messages),
-                            timeout=60.0
-                        )
-                        if response:
-                            for word in response.split():
-                                yield f"data: {json.dumps({'content': word + ' '})}\n\n"
-                                await asyncio.sleep(0.02)
-                        else:
-                            yield f"data: {json.dumps({'error': 'No response from LLM. Check if the model is loaded correctly.'})}\n\n"
-                    else:
-                        full_response = ""
-                        for token in tokens:
-                            if token:
-                                full_response += str(token)
-                                yield f"data: {json.dumps({'content': str(token)})}\n\n"
-                                await asyncio.sleep(0.01)
-                        
-                        if not full_response:
-                            yield f"data: {json.dumps({'error': 'Empty response from model.'})}\n\n"
-                        elif tools_enabled:
-                            # Process tool calls and send results
-                            tool_results = await self._process_tool_calls(full_response)
-                            if tool_results:
-                                tool_header = '\n\n---\n**Tool Results:**\n'
-                                yield f"data: {json.dumps({'content': tool_header})}\n\n"
-                                for tr in tool_results:
-                                    tool_name = tr['tool']
-                                    tool_result = tr['result']
-                                    tool_content = f'- {tool_name}: {tool_result}\n'
-                                    yield f"data: {json.dumps({'content': tool_content})}\n\n"
-                    
-                except asyncio.TimeoutError:
-                    yield f"data: {json.dumps({'error': 'Request timed out. The model took too long to respond.'})}\n\n"
-                except Exception as stream_error:
-                    logger.warning(f"Streaming failed: {stream_error}")
-                    yield f"data: {json.dumps({'error': f'Streaming error: {stream_error}'})}\n\n"
-            else:
-                # Non-streaming query
+            # ── Use ToolCallingAgent for best results ───────────
+            if self._tool_agent:
                 try:
                     response = await asyncio.wait_for(
-                        asyncio.to_thread(self.llm.query, user_prompt, messages=messages),
-                        timeout=60.0
+                        asyncio.to_thread(self._tool_agent.run, user_prompt),
+                        timeout=120.0,
                     )
                     if response:
                         # Simulate streaming for better UX
@@ -613,29 +562,84 @@ You are knowledgeable, thoughtful, and aim to provide accurate, well-reasoned re
                         for word in words:
                             yield f"data: {json.dumps({'content': word + ' '})}\n\n"
                             await asyncio.sleep(0.02)
-                        
-                        if tools_enabled:
-                            # Process tool calls
-                            tool_results = await self._process_tool_calls(response)
-                            if tool_results:
-                                tool_header = '\n\n---\n**Tool Results:**\n'
-                                yield f"data: {json.dumps({'content': tool_header})}\n\n"
-                                for tr in tool_results:
-                                    tool_name = tr['tool']
-                                    tool_result = tr['result']
-                                    tool_content = f'- {tool_name}: {tool_result}\n'
-                                    yield f"data: {json.dumps({'content': tool_content})}\n\n"
                     else:
-                        yield f"data: {json.dumps({'error': 'No response from model.'})}\n\n"
+                        yield f"data: {json.dumps({'error': 'Empty response from agent.'})}\n\n"
                 except asyncio.TimeoutError:
-                    yield f"data: {json.dumps({'error': 'Request timed out.'})}\n\n"
-                except Exception as query_error:
-                    yield f"data: {json.dumps({'error': f'Query error: {query_error}'})}\n\n"
-                
+                    yield f"data: {json.dumps({'error': 'Request timed out after 120 seconds.'})}\n\n"
+                except Exception as agent_err:
+                    logger.warning(f"ToolCallingAgent failed: {agent_err}, falling back to raw LLM")
+                    # Fall through to raw LLM below
+                    try:
+                        response = await asyncio.wait_for(
+                            asyncio.to_thread(self.llm.query, user_prompt),
+                            timeout=60.0,
+                        )
+                        if response:
+                            for word in response.split():
+                                yield f"data: {json.dumps({'content': word + ' '})}\n\n"
+                                await asyncio.sleep(0.02)
+                        else:
+                            yield f"data: {json.dumps({'error': 'No response from LLM.'})}\n\n"
+                    except Exception as llm_err:
+                        yield f"data: {json.dumps({'error': str(llm_err)})}\n\n"
+            else:
+                # ── Raw LLM (no agent available) ───────────────
+                # Check if streaming is supported
+                supports_stream = hasattr(self.llm, "stream") and callable(getattr(self.llm, "stream"))
+                stream_enabled = getattr(self.llm, "stream_enabled", True)
+                can_stream = supports_stream and stream_enabled
+
+                if can_stream:
+                    llm = self.llm
+                    def sync_stream():
+                        try:
+                            return list(llm.stream(user_prompt, messages=messages))
+                        except Exception as e:
+                            logger.error(f"Stream error: {e}")
+                            return None
+
+                    try:
+                        tokens = await asyncio.wait_for(
+                            asyncio.to_thread(sync_stream),
+                            timeout=120.0,
+                        )
+                        if tokens is None:
+                            response = await asyncio.wait_for(
+                                asyncio.to_thread(self.llm.query, user_prompt, messages=messages),
+                                timeout=60.0,
+                            )
+                            if response:
+                                for word in response.split():
+                                    yield f"data: {json.dumps({'content': word + ' '})}\n\n"
+                                    await asyncio.sleep(0.02)
+                            else:
+                                yield f"data: {json.dumps({'error': 'No response from LLM.'})}\n\n"
+                        else:
+                            for token in tokens:
+                                if token:
+                                    yield f"data: {json.dumps({'content': str(token)})}\n\n"
+                                    await asyncio.sleep(0.01)
+                    except asyncio.TimeoutError:
+                        yield f"data: {json.dumps({'error': 'Request timed out.'})}\n\n"
+                else:
+                    try:
+                        response = await asyncio.wait_for(
+                            asyncio.to_thread(self.llm.query, user_prompt, messages=messages),
+                            timeout=60.0,
+                        )
+                        if response:
+                            for word in response.split():
+                                yield f"data: {json.dumps({'content': word + ' '})}\n\n"
+                                await asyncio.sleep(0.02)
+                        else:
+                            yield f"data: {json.dumps({'error': 'No response from model.'})}\n\n"
+                    except asyncio.TimeoutError:
+                        yield f"data: {json.dumps({'error': 'Request timed out.'})}\n\n"
+
         except Exception as e:
             logger.error(f"Chat stream error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
-        
+
         yield "data: [DONE]\n\n"
     
     async def _process_tool_calls(self, response: str) -> Optional[List[Dict[str, Any]]]:
@@ -674,23 +678,31 @@ You are knowledgeable, thoughtful, and aim to provide accurate, well-reasoned re
         return results if results else None
     
     async def chat(self, request: ChatRequest) -> Dict[str, Any]:
-        """Non-streaming chat endpoint."""
+        """Non-streaming chat endpoint — delegates to ToolCallingAgent."""
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
-        
+        user_msg = messages[-1]["content"] if messages else ""
+
         try:
-            if self.llm:
+            # Prefer ToolCallingAgent (tool calling + memory)
+            if self._tool_agent:
                 response = await asyncio.to_thread(
-                    self.llm.query,
-                    messages[-1]["content"] if messages else "",
+                    self._tool_agent.run, user_msg
                 )
                 return {
                     "model": request.model,
-                    "message": {
-                        "role": "assistant",
-                        "content": response
-                    },
-                    "done": True
+                    "message": {"role": "assistant", "content": response},
+                    "done": True,
                 }
+
+            # Fallback: raw LLM query (no tools)
+            if self.llm:
+                response = await asyncio.to_thread(self.llm.query, user_msg)
+                return {
+                    "model": request.model,
+                    "message": {"role": "assistant", "content": response},
+                    "done": True,
+                }
+
             return {"error": "LLM not available"}
         except Exception as e:
             return {"error": str(e)}
