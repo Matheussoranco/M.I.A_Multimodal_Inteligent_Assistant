@@ -2,7 +2,7 @@
 # Makefile for Linux/Unix systems
 
 .PHONY: all install install-core install-dev install-extras setup venv deps config \
-        run run-debug run-text run-audio run-api run-ui \
+        run run-debug run-text run-audio run-api \
         test lint format clean clean-all uninstall \
         docker docker-build docker-run docker-stop \
         help check-deps check-python check-system
@@ -129,11 +129,6 @@ run-audio: check-venv
 run-api: check-venv
 	@echo -e "$(BLUE)[M.I.A]$(NC) Starting API server..."
 	@$(VENV_PYTHON) -m uvicorn mia.api.server:app --host 0.0.0.0 --port 8080 --reload
-
-## run-ui: Start M.I.A Streamlit UI
-run-ui: check-venv
-	@echo -e "$(BLUE)[M.I.A]$(NC) Starting Streamlit UI..."
-	@$(VENV_PYTHON) -m streamlit run $(SRC_DIR)/mia/ui/app.py
 
 ## info: Show M.I.A version info
 info: check-venv
@@ -297,7 +292,6 @@ help:
 	@echo "  run-text         Start in text-only mode"
 	@echo "  run-audio        Start with audio enabled"
 	@echo "  run-api          Start API server"
-	@echo "  run-ui           Start Streamlit UI"
 	@echo "  info             Show version info"
 	@echo ""
 	@echo "Development:"

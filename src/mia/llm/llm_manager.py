@@ -569,7 +569,7 @@ class LLMManager:
 
         self.local_model_path = local_model_path
 
-        self.client: Optional[Union[Any, object]] = None
+        self.client: Any = None
         self.model: Optional[Any] = None
         self.tokenizer: Optional[Any] = None
         self._available = True

@@ -142,7 +142,7 @@ class TestAgentNativeMode:
             ChatResponse(content="The capital of France is Paris."),
         ])
         executor = FakeActionExecutor()
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
 
         result = agent.run("What is the capital of France?")
         assert "Paris" in result
@@ -151,11 +151,11 @@ class TestAgentNativeMode:
 
     def test_supports_native_tools_detection(self):
         llm = FakeLLM()
-        agent = ToolCallingAgent(llm=llm, action_executor=FakeActionExecutor())
+        agent = ToolCallingAgent(llm=llm, action_executor=FakeActionExecutor(), auto_init_sota=False)
         assert agent.supports_native_tools is True
 
         text_llm = FakeLLMTextOnly()
-        agent2 = ToolCallingAgent(llm=text_llm, action_executor=FakeActionExecutor())
+        agent2 = ToolCallingAgent(llm=text_llm, action_executor=FakeActionExecutor(), auto_init_sota=False)
         assert agent2.supports_native_tools is False
 
     def test_single_tool_call(self):
@@ -170,7 +170,7 @@ class TestAgentNativeMode:
             ChatResponse(content="Python 3.13 was released in October 2024."),
         ])
         executor = FakeActionExecutor(results={"web_search": "Python 3.13 released Oct 2024"})
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
 
         result = agent.run("When was Python 3.13 released?")
         assert "2024" in result
@@ -196,7 +196,7 @@ class TestAgentNativeMode:
             "web_search": "Sunny, 25C",
             "get_system_info": "CPU: 30%, RAM: 4GB free",
         })
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
 
         result = agent.run("Weather and system status please")
         assert "sunny" in result.lower()
@@ -212,7 +212,7 @@ class TestAgentNativeMode:
         executor = FakeActionExecutor()
         executor.execute = MagicMock(side_effect=RuntimeError("command not found"))
 
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
         result = agent.run("Run badcmd")
         # Should not crash; should contain the error context or a fallback
         assert result  # got some response
@@ -225,7 +225,7 @@ class TestAgentNativeMode:
             ChatResponse(tool_calls=[tc], finish_reason="tool_calls"),
         ] * 20)
         executor = FakeActionExecutor()
-        agent = ToolCallingAgent(llm=llm, action_executor=executor, max_steps=3)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, max_steps=3, auto_init_sota=False)
 
         result = agent.run("infinite loop test")
         # Should terminate gracefully within 3 steps
@@ -237,7 +237,7 @@ class TestAgentNativeMode:
         llm = FakeLLM(chat_responses=[
             ChatResponse(content="I see a cat."),
         ])
-        agent = ToolCallingAgent(llm=llm, action_executor=FakeActionExecutor())
+        agent = ToolCallingAgent(llm=llm, action_executor=FakeActionExecutor(), auto_init_sota=False)
 
         agent.run("What's in this image?", context={"image": "A tabby cat"})
         sent_msg = llm.chat_calls[0]["messages"][-1]["content"]
@@ -255,7 +255,9 @@ class TestAgentNativeMode:
         ))
 
         executor = FakeActionExecutor()
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(
+            llm=llm, action_executor=executor, auto_init_sota=False,
+        )
 
         result = agent.run("What is 6*7?")
         assert "42" in result
@@ -275,7 +277,7 @@ class TestAgentReActMode:
             "Thought: I can answer directly.\nFinal Answer: Hello there!"
         ])
         executor = FakeActionExecutor()
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
 
         result = agent.run("Say hello")
         assert "Hello there!" in result
@@ -295,7 +297,7 @@ class TestAgentReActMode:
             ),
         ])
         executor = FakeActionExecutor(results={"web_search": "Brasília is the capital of Brazil."})
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
 
         result = agent.run("What is the capital of Brazil?")
         assert "Brasília" in result
@@ -312,7 +314,7 @@ class TestAgentReActMode:
             "Thought: That didn't work.\nFinal Answer: I don't have a magic wand.",
         ])
         executor = FakeActionExecutor()
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
 
         result = agent.run("Cast a spell")
         # The hallucinated tool should NOT have been executed
@@ -330,7 +332,7 @@ class TestAgentReActMode:
             "Thought: Got it.\nFinal Answer: Test result.",
         ])
         executor = FakeActionExecutor(results={"web_search": "test result"})
-        agent = ToolCallingAgent(llm=llm, action_executor=executor)
+        agent = ToolCallingAgent(llm=llm, action_executor=executor, auto_init_sota=False)
 
         result = agent.run("Search for test")
         # Should have recovered via single-quote replacement
@@ -379,15 +381,17 @@ class TestInternalHelpers:
         return ToolCallingAgent(
             llm=FakeLLM(),
             action_executor=FakeActionExecutor(),
+            auto_init_sota=False,
         )
 
     def test_extract_final_answer(self):
         agent = self._make_agent()
         assert agent._extract_final_answer("Final Answer: hello") == "hello"
         assert agent._extract_final_answer("No answer here") is None
-        assert agent._extract_final_answer(
+        result = agent._extract_final_answer(
             "Thought: ok\nFinal Answer: multi\nline answer\n"
-        ).startswith("multi")
+        )
+        assert result is not None and result.startswith("multi")
 
     def test_robust_json_parse(self):
         agent = self._make_agent()

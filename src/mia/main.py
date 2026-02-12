@@ -167,19 +167,23 @@ def initialize_components(args) -> Dict[str, Any]:
         logger.warning("Action executor unavailable: %s", exc)
         components["action_executor"] = None
 
-    # ── Tool-Calling Agent (new!) ───────────────────────────────────
+    # ── Tool-Calling Agent (with SOTA modules) ───────────────────────
     from .core.agent import ToolCallingAgent
 
     agent = None
     if components["llm"] and components["action_executor"]:
         try:
+            # The agent auto-initialises CognitiveKernel, TaskPlanner,
+            # and GuardrailsManager when auto_init_sota=True (default).
             agent = ToolCallingAgent(
                 llm=components["llm"],
                 action_executor=components["action_executor"],
+                auto_init_sota=True,
             )
             logger.info(
-                "Agent initialised (native_tools=%s)",
+                "Agent initialised (native_tools=%s, cognitive_kernel=%s)",
                 agent.supports_native_tools,
+                agent.cognitive_kernel is not None,
             )
         except Exception as exc:
             logger.warning("Agent init failed: %s", exc)

@@ -1,411 +1,660 @@
-# M.I.A — Intelligent Multimodal Personal Assistant (on‑device)
+<p align="center">
+  <h1 align="center">M.I.A — Multimodal Intelligent Assistant</h1>
+  <p align="center">
+    A local-first, tool-calling AI agent with hybrid reasoning, multi-agent orchestration, multimodal perception, and full desktop/web automation.
+  </p>
+  <p align="center">
+    <a href="#architecture">Architecture</a> · <a href="#quick-start">Quick Start</a> · <a href="#configuration">Configuration</a> · <a href="#api-reference">API</a> · <a href="#benchmarks">Benchmarks</a> · <a href="#license">License</a>
+  </p>
+</p>
 
-M.I.A is a multimodal, local‑first, extensible, and auditable personal assistant designed to run 100% on your device (with the option to use external APIs when desired). It combines natural language understanding, speech, computer vision, long‑term memory, and a toolchain to perform real tasks: send messages and emails, create documents (spreadsheets, presentations, text, and PDFs), automate the OS, search and browse the web (with Selenium), analyze data, program in multiple languages, send local notifications, open apps, and interact with IoT devices.
+> **Note — Project Archived (February 2026)**
+>
+> M.I.A has been archived. It was built as a personal learning project and served its purpose — exploring agent architecture, tool registries, multi-agent orchestration, hybrid reasoning, multimodal pipelines, desktop automation, and API design from scratch. With the maturation of tools like Claude Desktop (native computer use + MCP), Open Interpreter, and first-party agentic frameworks, continuing development offers diminishing returns over what's now available out of the box. The codebase remains public as a reference and portfolio piece. No further features are planned.
 
-Design principles:
+---
 
-- Local by default: LLMs, vectors, memory, logs, and inference run locally; switching to API providers is optional.
-- Security and control: action execution with confirmation, isolation of sensitive tools, and audit trails.
-- Extensible: layered modular architecture with pluggable “tools” and swappable providers.
-- Observable: latency/usage metrics, logs, and an optional admin console.
+## Overview
 
+M.I.A is an **agentic AI system** designed to operate as a general-purpose digital assistant across desktop and mobile environments. It combines:
 
-## Core capabilities
+- **Hybrid Reasoning Engine** — algorithmic-first problem solving (CSP, SAT/DPLL, Gaussian elimination, graph algorithms, Nelder-Mead optimization) with automatic LLM fallback for tasks that resist formal methods
+- **Multi-Agent Orchestration** — role-specialized sub-agents (Researcher, Coder, Analyst, Writer, Executor, Reviewer) with keyword-based task routing and quality review
+- **Native Function Calling** — 40+ tools exposed as OpenAI-compatible JSON schemas, with ReAct text-parsing fallback for models without native tool support
+- **Multimodal I/O** — text, voice (STT/TTS/VAD/hotword), vision (OCR, VQA, image description), and document processing
+- **Desktop Automation** — UI element interaction via `pywinauto` (UIA backend), keyboard/mouse control, window management
+- **Persistent Memory** — episodic conversation history, semantic knowledge graph, and skill library with reliability scoring
+- **Security-First Execution** — action confirmation gates, scoped permissions, sandboxed code execution, circuit breaker error handling
 
-- **New!** Ollama-Style Web UI: Beautiful, minimal chat interface with function calling and streaming
-- **New!** State-of-the-Art Cognitive Architecture: Implements a ReAct (Reasoning + Acting) loop for autonomous problem solving.
-- Natural conversation via text and voice (in/out), with hotword activation and VAD.
-- Multimodal vision: images and documents (OCR, description, visual Q&A).
-- Short‑ and long‑term contextual memory (episodic, semantic, and local knowledge graph).
-- Planning, reasoning, and multi‑step task execution (advanced cognition with tool calls).
-- Document generation:
-	- Word/Docx (python‑docx),
-	- PowerPoint (python‑pptx),
-	- Spreadsheets (openpyxl/pandas),
-	- PDFs (ReportLab or optional headless LibreOffice conversion).
-- Messaging: email sending (SMTP/Graph API) and WhatsApp Web automation (Selenium) on desktop.
-- System automation: open apps, interact with windows, keyboard shortcuts, and local notifications.
-- Web search and browsing with Selenium (search, pagination, scroll, clicks, result harvesting).
-- Programming and code execution (Python and other languages) in an isolated environment.
-- IoT control via MQTT (Home Assistant/Zigbee2MQTT) and local REST integrations.
+**Design Principle:** Everything runs locally by default — LLMs, vector stores, embeddings, memory, and inference. External APIs (OpenAI, Anthropic, Google, etc.) are optional, pluggable backends.
 
-
-## 🚀 Quick Start - Ollama-Style Web UI
-
-The fastest way to get started with M.I.A is the new **Ollama-style Web UI**:
-
-```bash
-# Start the web interface
-python -m mia --web
-
-# Or directly
-python -m mia.web.webui
-
-# With custom port
-python -m mia --web --port 8080
-```
-
-Then open http://localhost:8080 in your browser. You'll get:
-- Clean, minimal chat interface (just like Ollama)
-- Function calling with 12+ built-in tools
-- Automatic model detection (Ollama, OpenAI, local models)
-- Real-time streaming responses
-- AGI-focused agent capabilities
-
-
-## 🖥️ Desktop Application (No Browser Required)
-
-Run M.I.A as a **standalone desktop application** with a native window:
-
-```bash
-# Install pywebview (if not already installed)
-pip install pywebview
-
-# Run the desktop app
-python mia_desktop.py
-```
-
-This opens M.I.A in its own native window - no browser needed!
-
-### Build Standalone Executable
-
-Create a portable `.exe` file that runs anywhere:
-
-```bash
-# Windows - run the build script
-build_desktop.bat
-
-# Or manually with PyInstaller
-pip install pyinstaller
-pyinstaller mia_desktop.spec
-```
-
-The executable will be at `dist/MIA-Desktop.exe`.
-
+---
 
 ## Architecture
 
-M.I.A uses a layered architecture with LLM orchestration, memory, and tools. The main components already exist under `src/mia` and can be extended.
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            INTERACTION LAYER                                │
+│  CLI (argparse + REPL)  │  Web UI (Flask)  │  FastAPI Server  │  Voice     │
+└────────────┬────────────┴────────┬─────────┴────────┬─────────┴──────┬─────┘
+             │                     │                   │                │
+             ▼                     ▼                   ▼                ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TOOL-CALLING AGENT (core/agent.py)                  │
+│                                                                             │
+│  ┌──────────────┐  ┌──────────────────┐  ┌────────────────────────────┐    │
+│  │  TaskPlanner  │  │  AgentOrchestrator│  │  CognitiveKernel           │    │
+│  │  DAG decomp.  │  │  6 specialist     │  │  WorkingMemory (LRU+TTL)  │    │
+│  │  should_plan()│  │  sub-agents       │  │  SkillLibrary (MD5 cache) │    │
+│  │  replan_step()│  │  classify+review  │  │  IntrospectionState       │    │
+│  └──────────────┘  └──────────────────┘  └────────────────────────────┘    │
+│                                                                             │
+│  Pipeline: user_msg → memory_ctx → plan? → delegate? → tool_loop → guard   │
+└──────────────────────────────┬──────────────────────────────────────────────┘
+                               │
+          ┌────────────────────┼────────────────────┐
+          ▼                    ▼                     ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────────────┐
+│  REASONING LAYER │ │  INTELLIGENCE    │ │  LLM PROVIDERS           │
+│                  │ │                  │ │                          │
+│  HybridEngine    │ │  ArcSolver       │ │  Ollama (local)          │
+│  11 task domains │ │  7 strategies    │ │  OpenAI  / Azure OpenAI  │
+│  AlgorithmicReas.│ │  ProgramSynth.   │ │  Anthropic               │
+│  LogicEngine     │ │  PatternMatcher  │ │  Google (Gemini)         │
+│  MetaCognition   │ │  HypothesisTester│ │  HuggingFace (local)     │
+│  Solvers (Z3/Sym)│ │  GridDSL         │ │  llama.cpp (GGUF)        │
+└──────────────────┘ └──────────────────┘ └──────────────────────────┘
+          │                    │                     │
+          └────────────────────┼─────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           TOOL EXECUTION LAYER                              │
+│                                                                             │
+│  ActionExecutor (3000+ LOC)  ←─  ToolRegistry (40+ OpenAI-schema tools)    │
+│                                                                             │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌────────────────┐  │
+│  │ Web      │ │ File I/O │ │ Docs     │ │ Desktop   │ │ Communication  │  │
+│  │ search   │ │ CRUD     │ │ docx     │ │ pywinauto │ │ email (SMTP)   │  │
+│  │ scrape   │ │ dir ops  │ │ pptx     │ │ keyboard  │ │ WhatsApp (Sel.)│  │
+│  │ research │ │ search   │ │ xlsx     │ │ mouse     │ │ Telegram       │  │
+│  │ wikipedia│ │ archive  │ │ pdf      │ │ apps      │ │ notifications  │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘ └────────────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌────────────────┐  │
+│  │ Code     │ │ Memory   │ │ System   │ │ IoT/Smart │ │ Sandbox        │  │
+│  │ create   │ │ store    │ │ commands │ │ MQTT      │ │ WASI runner    │  │
+│  │ analyze  │ │ search   │ │ process  │ │ HomeAsst. │ │ subprocess     │  │
+│  │ execute  │ │ retrieve │ │ clipboard│ │ Zigbee    │ │ Docker (opt.)  │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘ └────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+          │                                              │
+          ▼                                              ▼
+┌──────────────────────────────┐   ┌──────────────────────────────────────────┐
+│  MULTIMODAL PERCEPTION       │   │  MEMORY & PERSISTENCE                    │
+│                              │   │                                          │
+│  Audio:                      │   │  PersistentMemory (JSON file-backed)     │
+│    STT (Whisper/Vosk)        │   │  KnowledgeGraph (NetworkX)               │
+│    TTS (Piper/Coqui/pyttsx3) │   │  LongTermMemory (ChromaDB vectors)      │
+│    VAD (WebRTC)              │   │  ConversationBuffer (in-memory ring)     │
+│    Hotword detection         │   │  RAG Pipeline (retrieval + generation)   │
+│                              │   │  EmbeddingManager (sentence-transformers)│
+│  Vision:                     │   │                                          │
+│    OCR (Tesseract/EasyOCR)   │   │  Storage:                               │
+│    Image description (VLM)   │   │    memory/persistent/*.json              │
+│    Document intelligence     │   │    memory/chroma.sqlite3                 │
+│    Visual Q&A                │   │    config/config.yaml                    │
+└──────────────────────────────┘   └──────────────────────────────────────────┘
+```
+
+### Module Map
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│                           Interaction Layers                          │
-│  • Chat UI (Streamlit) • CLI / TUI • API (FastAPI) • Voice            │
-└───────────────▲───────────────────────────────────────────────▲───────┘
-								│                                               │
-					 I/O streams                                     Webhooks/Apps
-								│                                               │
-┌───────────────┴───────────────────────────────────────────────┴───────┐
-│                           LLM Orchestrator                             │
-│  • Planning & Tools • Reasoning Chains • Guardrails                    │
-│  • Model selection (local/API) • Prompting • Streaming                 │
-└───────────────▲───────────────────────────────▲────────────────────────┘
-								│                               │
-				 Multimodal perception            Memory & Context
-								│                               │
-┌───────────────┴──────────────┐      ┌─────────┴─────────────────────┐
-│  Audio (STT, TTS, VAD)       │      │  Short‑term (buffer)          │
-│  Image/Docs (OCR/VQA)        │      │  Long‑term (Chroma/SQLite)    │
-│  Multimodal Fusion           │      │  Knowledge Graph               │
-└───────────────▲──────────────┘      └─────────▲─────────────────────┘
-								│                               │
-								└─────────┬───────────┬─────────┘
-													│           │
-									 ┌──────┴──────┐ ┌──┴──────────────────────┐
-									 │  System/OS  │ │  Tools (Plugins)        │
-									 │  Automation │ │  • Email • WhatsApp     │
-									 │  Notifications││  • Office • Selenium    │
-									 │  Apps/Process│ │  • IoT (MQTT) • Web     │
-									 └──────────────┘ └─────────────────────────┘
+src/mia/                          # 97 Python source files
+├── core/                         # Central agent architecture
+│   ├── agent.py                  #   ToolCallingAgent — main loop (native FC + ReAct)
+│   ├── orchestrator.py           #   Multi-agent: 6 roles, classify+delegate+review
+│   ├── planner.py                #   DAG task decomposition with dependency tracking
+│   ├── persistent_memory.py      #   JSON file-backed skills, sessions, interactions
+│   ├── guardrails.py             #   Output filtering and safety checks
+│   ├── tool_registry.py          #   40+ OpenAI-schema tool definitions
+│   ├── cognitive_architecture.py #   Legacy ReAct loop (retained for compatibility)
+│   ├── benchmarks.py             #   Framework execution harness
+│   └── skills.py                 #   Skill definition & execution
+│
+├── reasoning/                    # Algorithmic + hybrid reasoning
+│   ├── algorithmic.py            #   CSP (AC-3+backtrack+MRV), DPLL SAT, Gaussian
+│   │                             #   elimination, Dijkstra, Nelder-Mead, LogicEngine
+│   ├── hybrid_engine.py          #   11-domain classifier, algorithmic-first routing
+│   ├── cognitive_kernel.py       #   WorkingMemory, SkillLibrary, IntrospectionState
+│   ├── metacognition.py          #   Self-monitoring, strategy adjustment, retry logic
+│   └── solvers.py                #   SymPy/Z3 integration for formal verification
+│
+├── intelligence/                 # ARC-AGI and abstract reasoning
+│   ├── arc_solver.py             #   7-strategy solver (analogy, gravity, symmetry,
+│   │                             #   tiling, crop, object transform, synthesis)
+│   ├── program_synthesis.py      #   DSL program search for grid transformations
+│   ├── patterns.py               #   Symmetry, periodicity, object detection
+│   ├── grid_dsl.py               #   Domain-specific language for grid operations
+│   ├── hypothesis.py             #   Hypothesis generation and testing
+│   └── search.py                 #   Program search strategies
+│
+├── llm/                          # LLM provider abstraction
+│   ├── llm_manager.py            #   Multi-provider manager (Ollama, OpenAI, etc.)
+│   ├── llm_inference.py          #   Inference pipeline with streaming
+│   └── embedding_manager.py      #   Sentence-transformer embeddings
+│
+├── tools/                        # Tool execution engine
+│   ├── action_executor.py        #   3000+ LOC — all tool implementations
+│   ├── document_generator.py     #   docx/pptx/xlsx/pdf generation
+│   └── document_intelligence.py  #   Document analysis and extraction
+│
+├── web/                          # Web interfaces
+│   ├── webui.py                  #   Ollama-style chat UI (Flask)
+│   └── web_agent.py              #   Selenium-based browsing, scraping, search
+│
+├── api/                          # REST API
+│   └── server.py                 #   FastAPI: /chat, /chat/stream (SSE), /actions,
+│                                 #   /memory, /health, /ready, /status
+│
+├── audio/                        # Speech I/O pipeline
+│   ├── speech_processor.py       #   STT (Whisper, Vosk, SpeechRecognition)
+│   ├── speech_generator.py       #   TTS (Piper, Coqui, pyttsx3)
+│   ├── vad_detector.py           #   Voice Activity Detection (WebRTC VAD)
+│   ├── hotword_detector.py       #   Wake-word activation
+│   ├── audio_utils.py            #   Recording, playback, format conversion
+│   └── audio_resource_manager.py #   Device management and cleanup
+│
+├── multimodal/                   # Vision and multimodal fusion
+│   ├── vision_processor.py       #   Image analysis, VLM integration
+│   ├── ocr_processor.py          #   Tesseract, EasyOCR, PaddleOCR
+│   ├── processor.py              #   Multimodal fusion pipeline
+│   └── vision_resource_manager.py#   Model loading and GPU management
+│
+├── memory/                       # Knowledge persistence
+│   ├── long_term_memory.py       #   ChromaDB vector store
+│   ├── knowledge_graph.py        #   NetworkX entity-relation graph
+│   └── chroma.sqlite3            #   Vector DB storage
+│
+├── system/                       # OS integration
+│   ├── desktop_automation.py     #   pywinauto UIA backend
+│   └── system_control.py         #   Process, clipboard, command execution
+│
+├── security/                     # Access control
+│   └── security_manager.py       #   Permission policies, action scoping
+│
+├── messaging/                    # Communication channels
+│   └── telegram_client.py        #   Telethon-based Telegram integration
+│
+├── mcp/                          # Model Context Protocol
+│   ├── client.py                 #   MCP client implementation
+│   └── manager.py                #   MCP server management
+│
+├── sandbox/                      # Isolated execution
+│   └── wasi_runner.py            #   WebAssembly (WASI) sandbox via wasmtime
+│
+├── benchmarks/                   # AGI benchmark frameworks
+│   ├── arc_agi.py                #   ARC-AGI evaluation
+│   ├── swe_bench.py              #   SWE-bench (software engineering)
+│   ├── gaia.py                   #   GAIA multi-step reasoning
+│   ├── gpqa.py                   #   GPQA graduate-level science
+│   ├── mmmu.py                   #   MMMU multimodal understanding
+│   ├── osworld.py                #   OSWorld desktop automation
+│   ├── webvoyager.py             #   WebVoyager web navigation
+│   ├── runner.py                 #   Benchmark orchestration
+│   └── base.py                   #   Abstract benchmark interface
+│
+├── providers/                    # Plugin registry
+│   ├── registry.py               #   ProviderRegistry with lazy imports
+│   └── defaults.py               #   Built-in provider registrations
+│
+├── config/                       # Configuration
+│   └── config_manager.py         #   YAML/env config, LLM profiles
+│
+├── cli/                          # Command-line interface
+│   ├── parser.py                 #   Argument parsing
+│   ├── display.py                #   Terminal output formatting
+│   └── utils.py                  #   CLI utilities
+│
+├── error_handler.py              # Circuit breaker (closed/open/half-open),
+│                                 # exponential backoff, fallback providers
+├── performance_monitor.py        # Latency/throughput metrics
+├── resource_manager.py           # GPU/CPU resource allocation
+├── cache_manager.py              # LRU caching for LLM/embedding responses
+├── config_manager.py             # Global configuration singleton
+├── localization.py               # i18n string management
+├── exceptions.py                 # Custom exception hierarchy
+└── main.py                       # Entrypoint: initialize_components() → REPL
 ```
 
-Mapping to existing modules (high‑level):
+---
 
-- LLM orchestration: `src/mia/llm/llm_manager.py`, `src/mia/llm/llm_inference.py`, `src/mia/adaptive_intelligence/hybrid_llm_orchestration.py`
-- Cognition and planning: `src/mia/core/cognitive_architecture.py` (ReAct Loop), `src/mia/adaptive_intelligence/workflow_automation_composer.py`
-- Memory (local): `src/mia/memory/long_term_memory.py`, `src/mia/memory/knowledge_graph.py`, vector DB `memory/chroma.sqlite3`
-- Multimodal perception: audio in `src/mia/audio/*` (hotword, VAD, TTS, STT); vision in `src/mia/multimodal/vision_processor.py`
-- API/Service: `src/mia/api/server.py`
-- Observability: `src/mia/performance_monitor.py`, `src/mia/adaptive_intelligence/observability_admin_console.py`
-- Messaging: `src/mia/messaging/telegram_client.py` (example already implemented)
-- Tools/Plugins: `src/mia/tools/`, `src/mia/plugins/` (extension points)
-- Security: `src/mia/security/` (policies and utilities)
+## Key Technical Details
 
+### Agent Execution Pipeline
 
-### Model providers (local and API)
+The `ToolCallingAgent` processes every user message through a 5-stage pipeline:
 
-- Local (preferred):
-	- Text LLM: Ollama (llama, phi, mistral), llama.cpp (GGUF), LM Studio.
-	- Multimodal vision: LLaVA, BakLLaVA, MiniCPM‑V (via Ollama/gguf), or local bridges.
-	- STT: Whisper.cpp, Vosk.
-	- TTS: Piper, Coqui TTS.
-- API (optional): OpenAI, Azure OpenAI, Anthropic, Google, etc.
+```
+1. CONTEXT ENRICHMENT
+   └─ Retrieve relevant memories (PersistentMemory + RAG)
+   └─ Inject into system prompt as context
 
-Backend and model selection are controlled by configuration (see `config/config.yaml`).
+2. PLANNING (optional)
+   └─ TaskPlanner.should_plan() — keyword heuristics detect multi-step goals
+   └─ LLM decomposes into DAG of sub-tasks with depends_on edges
+   └─ Execution tiers group independent tasks for parallel dispatch
 
+3. MULTI-AGENT DELEGATION (optional)
+   └─ AgentOrchestrator.should_delegate() — keyword scoring across 6 roles
+   └─ Best-fit SubAgent executes with role-specific system prompt
+   └─ Reviewer agent evaluates output quality (if enabled)
 
-### Action execution and security
+4. TOOL-CALLING LOOP
+   └─ Native path: LLM returns tool_calls → execute → feed results back
+   └─ ReAct path: parse Thought/Action/Action Input from text
+   └─ Retry on failure (configurable max_retries with linear backoff)
+   └─ Max iterations guard prevents infinite loops
 
-- Permissions: each tool can require confirmation (ask‑before‑act mode).
-- Isolation: code execution in an isolated subprocess; Docker/WSL2 optional for stronger isolation.
-- Secrets: `.env` for keys (never version control); accessed via the config manager.
-- Auditing: structured logs for tool calls, errors, and action timelines.
+5. GUARDRAILS
+   └─ GuardrailsManager.check_output() filters response
+   └─ Memory: log interaction to PersistentMemory
+   └─ CognitiveKernel: update working memory + skill library
+```
 
+### Hybrid Reasoning Engine
 
-## Installation (Windows)
+The `HybridReasoningEngine` classifies incoming tasks into 11 domains via regex patterns and routes them to pure algorithmic solvers before touching the LLM:
 
-Prerequisites:
+| Domain | Algorithm | LLM Fallback |
+|--------|-----------|--------------|
+| `ARITHMETIC` | Direct Python eval (safe subset) | Complex word problems |
+| `LOGIC` | Forward/backward chaining (LogicEngine) | Natural language logic |
+| `CONSTRAINT` | AC-3 + backtracking + MRV heuristic | Underspecified CSPs |
+| `SAT` | DPLL with unit propagation + pure literal | Large/complex formulae |
+| `LINEAR_ALGEBRA` | Gaussian elimination with pivoting | Symbolic/abstract |
+| `GRAPH` | Dijkstra, shortest path, BFS/DFS | Graph construction from NL |
+| `OPTIMIZATION` | Nelder-Mead simplex | High-dimensional/non-numeric |
+| `SEQUENCE` | Pattern detection + extrapolation | Novel sequence types |
+| `ANALOGY` | Structural mapping (numeric + symbolic) | Abstract metaphors |
+| `PROBABILITY` | Analytical computation | Bayesian networks |
+| `GENERAL` | – | Always LLM |
 
-- Windows 10/11 64‑bit
-- Python 3.10+ and Git
-- FFmpeg (audio), Tesseract OCR (vision), Google Chrome/Edge and matching WebDriver
-- Optional: CUDA/cuDNN (GPU), Docker Desktop (sandbox), Ollama (local LLM)
+The engine also supports `reason_ensemble()` — multi-strategy voting where algorithmic and LLM solutions are compared and the highest-confidence answer wins.
 
-Quick steps:
+### Provider System
 
-1) Clone the repository and create a virtual environment
+All major subsystems are loaded through a `ProviderRegistry` with lazy imports:
 
-2) Install core or development dependencies
+```python
+provider_registry.register_lazy(
+    category="llm",           # "llm", "audio", "vision", "memory", "web", ...
+    name="default",           # Named variant within category
+    module="mia.llm.llm_manager",  # Dotted import path
+    class_name="LLMManager",       # Class to instantiate
+    default=True,                   # Is the default for this category?
+)
+```
 
-3) Copy `config/.env.example` to `.env` and set credentials (email, optional APIs, etc.)
+This allows **zero-cost imports** — modules are only loaded when first requested via `provider_registry.create("llm")`. Adding a new LLM backend or memory store requires only registering a factory; no core code changes.
 
-4) Review `config/config.yaml` and select local backends (LLM/STT/TTS/Vision)
+### Tool Registry
 
-Note: for WhatsApp Web automation, ensure Chrome/Edge is installed and the WebDriver version matches the browser.
+Tools are defined as OpenAI function-calling JSON schemas:
 
+```python
+_tool(
+    name="web_search",
+    description="Search the web and return structured results with titles, URLs, and snippets.",
+    properties={
+        "query": _prop("Search query"),
+        "num_results": _prop("Number of results", "integer"),
+    },
+    required=["query"],
+)
+```
 
-## Installation (Linux)
+For models without native function calling, `get_tool_descriptions_text()` generates a ReAct-compatible plain-text summary that the agent parses with regex.
 
-Prerequisites:
+**Tool categories:** Web (search, scrape, research, Wikipedia, YouTube) · File I/O (CRUD, directory ops, search) · Documents (docx, pptx, xlsx, pdf) · Communication (email, WhatsApp, Telegram, notifications) · Desktop (type, click, keys, app launch, window text) · System (commands, processes, clipboard) · Code (create, analyze, execute) · Memory (store, search, retrieve) · IoT (MQTT, Home Assistant) · Calendar · OCR · Embeddings
 
-- Linux (Ubuntu 20.04+, Debian 11+, Fedora 36+, Arch, or similar)
-- Python 3.8+ with pip and venv
-- Git
-- Audio libraries: PortAudio, ALSA, PulseAudio
-- FFmpeg (for audio processing)
-- Optional: NVIDIA GPU with CUDA (for accelerated inference)
-- Optional: Ollama (for local LLM)
+### Security Model
 
-Quick steps:
+```
+ActionExecutor.ACTION_SCOPES = {
+    "read_file":    {"file"},        # Scoped permissions per tool
+    "send_email":   {"email"},
+    "run_command":  {"system"},
+    "web_search":   {"web"},
+    ...
+}
 
-1) Install system dependencies:
+Execution flow:
+  1. Scope check    → Is this tool allowed in current session?
+  2. Consent gate   → consent_callback() prompts user for sensitive actions
+  3. Execution      → Tool runs with error handling
+  4. Audit log      → Structured log entry with tool name, params, result
+```
+
+Sensitive actions (file writes, email, messaging, shell commands, desktop automation) require explicit user confirmation via a configurable `consent_callback`. Code execution uses subprocess isolation with optional Docker/WASI sandboxing.
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+| Component | Required | Optional |
+|-----------|----------|----------|
+| Python 3.10+ | ✅ | |
+| Git | ✅ | |
+| Ollama | | Local LLM inference |
+| FFmpeg | | Audio processing |
+| Tesseract OCR | | Vision/OCR |
+| Chrome/Edge + WebDriver | | Web automation (Selenium) |
+| CUDA/cuDNN | | GPU acceleration |
+| Docker | | Sandbox isolation |
+
+### Installation
 
 ```bash
-# Ubuntu/Debian
-sudo apt update && sudo apt install python3 python3-pip python3-venv python3-dev \
-    portaudio19-dev alsa-utils pulseaudio ffmpeg git
+# Clone
+git clone https://github.com/Matheussoranco/M.I.A-The-successor-of-pseudoJarvis.git
+cd M.I.A-The-successor-of-pseudoJarvis
 
-# Fedora
-sudo dnf install python3 python3-pip python3-devel portaudio-devel alsa-utils pulseaudio ffmpeg git
+# Create virtual environment
+python -m venv venv
 
-# Arch Linux
-sudo pacman -S python python-pip python-virtualenv portaudio alsa-utils pulseaudio ffmpeg git
-```
-
-2) Clone the repository and set up:
-
-```bash
-git clone https://github.com/yourusername/M.I.A_Multimodal_Inteligent_Assistant.git
-cd M.I.A_Multimodal_Inteligent_Assistant
-chmod +x setup-permissions.sh && ./setup-permissions.sh
-```
-
-3) Install using Make (recommended) or manually:
-
-```bash
-# Using Make (recommended)
-make install
-
-# Or manually
-python3 -m venv venv
+# Activate (Windows)
+venv\Scripts\activate
+# Activate (Linux/macOS)
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+
+# Install — choose your tier:
+pip install -r requirements-core.txt    # Text-only, minimal (~15 deps)
+pip install -r requirements.txt         # Everything (core + extras + dev)
+
+# Install as editable package
 pip install -e .
 ```
 
-4) Copy `config/.env.example` to `.env` and set credentials:
+### Running
 
 ```bash
-cp config/.env.example .env
-nano .env  # Edit with your API keys
-mkdir -p logs memory cache
+# Interactive CLI (default)
+python -m mia
+# or
+mia                                    # If installed via pip install -e .
+
+# Web UI (Ollama-style chat)
+python -m mia --web
+python -m mia --web --port 8080
+
+# API server (FastAPI + Uvicorn)
+mia-api
+# or
+python -m mia.api.server
+
+# Text-only mode (no audio hardware required)
+python -m mia --mode text
+
+# Debug mode (verbose logging)
+python -m mia --debug
 ```
 
-5) Review `config/config.yaml` and select local backends (LLM/STT/TTS/Vision)
-
-Note: For audio features, ensure your user is in the `audio` group: `sudo usermod -aG audio $USER`
-
-### Running on Linux
+### First Run with Ollama
 
 ```bash
-# Using Make
-make run            # Default mode
-make run-text       # Text-only mode (no audio)
-make run-debug      # Debug mode
-make run-api        # Start API server
-make run-ui         # Start Streamlit UI
+# Install Ollama (https://ollama.com)
+# Pull a model
+ollama pull llama3.1:8b
 
-# Using scripts
-./scripts/run/run.sh
-./scripts/run/run.sh --text-only
-./scripts/run/run.sh --debug
-
-# Direct Python
-source venv/bin/activate
-python -m mia.main
+# M.I.A auto-detects Ollama on localhost:11434
+python -m mia
 ```
 
-### Optional: Install Ollama (Local LLM)
+### Linux System Dependencies
 
 ```bash
-curl -fsSL https://ollama.ai/install.sh | sh
-ollama pull mistral:instruct
-ollama serve  # Or: systemctl start ollama
+# Ubuntu/Debian
+sudo apt update && sudo apt install python3 python3-pip python3-venv \
+    python3-dev portaudio19-dev ffmpeg git
+
+# Fedora
+sudo dnf install python3 python3-pip python3-devel portaudio-devel ffmpeg git
+
+# Arch
+sudo pacman -S python python-pip python-virtualenv portaudio ffmpeg git
 ```
 
-### Optional: Run as Systemd Service
-
-```bash
-sudo cp scripts/linux/mia@.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now mia@$USER
-```
-
-### Optional: Docker
+### Docker
 
 ```bash
 docker-compose up -d
 ```
 
+---
 
 ## Configuration
 
-`.env` file (typical examples):
+### Environment Variables (`.env`)
 
-- SMTP email: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`
-- Optional providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
-- Local services toggles: ports, paths, and feature switches for tools
+```bash
+# LLM Providers (set one or more)
+OLLAMA_HOST=http://localhost:11434       # Local Ollama
+OPENAI_API_KEY=sk-...                    # OpenAI
+ANTHROPIC_API_KEY=sk-ant-...             # Anthropic
+GOOGLE_API_KEY=...                       # Google Gemini
+HUGGINGFACE_HUB_TOKEN=hf_...            # HuggingFace
 
-`config/config.yaml` (example keys):
+# Web Search (optional — DuckDuckGo works with no keys)
+GOOGLE_API_KEY=...                       # Google Custom Search
+GOOGLE_CSE_ID=...                        # Custom Search Engine ID
 
-- `llm.provider`: `ollama` | `llamacpp` | `openai` | `azure` ...
-- `llm.model`: local model name (e.g., `llama3:8b`, `mistral:7b`)
-- `audio.stt`: `whisper.cpp` | `vosk`; `audio.tts`: `piper` | `coqui`
-- `vision.provider`: local `llava` (or OCR + captioning);
-- `memory.vector_store`: `chroma`; database paths and context limits
-- `tools.enabled`: list of enabled tools (email, whatsapp, office, selenium, iot, os, notifications)
-- `security.confirm_before_action`: true/false
+# Email
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+EMAIL_USERNAME=...
+EMAIL_PASSWORD=...                       # App password
 
+# Telegram
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_API_ID=...
+TELEGRAM_API_HASH=...
 
-## How to run
-
-- CLI (interactive): `python -m mia.main` or `python .` (root `main.py` triggers initialization)
-- API (FastAPI): module `src/mia/api/server.py` (serve with Uvicorn/Gunicorn)
-- Voice mode: enable hotword/VAD in `config.yaml` and connect mic/speakers
-
-Outputs and logs are stored locally under `cache/` and per observability settings.
-
-
-## Example flows (natural commands)
-
-- “Send a WhatsApp message to Maria saying ‘arriving at 7pm’. If the chat doesn’t exist, open and search for the contact.”
-- “Write an email to team@company.com with subject ‘Meeting’ and a summary of the topics, in a professional tone.”
-- “Create an xlsx spreadsheet with three tabs: goals, budget, and expenses; use the attached data and generate charts.”
-- “Generate a .docx document with a project brief and export a final PDF.”
-- “Read this PDF, extract tables, and give me key insights with statistics.”
-- “Search for the latest AI news, open the first 5 pages, and produce a summary with links.”
-- “Open the calendar app, create an event tomorrow at 9 AM, and remind me 30 minutes earlier.”
-- “Take a photo of the whiteboard, recognize the content, and attach it to the report.”
-- “Write a Python script to rename files by pattern and run it in the sandbox.”
-- “Turn on the living room light to 50% via MQTT.”
-
-
-## Automation and tools
-
-- Email: traditional SMTP (with app passwords) or Microsoft Graph API (OAuth2). Respect provider policies.
-- WhatsApp: automate WhatsApp Web via Selenium (Chrome/Edge) using the user’s session; respect Terms of Use.
-- Office/Docs: create with `python-docx`, `python-pptx`, `openpyxl`; PDFs with `reportlab` or headless conversion.
-- Web/Selenium: search, pagination, clicks, scrolling, and data extraction (BeautifulSoup optional for post‑processing).
-- OS/Apps: launch processes, focus windows, Windows Toast notifications, shortcuts, and clipboard.
-- IoT: MQTT (paho‑mqtt), Home Assistant (REST/WebSocket APIs), Zigbee2MQTT.
-
-
-## Local model execution
-
-- LLM (text): Ollama with quantized models (4‑8 bit) for a good latency/quality balance on CPU/GPU.
-- Vision: multimodal models via Ollama/gguf or a local OCR + captioning + VQA pipeline.
-- STT/TTS: Whisper.cpp and Piper are lightweight, offline, and high‑quality.
-- Caching: reuse embeddings/outputs to reduce latency; tune context length according to RAM.
-
-
-## Security and privacy
-
-- Local‑first: data, documents, history, and memory remain on your machine.
-- Confirmation: sensitive actions (send messages/emails, modify files, IoT) require confirmation.
-- Isolation: code execution and automations can run inside Docker/WSL2 to reduce host impact.
-- Secrets: `.env` for minimal variables and periodic rotation; never commit.
-
-
-## Testing and quality
-
-- Tests: `tests/` folder with unit and integration tests; run with `pytest` (prepared environment).
-- Lint: `.flake8` configured; recommended to integrate in editor/CI.
-- Benchmarks: `src/mia/benchmark_runner.py` and `benchmark_config.py` for performance scenarios.
-
-
-## Project structure (partial)
-
-```
-M.I.A_Multimodal_Inteligent_Assistant/
-├─ main.py                 # local execution bootstrap
-├─ config/
-│  ├─ .env.example         # environment variables
-│  └─ config.yaml          # main configuration
-├─ src/mia/
-│  ├─ main.py              # core entrypoint
-│  ├─ llm/                 # model management and inference
-│  ├─ audio/               # STT/TTS/VAD/Hotword
-│  ├─ multimodal/          # vision and multimodal fusion
-│  ├─ memory/              # long‑term memory and knowledge graph
-│  ├─ adaptive_intelligence/ # orchestration, planning, feedback
-│  ├─ api/                 # FastAPI server
-│  ├─ tools/               # pluggable tools (OS, web, docs, etc.)
-│  ├─ security/            # security policies/guardrails
-│  └─ system/              # OS integration and local resources
-└─ tests/                  # unit and integration tests
+# IoT
+HOME_ASSISTANT_URL=http://homeassistant.local:8123
+HOME_ASSISTANT_TOKEN=...
 ```
 
+### Configuration File (`config/config.yaml`)
 
-## Extensibility
+```yaml
+llm:
+  provider: ollama                  # ollama | openai | anthropic | azure | huggingface | llamacpp
+  model: llama3.1:8b                # Model identifier
+  temperature: 0.7
+  max_tokens: 4096
+  context_length: 8192
 
-- Plugins/Tools: add modules under `src/mia/tools` with a tool contract (name, input/output schema, permissions).
-- Providers: implement adapters under `src/mia/llm` for new backends (e.g., another local model server).
-- Channels: new inputs/outputs (e.g., inbound email, Slack, SMS) can be added as “connectors”.
+audio:
+  stt: whisper                      # whisper | vosk | speechrecognition
+  tts: piper                        # piper | coqui | pyttsx3
+  vad: webrtc                       # WebRTC VAD
+  hotword: enabled                  # Wake-word activation
 
+vision:
+  provider: llava                   # llava | tesseract | easyocr
+  ocr_engine: tesseract
+
+memory:
+  vector_store: chroma              # ChromaDB
+  embedding_model: all-MiniLM-L6-v2
+  max_context_items: 10
+  persist_dir: memory/
+
+tools:
+  enabled:
+    - web_search
+    - file_operations
+    - email
+    - desktop_automation
+    - code_execution
+    - documents
+
+security:
+  confirm_before_action: true       # Ask before sensitive ops
+  allowed_scopes:                   # Restrict tool categories
+    - web
+    - file
+    - system
+```
+
+---
+
+## API Reference
+
+The FastAPI server exposes the following endpoints. All chat endpoints route through the `ToolCallingAgent`, giving API clients full access to tools, memory, planning, and multi-agent orchestration.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check — returns `{"status": "ok", "version": "..."}` |
+| `GET` | `/ready` | Readiness — reports agent and LLM availability |
+| `POST` | `/chat` | Non-streaming chat. Body: `{"prompt": "..."}` → `{"response": "...", "status": "success"}` |
+| `GET` | `/chat/stream?prompt=...` | SSE streaming. Returns `data: <token>` events, `event: done` on completion |
+| `GET` | `/actions` | List available tools |
+| `POST` | `/actions/{name}` | Execute a specific tool with parameters |
+| `GET` | `/memory?query=...` | Search persistent memory |
+| `POST` | `/memory` | Store memory item. Body: `{"text": "...", "metadata": {...}}` |
+| `GET` | `/status` | System status: LLM, memory, actions, speech, web agent availability |
+
+### Example
+
+```bash
+# Chat (with full tool access)
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Search the web for the latest Python release and summarize"}'
+
+# Streaming
+curl -N "http://localhost:8080/chat/stream?prompt=Explain+quantum+computing"
+
+# Execute a tool directly
+curl -X POST http://localhost:8080/actions/web_search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "latest AI news"}'
+```
+
+---
+
+## Benchmarks
+
+M.I.A includes benchmark harnesses for evaluating against standard AGI/agent benchmarks. Framework-level adapters are implemented under `src/mia/benchmarks/`:
+
+| Benchmark | Module | Domain |
+|-----------|--------|--------|
+| [ARC-AGI](https://arcprize.org/) | `arc_agi.py` | Abstract reasoning, grid transformations |
+| [SWE-bench](https://swebench.com/) | `swe_bench.py` | Autonomous software engineering |
+| [GAIA](https://huggingface.co/gaia-benchmark) | `gaia.py` | Multi-step reasoning with tool use |
+| [GPQA](https://arxiv.org/abs/2311.12022) | `gpqa.py` | Graduate-level science questions |
+| [MMMU](https://mmmu-benchmark.github.io/) | `mmmu.py` | Multimodal understanding |
+| [OSWorld](https://os-world.github.io/) | `osworld.py` | Desktop task automation |
+| [WebVoyager](https://arxiv.org/abs/2401.13919) | `webvoyager.py` | Web navigation and interaction |
+
+```bash
+python -m mia.benchmarks.runner --benchmark arc_agi --data path/to/tasks.json
+```
+
+---
+
+## Testing
+
+```bash
+# All tests (190 pass, 3 skipped)
+python -m pytest tests/ -q
+
+# By category
+python -m pytest tests/unit/             # 134 unit tests
+python -m pytest tests/integration/      # 49 integration tests
+python -m pytest tests/e2e/              # 10 end-to-end tests
+
+# With coverage
+python -m pytest tests/ --cov=src/mia --cov-report=term-missing
+
+# Specific module
+python -m pytest tests/unit/test_tool_calling_agent.py -v
+```
+
+### Test Structure
+
+```
+tests/
+├── conftest.py                     # Shared fixtures, mocks
+├── unit/                           # Isolated component tests
+│   ├── test_action_executor.py
+│   ├── test_agent_memory.py
+│   ├── test_cognitive_architecture.py
+│   ├── test_error_handler.py
+│   ├── test_llm_manager.py
+│   ├── test_main.py
+│   ├── test_multimodal_processor.py
+│   ├── test_speech_generator.py
+│   ├── test_tool_calling_agent.py
+│   └── test_vision_processor.py
+├── integration/                    # Cross-module integration
+│   ├── test_comprehensive_integration.py
+│   ├── test_end_to_end.py
+│   ├── test_mia_integration.py
+│   └── test_performance.py
+└── e2e/                            # Full-stack scenarios
+    └── test_e2e_scenarios.py
+```
+
+---
+
+## Dependencies
+
+M.I.A uses a tiered dependency model:
+
+| Tier | File | Contents | Count |
+|------|------|----------|-------|
+| **Core** | `requirements-core.txt` | Runtime essentials (openai, anthropic, requests, pydantic, numpy, sentence-transformers) | ~15 |
+| **Extras** | `requirements-extras.txt` | Audio (whisper, piper, sounddevice), vision (opencv, PIL, tesseract), documents (docx, pptx, openpyxl), web (selenium, beautifulsoup4), sandbox (wasmtime, docker), benchmarks (swe-bench, gymnasium) | ~60 |
+| **Dev** | `requirements-dev.txt` | Testing (pytest), linting (flake8, black, isort, mypy) | ~10 |
+| **All** | `requirements.txt` | Aggregates all three tiers | ~85 |
+
+---
+
+## Project Metadata
+
+| | |
+|---|---|
+| **Language** | Python 3.10+ |
+| **Package** | `mia-successor` |
+| **Source** | `src/mia/` (97 files) |
+| **License** | AGPL-3.0-or-later |
+| **Build** | setuptools + pyproject.toml |
+| **Linting** | black (79 cols), isort, flake8, mypy (strict) |
+| **Tests** | pytest — 193 collected, 190 pass, 3 skip |
+| **Entry points** | `mia` (CLI), `mia-api` (server), `mia-web` (Web UI) |
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Write tests for new functionality
+4. Ensure all tests pass: `python -m pytest tests/ -q`
+5. Ensure code quality: `black src/ tests/` and `mypy src/mia/`
+6. Submit a pull request
+
+---
 
 ## License
 
-See the `LICENSE` file at the project root.
+**AGPL-3.0-or-later** — see [LICENSE](LICENSE).
 
+## Author
 
-## Intentions not yet implemented (not a roadmap)
+**Matheus Pullig Soranço de Carvalho** — [matheussoranco@gmail.com](mailto:matheussoranco@gmail.com)
 
-- Execution in an isolated microVM on Windows (via Windows Sandbox/WSL2/Docker with automated restrictive policies).
-- Direct integration with official WhatsApp Business APIs (on‑prem model) while keeping local privacy.
-- Navigation agent with fine‑tuning for long goals (live replanning and web‑specific memory).
-- Embedded local IDE with structured code editing, refactors, and agent‑guided tests.
-- Low‑latency streaming speech recognition with full on‑device multi‑speaker diarization.
-- Deep integration with local calendar/contacts (private indexing and personal insights), without cloud.
-- Native support for more languages/toolchains (Rust, Go, C/C++/CUDA) with isolated execution and build caching.
-- Full graphical observability dashboard with distributed tracing and session replay.
-- Local continual learning with human feedback (RLHF) preserving privacy.
-
-## Licence
-
-AGPL-3.0-or-later — consulte `LICENSE`.
-
-
-## Autor
-
-Matheus Pullig Soranço de Carvalho — matheussoranco@gmail.com
+GitHub: [Matheussoranco](https://github.com/Matheussoranco)

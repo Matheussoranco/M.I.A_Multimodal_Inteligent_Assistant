@@ -69,8 +69,10 @@ def create_app() -> Any:
     def ready() -> Dict[str, Any]:
         # Check if core components are available
         llm_available = "llm" in components and components["llm"] is not None
+        agent_available = "agent" in components and components["agent"] is not None
         return {
-            "status": "ready" if llm_available else "partial",
+            "status": "ready" if agent_available else ("partial" if llm_available else "unavailable"),
+            "agent_available": agent_available,
             "llm_available": llm_available,
         }
 
@@ -82,30 +84,33 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail="Prompt is required")
 
         async def event_generator():
-            try:
+            agent = components.get("agent")
+            if agent:
+                # Stream through the full ToolCallingAgent (tools + memory + planning)
+                try:
+                    for chunk in await asyncio.to_thread(
+                        lambda: list(agent.run_stream(prompt))
+                    ):
+                        if chunk:
+                            yield f"data: {chunk}\n\n"
+                    yield "event: done\ndata: [DONE]\n\n"
+                except Exception as exc:
+                    yield f"event: error\ndata: Agent error: {exc}\n\n"
+                    return
+            else:
+                # Fallback to raw LLM if agent not available
                 llm = components.get("llm")
                 if not llm:
-                    yield f"event: error\ndata: LLM provider unavailable\n\n"
+                    yield "event: error\ndata: Agent and LLM unavailable\n\n"
                     return
-            except Exception as exc:
-                yield f"event: error\ndata: Failed to get LLM: {exc}\n\n"
-                return
-
-            try:
-                # Try streaming first, fallback to regular query
-                if hasattr(llm, "stream") and callable(getattr(llm, "stream")):
-                    async for token in llm.stream(prompt):
-                        if token:
-                            yield f"data: {token}\n\n"
-                else:
+                try:
                     response_text = await asyncio.to_thread(llm.query, prompt)
                     for token in response_text.split():
                         yield f"data: {token}\n\n"
-
-                yield "event: done\ndata: [DONE]\n\n"
-            except Exception as exc:
-                yield f"event: error\ndata: LLM error: {exc}\n\n"
-                return
+                    yield "event: done\ndata: [DONE]\n\n"
+                except Exception as exc:
+                    yield f"event: error\ndata: LLM error: {exc}\n\n"
+                    return
 
         return StreamingResponse(
             event_generator(), media_type="text/event-stream"
@@ -113,20 +118,31 @@ def create_app() -> Any:
 
     @app.post("/chat")
     async def chat(request: Dict[str, Any]) -> Dict[str, Any]:
-        """Non-streaming chat endpoint."""
+        """Non-streaming chat endpoint.
+
+        Routes through ToolCallingAgent so the API has full access to
+        tools, memory, planning, and multi-agent orchestration.
+        """
         prompt = request.get("prompt", "").strip()
         if not prompt:
             raise HTTPException(status_code=400, detail="Prompt is required")
 
         try:
-            llm = components.get("llm")
-            if not llm:
-                raise HTTPException(
-                    status_code=503, detail="LLM not available"
-                )
+            agent = components.get("agent")
+            if agent:
+                response = await asyncio.to_thread(agent.run, prompt)
+            else:
+                # Fallback to raw LLM if agent not available
+                llm = components.get("llm")
+                if not llm:
+                    raise HTTPException(
+                        status_code=503, detail="Agent and LLM not available"
+                    )
+                response = await asyncio.to_thread(llm.query, prompt)
 
-            response = await asyncio.to_thread(llm.query, prompt)
             return {"response": response, "status": "success"}
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"LLM error: {exc}")
 

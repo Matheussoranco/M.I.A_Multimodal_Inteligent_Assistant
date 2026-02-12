@@ -1,18 +1,27 @@
 """
 Advanced Reasoning Module for M.I.A
 
-Implements state-of-the-art reasoning techniques to improve performance
-on AGI benchmarks:
+Implements state-of-the-art reasoning techniques:
 
+**Algorithmic (no LLM required):**
+- Constraint Satisfaction (AC-3 + backtracking)
+- Boolean Satisfiability (DPLL)
+- Symbolic equation solving
+- Logical inference (forward/backward chaining)
+- Graph reasoning (Dijkstra, BFS)
+- Sequence prediction (arithmetic, geometric, Fibonacci)
+- Nelder-Mead optimisation
+
+**Hybrid (algorithmic-first, LLM-fallback):**
+- HybridReasoningEngine — auto-classifies and routes tasks
+- CognitiveKernel — working memory, skill library, introspection
+
+**LLM-assisted (prompt-based):**
 - Chain-of-Thought (CoT) prompting
 - Tree-of-Thought (ToT) exploration
 - Self-consistency sampling
 - Reflection and self-correction
-- Tool-augmented reasoning
-- Multi-step planning
-
-These techniques are essential for achieving strong performance on
-benchmarks like ARC-AGI, GAIA, and GPQA.
+- Tool-augmented reasoning (ReAct)
 """
 
 import json
