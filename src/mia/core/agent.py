@@ -904,7 +904,7 @@ class ToolCallingAgent:
         if not self.orchestrator:
             return self._run_native(task) if self.supports_native_tools else self._run_react(task)
         try:
-            result = self.orchestrator.delegate(task, llm=self.llm, executor=self.executor)
+            result = self.orchestrator.delegate(task)
             return str(result) if result else "Delegation produced no result."
         except Exception as exc:
             logger.warning("Delegation failed: %s", exc)

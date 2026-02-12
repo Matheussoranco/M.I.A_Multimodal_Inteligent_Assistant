@@ -266,6 +266,15 @@ class ActionExecutor:
         # Initialize MCP Manager
         self.mcp_manager = MCPManager(self.config)
 
+    @property
+    def desktop_automation(self) -> Any:
+        """Lazy-loaded desktop automation instance.
+
+        This property is accessed by desktop_type_text, desktop_click,
+        desktop_send_keys, desktop_get_text, and desktop_execute_schema.
+        """
+        return self._get_desktop_automation()
+
     async def initialize(self):
         """Initialize async components."""
         await self.mcp_manager.initialize()
@@ -909,15 +918,85 @@ class ActionExecutor:
         except Exception as e:
             return f"Error opening file: {e}"
     
-    def web_search(self, query: str) -> str:
-        """Perform a web search."""
+    def web_search(self, query: str, num_results: int = 5) -> str:
+        """Perform a web search and return structured results.
+
+        Tries (in order):
+        1. Google Custom Search API (if GOOGLE_API_KEY + GOOGLE_CSE_ID set)
+        2. DuckDuckGo HTML scrape (no API key needed)
+        3. DuckDuckGo Lite (final fallback)
+
+        Returns a formatted string with titles, URLs, and snippets.
+        """
+        if not query or not query.strip():
+            return "No search query provided."
+
+        # ── Try Google Custom Search API first ──
+        google_key = os.getenv("GOOGLE_API_KEY", "") or self.config.get("research", {}).get("google_api_key", "")
+        google_cse = os.getenv("GOOGLE_CSE_ID", "") or self.config.get("research", {}).get("google_cse_id", "")
+        if google_key and google_cse:
+            try:
+                resp = requests.get(
+                    "https://www.googleapis.com/customsearch/v1",
+                    params={"key": google_key, "cx": google_cse, "q": query, "num": num_results},
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                items = resp.json().get("items", [])
+                if items:
+                    results = []
+                    for i, item in enumerate(items[:num_results], 1):
+                        title = item.get("title", "No title")
+                        link = item.get("link", "")
+                        snippet = item.get("snippet", "").replace("\n", " ")
+                        results.append(f"{i}. {title}\n   URL: {link}\n   {snippet}")
+                    return f"Search results for '{query}':\n\n" + "\n\n".join(results)
+            except Exception as exc:
+                self.logger.debug("Google CSE failed, falling back to DuckDuckGo: %s", exc)
+
+        # ── DuckDuckGo HTML fallback (no API key needed) ──
         try:
-            import webbrowser
-            url = f"https://www.google.com/search?q={query}"
-            webbrowser.open(url)
-            return f"Opened web search for: {query}"
-        except Exception as e:
-            return f"Error performing web search: {e}"
+            import re as _re
+            from urllib.parse import quote_plus, unquote
+
+            ddg_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            }
+            resp = requests.get(ddg_url, headers=headers, timeout=10)
+            resp.raise_for_status()
+
+            results = []
+            try:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(resp.text, "html.parser")
+                for result_div in soup.select(".result")[:num_results]:
+                    title_tag = result_div.select_one(".result__a")
+                    snippet_tag = result_div.select_one(".result__snippet")
+                    title = title_tag.get_text(strip=True) if title_tag else "No title"
+                    href = str(title_tag.get("href", "")) if title_tag else ""
+                    # DuckDuckGo wraps URLs in a redirect; extract the real one
+                    url_match = _re.search(r"uddg=([^&]+)", href)
+                    link = unquote(url_match.group(1)) if url_match else href
+                    snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
+                    results.append(f"{len(results)+1}. {title}\n   URL: {link}\n   {snippet}")
+            except ImportError:
+                # BeautifulSoup not installed — use regex fallback
+                title_matches = _re.findall(r'class="result__a"[^>]*>([^<]+)</a>', resp.text)
+                snippet_matches = _re.findall(r'class="result__snippet"[^>]*>(.*?)</td>', resp.text, _re.DOTALL)
+                for i, title in enumerate(title_matches[:num_results]):
+                    snippet = ""
+                    if i < len(snippet_matches):
+                        snippet = _re.sub(r'<[^>]+>', '', snippet_matches[i]).strip()
+                    results.append(f"{i+1}. {title.strip()}\n   {snippet}")
+
+            if results:
+                return f"Search results for '{query}':\n\n" + "\n\n".join(results)
+
+            return f"Search for '{query}' returned no results. Try rephrasing."
+        except Exception as exc:
+            self.logger.debug("DuckDuckGo HTML search failed: %s", exc)
+            return f"Web search failed: {exc}. Try a different query."
 
     def open_url(self, url: str) -> str:
         """Open a URL in the default browser."""
@@ -930,18 +1009,84 @@ class ActionExecutor:
         except Exception as e:
             return f"Error opening URL: {e}"
     
-    def web_scrape(self, url: str) -> str:
-        """Scrape content from a URL."""
+    def web_scrape(self, url: str, max_chars: int = 8000) -> str:
+        """Scrape and extract readable text content from a URL.
+
+        Uses BeautifulSoup for clean text extraction when available,
+        falling back to basic HTML tag stripping.
+        """
+        if not url or not url.strip():
+            return "No URL provided."
         try:
-            import urllib.request
-            with urllib.request.urlopen(url, timeout=10) as response:
-                return response.read().decode('utf-8')[:5000]
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            }
+            resp = requests.get(url, headers=headers, timeout=15)
+            resp.raise_for_status()
+            html = resp.text
+
+            try:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(html, "html.parser")
+                # Remove script, style, nav, footer noise
+                for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+                    tag.decompose()
+                text = soup.get_text(separator="\n", strip=True)
+            except ImportError:
+                import re as _re
+                text = _re.sub(r'<script[^>]*>.*?</script>', '', html, flags=_re.DOTALL)
+                text = _re.sub(r'<style[^>]*>.*?</style>', '', text, flags=_re.DOTALL)
+                text = _re.sub(r'<[^>]+>', ' ', text)
+                text = _re.sub(r'\s+', ' ', text).strip()
+
+            # Clean up excessive whitespace
+            import re as _re
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            text = "\n".join(lines)
+
+            if len(text) > max_chars:
+                text = text[:max_chars] + "\n\n[Content truncated]"
+
+            return f"Content from {url}:\n\n{text}" if text else f"No readable content found at {url}"
         except Exception as e:
             return f"Error scraping URL: {e}"
     
     def research_topic(self, topic: str) -> str:
-        """Research a topic using web search."""
-        return self.web_search(topic)
+        """Research a topic by searching the web and scraping top results.
+
+        Orchestrates: search → scrape top results → compile findings.
+        """
+        if not topic or not topic.strip():
+            return "No topic provided."
+
+        # Step 1: Get search results
+        search_output = self.web_search(topic, num_results=3)
+        if "failed" in search_output.lower() or "no results" in search_output.lower():
+            # Fallback to Wikipedia
+            wiki = self.wikipedia_search(topic)
+            if not wiki.startswith("Wikipedia search failed"):
+                return f"Research on '{topic}':\n\n**Wikipedia:**\n{wiki}\n\n**Web search:**\n{search_output}"
+            return search_output
+
+        # Step 2: Extract URLs from search results and scrape top ones
+        import re as _re
+        urls = _re.findall(r'URL:\s*(https?://[^\s]+)', search_output)
+        scraped_sections = []
+        for url in urls[:2]:  # Scrape top 2 results
+            try:
+                content = self.web_scrape(url, max_chars=3000)
+                if content and not content.startswith("Error"):
+                    scraped_sections.append(f"**Source: {url}**\n{content}")
+            except Exception:
+                continue
+
+        # Step 3: Compile
+        parts = [f"Research on '{topic}':\n", "**Search Results:**", search_output]
+        if scraped_sections:
+            parts.append("\n**Detailed Content:**")
+            parts.extend(scraped_sections)
+
+        return "\n\n".join(parts)
     
     def wikipedia_search(self, query: str) -> str:
         """Search Wikipedia for information."""
