@@ -8,6 +8,10 @@
   </p>
 </p>
 
+> **Note — Project Archived (February 2026)**
+>
+> M.I.A has been archived. It was built as a personal learning project and served its purpose — exploring agent architecture, tool registries, multi-agent orchestration, hybrid reasoning, multimodal pipelines, desktop automation, and API design from scratch. With the maturation of tools like Claude Desktop (native computer use + MCP), Open Interpreter, and first-party agentic frameworks, continuing development offers diminishing returns over what's now available out of the box. The codebase remains public as a reference and portfolio piece. No further features are planned.
+
 ---
 
 ## Overview
